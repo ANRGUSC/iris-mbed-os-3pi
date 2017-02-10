@@ -59,7 +59,7 @@ float threshold = 0.5;
  command sent*/
 void getdata()
 { 
-        LPC_UART1->IER = 0;   // Disable Rx interrupt
+        LPC_UART2->IER = 0;   // Disable Rx interrupt
         (*RX_THREAD_POINTER).signal_set(0x1); // Send signl to the reading thread 
                                             // rx_thread 
 }
@@ -81,41 +81,41 @@ void rx_thread(void const *argument){
             xbee.gets(current,32);
             pc.printf("%s",current);
         }  
-        // if(strcmp(current,"w")==0)
-        // {
-        //     pc.printf("Moving Forward\n");
-        //     m3pi.forward(speed);
-        //     Thread::wait(delta_t);
-        //     m3pi.stop();
-        // }    
-        // else if (strcmp(current,"a")==0)
-        // {
-        //     pc.printf("Moving Left\n");
-        //     m3pi.left(speed);
-        //     Thread::wait(delta_t);
-        //     m3pi.stop();
-        //     pc.printf("%s",current);
-        // }   
-        // else if (strcmp(current,"s")==0)
-        // {
-        //     pc.printf("Moving Backward\n");
-        //     m3pi.backward(speed);
-        //     Thread::wait(delta_t);
-        //     m3pi.stop();
-        // }
-        // else if (strcmp(current,"d")==0)
-        // {
-        //     pc.printf("Moving Right\n");
-        //     m3pi.right(speed);
-        //     Thread::wait(delta_t);
-        //     m3pi.stop();
-        // }
-        // else
-        // {
-
-        // }
+        if(current[0]=='w')
+        {
+            // pc.printf("Moving Forward\n");
+            m3pi.forward(speed);
+            Thread::wait(delta_t);
+            m3pi.stop();
+        }    
+        else if (current[0]=='a')
+        {
+            // pc.printf("Moving Left\n");
+            m3pi.left(speed);
+            Thread::wait(delta_t);
+            m3pi.stop();
+            // pc.printf("%s",current);
+        }   
+        else if (current[0]=='s')
+        {
+            // pc.printf("Moving Backward\n");
+            m3pi.backward(speed);
+            Thread::wait(delta_t);
+            m3pi.stop();
+        }
+        else if (current[0]=='d')
+        {
+         //   pc.printf("Moving Right\n");
+            m3pi.right(speed);
+            Thread::wait(delta_t);
+            m3pi.stop();
+        }
+        else
+        {
+        //    pc.printf("No Movement\n");
+        }
         /* Re-Enable the Receiver Interrupt */
-        LPC_UART1->IER = 1;    
+        LPC_UART2->IER = 1;    
     }
 }
  void eval_command(){ 
