@@ -2,7 +2,7 @@
 // contributor: Pradipta Ghosh
 // read license file in main directory for more details
 
-
+#include "m3pi.h"
 #include "mbed.h"
 #include "rtos.h"
 #include <string.h>
@@ -28,6 +28,9 @@ Thread        *RX_THREAD_POINTER;
 Thread        *CONT_THREAD_POINTER;
 Thread        *LQG_THREAD_POINTER;
 Thread        *RECV_THREAD_POINTER;
+
+m3pi m3pi;
+
 
 DigitalOut myled(LED1); //to notify when a character was received on mbed
 DigitalOut myled2(LED2); //to notify when a character was received on mbed
@@ -61,6 +64,7 @@ void getdata()
                                             // rx_thread 
 }
 
+int delta_t=200;
 
 /* This is the code for Xbee receiver data collection
  thread to get the rssi values.*/
@@ -77,24 +81,39 @@ void rx_thread(void const *argument){
             xbee.gets(current,32);
             pc.printf("%s",current);
         }  
-        if(strcmp(current,"w")==0)
-        {
+        // if(strcmp(current,"w")==0)
+        // {
+        //     pc.printf("Moving Forward\n");
+        //     m3pi.forward(speed);
+        //     Thread::wait(delta_t);
+        //     m3pi.stop();
+        // }    
+        // else if (strcmp(current,"a")==0)
+        // {
+        //     pc.printf("Moving Left\n");
+        //     m3pi.left(speed);
+        //     Thread::wait(delta_t);
+        //     m3pi.stop();
+        //     pc.printf("%s",current);
+        // }   
+        // else if (strcmp(current,"s")==0)
+        // {
+        //     pc.printf("Moving Backward\n");
+        //     m3pi.backward(speed);
+        //     Thread::wait(delta_t);
+        //     m3pi.stop();
+        // }
+        // else if (strcmp(current,"d")==0)
+        // {
+        //     pc.printf("Moving Right\n");
+        //     m3pi.right(speed);
+        //     Thread::wait(delta_t);
+        //     m3pi.stop();
+        // }
+        // else
+        // {
 
-        }    
-        else if (strcmp(current,"a")==0)
-        {
-
-        }   
-        else if (strcmp(current,"s")==0)
-        {
-
-        }
-        else if (strcmp(current,"d")==0)
-        {
-
-        }
-        else
-
+        // }
         /* Re-Enable the Receiver Interrupt */
         LPC_UART1->IER = 1;    
     }
