@@ -2,7 +2,7 @@
 // contributor: Pradipta Ghosh
 // read license file in main directory for more details
 
-
+#include "m3pi.h"
 #include "mbed.h"
 #include "rtos.h"
 #include <string.h>
@@ -29,6 +29,9 @@ Thread        *CONT_THREAD_POINTER;
 Thread        *LQG_THREAD_POINTER;
 Thread        *RECV_THREAD_POINTER;
 
+m3pi m3pi;
+
+
 DigitalOut myled(LED1); //to notify when a character was received on mbed
 DigitalOut myled2(LED2); //to notify when a character was received on mbed
 DigitalOut myled3(LED3); //to notify when a character was received on mbed
@@ -46,7 +49,9 @@ float observed_data[3][1]={{0},{0},{0}};
 // float data[MAX_NUM_SAMPLES];
 
 
-
+float speed = 0.2;
+float correction = 0.1;   
+float threshold = 0.5;
 
 /* This Function Handles the interrupt from the Xbee to
  get the rssi values. This callback function executes 
@@ -59,6 +64,7 @@ void getdata()
                                             // rx_thread 
 }
 
+int delta_t=200;
 
 /* This is the code for Xbee receiver data collection
  thread to get the rssi values.*/
@@ -75,7 +81,39 @@ void rx_thread(void const *argument){
             xbee.gets(current,32);
             pc.printf("%s",current);
         }  
+        // if(strcmp(current,"w")==0)
+        // {
+        //     pc.printf("Moving Forward\n");
+        //     m3pi.forward(speed);
+        //     Thread::wait(delta_t);
+        //     m3pi.stop();
+        // }    
+        // else if (strcmp(current,"a")==0)
+        // {
+        //     pc.printf("Moving Left\n");
+        //     m3pi.left(speed);
+        //     Thread::wait(delta_t);
+        //     m3pi.stop();
+        //     pc.printf("%s",current);
+        // }   
+        // else if (strcmp(current,"s")==0)
+        // {
+        //     pc.printf("Moving Backward\n");
+        //     m3pi.backward(speed);
+        //     Thread::wait(delta_t);
+        //     m3pi.stop();
+        // }
+        // else if (strcmp(current,"d")==0)
+        // {
+        //     pc.printf("Moving Right\n");
+        //     m3pi.right(speed);
+        //     Thread::wait(delta_t);
+        //     m3pi.stop();
+        // }
+        // else
+        // {
 
+        // }
         /* Re-Enable the Receiver Interrupt */
         LPC_UART1->IER = 1;    
     }
@@ -105,7 +143,9 @@ int main() {
     RX_THREAD_POINTER = &t_rx; 
     Thread pc_data(pc_control_thread);
     CONT_THREAD_POINTER = &pc_data;
-   
+    m3pi.locate(0,1);
+    m3pi.printf("Rmt Control");
+    m3pi.sensor_auto_calibrate();
 
    // 
     void (*fpointer)(void) = &eval_command;
