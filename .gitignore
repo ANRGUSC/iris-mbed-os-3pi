@@ -27,7 +27,12 @@
 *.i*86
 *.x86_64
 *.hex
-
+BUILD/
 # Debug files
 *.dSYM/
 *.su
+
+m3pi/
+mbed-os/
+.tags*
+
