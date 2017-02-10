@@ -46,9 +46,7 @@ float observed_data[3][1]={{0},{0},{0}};
 // float data[MAX_NUM_SAMPLES];
 
 
-float speed = 0.2;
-float correction = 0.1;   
-float threshold = 0.5;
+
 
 /* This Function Handles the interrupt from the Xbee to
  get the rssi values. This callback function executes 
@@ -77,23 +75,6 @@ void rx_thread(void const *argument){
             xbee.gets(current,32);
             pc.printf("%s",current);
         }  
-        if(strcmp(current,"w")==0)
-        {
-
-        }    
-        else if (strcmp(current,"a")==0)
-        {
-
-        }   
-        else if (strcmp(current,"s")==0)
-        {
-
-        }
-        else if (strcmp(current,"d")==0)
-        {
-
-        }
-        else
 
         /* Re-Enable the Receiver Interrupt */
         LPC_UART1->IER = 1;    
@@ -124,9 +105,7 @@ int main() {
     RX_THREAD_POINTER = &t_rx; 
     Thread pc_data(pc_control_thread);
     CONT_THREAD_POINTER = &pc_data;
-    m3pi.locate(0,1);
-    m3pi.printf("Rmt Control");
-    m3pi.sensor_auto_calibrate();
+   
 
    // 
     void (*fpointer)(void) = &eval_command;
