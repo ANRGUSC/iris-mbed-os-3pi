@@ -13,13 +13,6 @@
 #define MOVEMENT 1
 #define INTERVAL 10
 
-#define LINEAR 1
-typedef struct {
-    float observed_data[3][1];   /* AD result of measured voltage */
-} message_t;
-MemoryPool<message_t, 16> mpool;
-Queue<message_t, 16> queue;
-// message_t *message;
 
 Mutex data_mutex; 
 Mutex control_mutex; 
@@ -69,8 +62,7 @@ int delta_t=200;
 /* This is the code for Xbee receiver data collection
  thread to get the rssi values.*/
 void rx_thread(void const *argument){
-    xbee.baud(115200);
-
+    
     while (true) 
     {
         myled2=!myled2;
@@ -136,25 +128,26 @@ void pc_control_thread(void const *argument){
 }
  
 
-int main() {
-    // Thread rotating_platform(antenna_thread);
-    // RECV_THREAD_POINTER=&rotating_platform;
-    Thread t_rx(rx_thread);
+int main() 
+{
+    Thread t_rx(rx_thread); // Thread for Serial-in from Openmote
     RX_THREAD_POINTER = &t_rx; 
-    Thread pc_data(pc_control_thread);
+    Thread pc_data(pc_control_thread); // Thread for Serial-in 
     CONT_THREAD_POINTER = &pc_data;
+    
+    void (*fpointer)(void) = &eval_command;
+    void (*fpointer1)(void) = &getdata;
+    pc.attach(fpointer,Serial::RxIrq); 
+    pc.baud(115200);
+    xbee.baud(115200);
+    xbee.attach(fpointer1,Serial::RxIrq);
+    
+
     m3pi.locate(0,1);
     m3pi.printf("Rmt Control");
     m3pi.sensor_auto_calibrate();
 
-   // 
-    void (*fpointer)(void) = &eval_command;
-    void (*fpointer1)(void) = &getdata;
-    pc.attach(fpointer,Serial::RxIrq); 
-    //attach a function to be done when a command is sent from the computer keyboard
-    pc.baud(115200);
-    xbee.baud(115200);
-    xbee.attach(fpointer1,Serial::RxIrq);
+   
     while (true) {
         myled = !myled;
         Thread::wait(300);
