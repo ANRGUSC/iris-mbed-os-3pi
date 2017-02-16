@@ -30,15 +30,8 @@ DigitalOut myled2(LED2); //to notify when a character was received on mbed
 
 Serial xbee(p28, p27); //used to connected the mbed to the xbee over Serial UART comm.
 
-int count=1;
-bool antenna_rotation_dir_flag=0,safeflag=0;
-bool flag_cont=0;
-char current[32]; //holds the value of the character that was read
-float cur_state[3][1]={{3.0},{0},{0}};
-float next_state[3][1]={{0},{0},{0}};
-float observed_data[3][1]={{0},{0},{0}};
-// float data[MAX_NUM_SAMPLES];
 
+char current[32]; //holds the value of the character that was read
 
 float speed = 0.2;
 float correction = 0.1;   
