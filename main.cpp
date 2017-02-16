@@ -39,10 +39,7 @@ float threshold = 0.5;
 
 int delta_t=200; //Movement Granurarity
 
-/* This Function Handles the interrupt from the Xbee to
- get the rssi values. This callback function executes 
- every time a Serial intterupt is generated to get the
- command sent*/
+/* This Function Handles the interrupt from the Xbee*/
 void getdata()
 { 
         LPC_UART2->IER = 0;   // Disable Rx interrupt  UART2 is for pin 28,27
@@ -62,42 +59,36 @@ void rx_thread(void const *argument){
         if(xbee.readable()) //Check If there is somethig to read in the serial
         {
             xbee.gets(current,32); // Get the command
-            // pc.printf("%s",current); // Just For Debug
         }
 
 
         if(current[0]=='w')
         {
-            // pc.printf("Moving Forward\n");
             m3pi.forward(speed);
             Thread::wait(delta_t);
             m3pi.stop();
         }    
         else if (current[0]=='a')
         {
-            // pc.printf("Moving Left\n");
             m3pi.left(speed);
             Thread::wait(delta_t);
             m3pi.stop();
-            // pc.printf("%s",current);
         }   
         else if (current[0]=='s')
         {
-            // pc.printf("Moving Backward\n");
             m3pi.backward(speed);
             Thread::wait(delta_t);
             m3pi.stop();
         }
         else if (current[0]=='d')
         {
-         //   pc.printf("Moving Right\n");
             m3pi.right(speed);
             Thread::wait(delta_t);
             m3pi.stop();
         }
         else
         {
-        //    pc.printf("No Movement\n");
+        //   
         }
 
 
