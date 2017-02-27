@@ -33,7 +33,7 @@ Serial xbee(p28, p27); //used to connected the mbed to the xbee over Serial UART
 
 char current[32]; //holds the value of the character that was read
 
-float speed = 0.2;
+float speed = 0.1;
 float correction = 0.1;   
 float threshold = 0.5;
 
@@ -85,6 +85,20 @@ void rx_thread(void const *argument){
             m3pi.right(speed);
             Thread::wait(delta_t);
             m3pi.stop();
+        }
+        else if (current[0]=='e')
+        {
+            speed=speed+0.1;
+            if (speed>1.0)
+                speed=1.0;
+            //m3pi.stop();
+        }
+        else if (current[0]=='q')
+        {
+            speed=speed-0.1;
+            if (speed<0)
+                speed=0;
+            //m3pi.stop();
         }
         else
         {
