@@ -64,8 +64,18 @@ typedef struct {
     yahdlc_control_t control;
     char *data;
     unsigned int length;
-    mutex_t mtx;
+   // mutex_t mtx;
 } hdlc_buf_t;
+
+typedef struct {
+    // kernel_pid_t sender_pid;    /**< PID of sending thread. Will be filled in
+                                     // by msg_send. */
+    uint16_t type;              /**< Type field. */
+    union {
+        void *ptr;              /**< Pointer content field. */
+        uint32_t value;         /**< Value content field. */
+    } content;                  /**< Content of the message. */
+} msg_t;
 
 extern Serial *hdlc_pc; //used to connect to pc for debugging through a virtual COM port
 
@@ -89,6 +99,6 @@ enum {
 
 int hdlc_pkt_release(hdlc_buf_t *buf);
 
-osThreadId hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev);
+int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name, int dev);
 
 #endif /* MUTEX_H_ */
