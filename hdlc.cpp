@@ -49,7 +49,7 @@
  * @}
  */
 
-
+//TODO?? Have to figure out how to automatically set DEVICE_SERIAL_ASYNCH=1 without changing the original Serial code
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -73,7 +73,7 @@
 static osThreadId hdlc_dispatcher_pid, sender_pid, hdlc_thread_pid;
 
 
-
+Timer global_time;
 CircularBuffer<char, UART_BUFSIZE> *ctx;
 
 
@@ -117,7 +117,7 @@ static void rx_cb(void)//(void *arg, uint8_t data)
 
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 {
-    msg_t msg, ack_msg;
+    msg_t *msg, *ack_msg;
     int ret;
     int retval;
     char c;
@@ -135,49 +135,59 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
         recv_buf.mtx.unlock();
 
 
-        // if (recv_buf.length > 0 && ret != -EIO && 
-        //     (recv_buf.control.seq_no == *recv_seq_no % 8 ||
-        //     recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
-        //     /* valid data frame received */
-        //     // DEBUG("received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
+        if (recv_buf.length > 0 && ret != -EIO && 
+            (recv_buf.control.seq_no == *recv_seq_no % 8 ||
+            recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
+            /* valid data frame received */
+            // DEBUG("received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-        //     /* always send ack */
-        //     msg_t *ack_msg = msg_mail_box.alloc();
-        //     ack_msg->type = HDLC_MSG_SND_ACK;
-        //     ack_msg->content.value = recv_buf.control.seq_no;
-        //     msg_send_to_self(&ack_msg); /* send ack */
+            /* always send ack */
+            ack_msg = msg_mail_box.alloc();
+            ack_msg->sender_pid=osThreadGetId();
+            ack_msg->type = HDLC_MSG_SND_ACK;
+            ack_msg->content.value = recv_buf.control.seq_no;
+            msg_mail_box.put(ack_msg); 
+            // msg_send_to_self(&ack_msg); /* send ack */
 
-        //     /* pass on packet to dispatcher */
-        //     if (recv_buf.control.seq_no == *recv_seq_no % 8) {
-        //         /* lock pkt until dispatcher makes a copy and unlocks */
-        //         recv_buf.mtx.lock();
-        //         recv_buf.length = recv_buf.length;
-        //         // DEBUG("got and expected seq_no %d\n", *recv_seq_no);
-        //         msg.type = HDLC_PKT_RDY;
-        //         msg.content.ptr = &recv_buf;
-        //         msg_mail_box.put(msg); 
-        //         // msg_send(&msg, hdlc_dispatcher_pid);
+            /* pass on packet to dispatcher */
+            if (recv_buf.control.seq_no == *recv_seq_no % 8) {
+                /* lock pkt until dispatcher makes a copy and unlocks */
+                recv_buf.mtx.lock();
+                recv_buf.length = recv_buf.length;
+                // DEBUG("got and expected seq_no %d\n", *recv_seq_no);
+                msg=msg_mail_box.alloc();
+                msg->sender_pid=osThreadGetId();
+                msg->type = HDLC_PKT_RDY;
+                msg->content.ptr = &recv_buf;
+                msg_mail_box.put(msg); 
+                // msg_send(&msg, hdlc_dispatcher_pid);
 
-        //         (*recv_seq_no)++;
-        //     }
+                (*recv_seq_no)++;
+            }
 
-        //     recv_buf.control.frame = recv_buf.control.seq_no =  0;
-        // } else if (recv_buf.length == 0 && 
-        //             (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
-        //              recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
-        //     DEBUG("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
+            recv_buf.control.frame = (yahdlc_frame_t)0;
+            recv_buf.control.seq_no =  0;
+        } else if (recv_buf.length == 0 && 
+                    (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
+                     recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
+            // DEBUG("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-        //     if(recv_buf.control.seq_no == *send_seq_no % 8) {
-        //         msg.type = HDLC_RESP_SND_SUCC;
-        //         msg.content.value = (uint32_t) 0;
-        //         DEBUG("sender_pid is %d\n", sender_pid);
-        //         msg_send(&msg, hdlc_dispatcher_pid);
-        //         (*send_seq_no)++;
-        //         uart_lock = 0;
-        //     }
+            if(recv_buf.control.seq_no == *send_seq_no % 8) {
+                msg=msg_mail_box.alloc();
+                msg->sender_pid=osThreadGetId();
+                msg->type = HDLC_RESP_SND_SUCC;
+                msg->content.value = (uint32_t) 0;
+                msg_mail_box.put(msg); 
+
+                // DEBUG("sender_pid is %d\n", sender_pid);
+                // msg_send(&msg, hdlc_dispatcher_pid);
+                (*send_seq_no)++;
+                uart_lock = 0;
+            }
                                 
-        //     recv_buf.control.frame = recv_buf.control.seq_no = 0;
-        // } 
+            recv_buf.control.frame = (yahdlc_frame_t)0;
+            recv_buf.control.seq_no = 0;
+        } 
 
     }
 }
@@ -187,76 +197,90 @@ void hdlc(void const *arg)
     // uart_t dev = (uart_t)arg;
     // msg_init_queue(_hdlc_msg_queue, 16);
     uint32_t last_sent = 0;
-    msg_t msg, reply, msg2;
+    msg_t *msg, *reply, *msg2;
     unsigned int recv_seq_no = 0;
     unsigned int send_seq_no = 0;
 
     while(1) {
-        // if(uart_lock) {
-        //     int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) xtimer_now();
-        //     if(timeout < 0) {
-        //         /* send message to self to resend msg */
-        //         msg2.type = HDLC_MSG_RESEND;
-        //         msg_send_to_self(&msg2);
-        //         msg_receive(&msg);
-        //     } else {
-        //         if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
-        //             continue;
-        //         }
-        //     }
-        // } else {
-        //     msg_receive(&msg);
-        // }
-        // 
-        // 
+        if(uart_lock) {
+            int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) global_time.read_us();
+            if(timeout < 0) {
+                /* send message to self to resend msg */
+                msg2=msg_mail_box.alloc();
+                msg2->sender_pid=osThreadGetId();
+                msg2->type = HDLC_MSG_RESEND;
+                msg2->sender_pid=osThreadGetId();
+                msg_mail_box.put(msg2); 
+                // msg_send_to_self(&msg2);
+                // msg_receive(&msg);
+            } else {
+                // timeout
+                // if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
+                    // continue;
+                // }
+            }
+        } else {
+            // msg_receive(&msg);
+        }
+        
+        
         
         osEvent evt = msg_mail_box.get();
         if (evt.status == osEventMail) 
         {            
-            switch (msg.type) {
+            msg = (msg_t*)evt.value.p;
+            switch (msg->type) {
                 case HDLC_MSG_RECV:
                     // DEBUG("hdlc: receiving msg...\n");
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
                     break;
-                // case HDLC_MSG_SND:
-                //     // DEBUG("hdlc: request to send received from pid %d\n", msg.sender_pid);
-                //     if (uart_lock) {
-                //         /* ask thread to try again in x usec */
-                //         DEBUG("hdlc: uart locked, telling thr to retry\n");
-                //         reply.type = HDLC_RESP_RETRY_W_TIMEO;
-                //         reply.content.value = (uint32_t) RTRY_TIMEO_USEC;
-                //         msg_send(&reply, msg.sender_pid);
-                //     }else {
-                //         uart_lock = 1;
-                //         sender_pid = msg.sender_pid;
-                //         DEBUG("hdlc: sender_pid set to %d\n", sender_pid);
-                //         send_buf.control.frame = YAHDLC_FRAME_DATA;
-                //         send_buf.control.seq_no = send_seq_no % 8; 
-                //         hdlc_pkt_t *pkt = msg.content.ptr;
-                //         yahdlc_frame_data(&(send_buf.control), pkt->data, 
-                //                 pkt->length, send_buf.data, &send_buf.length);
-                //         uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
-                //         last_sent = xtimer_now();
-                //     }   
-                //     break;
-                // case HDLC_MSG_SND_ACK:
-                //     /* send ACK */
-                //     ack_buf.control.frame = YAHDLC_FRAME_ACK;
-                //     ack_buf.control.seq_no = msg.content.value;
-                //     yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, &(ack_buf.length));    
-                //     DEBUG("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
-                //     uart_write(dev, (uint8_t *)ack_buf.data, ack_buf.length);   
-                //     break;
-                // case HDLC_MSG_RESEND:
-                //     DEBUG("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
-                //     uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
-                //     last_sent = xtimer_now();
-                //     break;
-                // case HDLC_MSG_REG_DISPATCHER:
-                //     //DEBUG("hdlc: Registering dispatcher thread.\n");
-                //     hdlc_dispatcher_pid = msg.sender_pid;
-                //     //DEBUG("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
-                //     break;
+                case HDLC_MSG_SND:
+                    // DEBUG("hdlc: request to send received from pid %d\n", msg.sender_pid);
+                    if (uart_lock) {
+                        /* ask thread to try again in x usec */
+                        //DEBUG("hdlc: uart locked, telling thr to retry\n");
+                        reply=msg_mail_box.alloc();
+                        reply->type = HDLC_RESP_RETRY_W_TIMEO;
+                        reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                        reply->sender_pid=osThreadGetId();
+     //TODO??                   //msg_send(&reply, msg->sender_pid); need to figure this out
+                    }else {
+                        uart_lock = 1;
+                        sender_pid = msg->sender_pid;
+                        // DEBUG("hdlc: sender_pid set to %d\n", sender_pid);
+                        send_buf.control.frame = YAHDLC_FRAME_DATA;
+                        send_buf.control.seq_no = send_seq_no % 8; 
+                        hdlc_pkt_t *pkt = new hdlc_pkt_t();
+                        hdlc_buf_t *pkt_buf=(hdlc_buf_t*)msg->content.ptr;
+                        pkt->data= pkt_buf->data;
+                        pkt->length= pkt_buf->length;
+
+                        yahdlc_frame_data(&(send_buf.control), pkt->data, 
+                                pkt->length, send_buf.data, &send_buf.length);
+                        hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,NULL,NULL);
+
+                        // uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
+                        last_sent = global_time.read_us();
+                    }   
+                    break;
+                case HDLC_MSG_SND_ACK:
+                    /* send ACK */
+                    ack_buf.control.frame = YAHDLC_FRAME_ACK;
+                    ack_buf.control.seq_no = msg->content.value;
+                    yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, &(ack_buf.length));    
+                    //DEBUG("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
+                    hdlc_pc->write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
+                    break;
+                case HDLC_MSG_RESEND:
+                    //DEBUG("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
+                    hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,0,0);
+                    last_sent = global_time.read_us();
+                    break;
+                case HDLC_MSG_REG_DISPATCHER:
+                    //DEBUG("hdlc: Registering dispatcher thread.\n");
+                    hdlc_dispatcher_pid = msg->sender_pid;
+                    //DEBUG("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
+                    break;
                 default:
                     //DEBUG("INVALID HDLC MSG\n");
                     //LED3_ON;
@@ -287,7 +311,7 @@ int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name,
     recv_buf.data = hdlc_recv_data;
     send_buf.data = hdlc_send_frame;
     ack_buf.data = hdlc_ack_frame;
-
+    global_time.start();
     /* check if uart device number is valid */
     if(dev > UART_NUM - 1) {
         return -ENODEV;
