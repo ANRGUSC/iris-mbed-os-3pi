@@ -197,7 +197,8 @@ void hdlc(void const *arg)
     // uart_t dev = (uart_t)arg;
     // msg_init_queue(_hdlc_msg_queue, 16);
     uint32_t last_sent = 0;
-    msg_t *msg, *reply, *msg2;
+    msg_t *msg, *msg_org, *reply, *msg2;
+
     unsigned int recv_seq_no = 0;
     unsigned int send_seq_no = 0;
 
@@ -227,8 +228,12 @@ void hdlc(void const *arg)
         
         osEvent evt = msg_mail_box.get();
         if (evt.status == osEventMail) 
-        {            
-            msg = (msg_t*)evt.value.p;
+        {          
+            msg_org = (msg_t*)evt.value.p;
+            msg=new msg_t(); 
+            memcpy(msg, msg_org, sizeof(msg_t));
+          
+            msg_mail_box.free(msg_org);
             switch (msg->type) {
                 case HDLC_MSG_RECV:
                     // DEBUG("hdlc: receiving msg...\n");

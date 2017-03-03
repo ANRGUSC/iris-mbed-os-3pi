@@ -72,7 +72,7 @@ typedef struct {
 typedef struct {
     osThreadId sender_pid;    /**< PID of sending thread. Will be filled in
                                      // by msg_send. */
-    RtosTimer timeout;
+    // RtosTimer timeout;
 
     uint16_t type;              /**< Type field. */
     union {
