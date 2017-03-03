@@ -66,7 +66,6 @@
 
 #define UART_BUFSIZE            (512U)
 #define UART_NUM        3
-#define HDLC_MAILBOX_SIZE 16
 // Mail<mail_t, 16> mail_box;
 
 // static msg_t _hdlc_msg_queue[16];
@@ -239,8 +238,8 @@ void hdlc(void const *arg)
             msg_org = (msg_t*)evt.value.p;
             msg=new msg_t(); 
             memcpy(msg, msg_org, sizeof(msg_t));
-          
             hdlc_mail_box.free(msg_org);
+            
             switch (msg->type) {
                 case HDLC_MSG_RECV:
                     printf("hdlc: receiving msg...\n");
@@ -263,6 +262,8 @@ void hdlc(void const *arg)
                         printf("hdlc: sender_pid set to %d\n", sender_pid);
                         send_buf.control.frame = YAHDLC_FRAME_DATA;
                         send_buf.control.seq_no = send_seq_no % 8; 
+                        
+                        // equivalent to hdlc_pkt_t *pkt = msg.content.ptr;
                         hdlc_pkt_t *pkt = new hdlc_pkt_t();
                         hdlc_buf_t *pkt_buf=(hdlc_buf_t*)msg->content.ptr;
                         pkt->data= pkt_buf->data;
@@ -270,6 +271,7 @@ void hdlc(void const *arg)
 
                         yahdlc_frame_data(&(send_buf.control), pkt->data, 
                                 pkt->length, send_buf.data, &send_buf.length);
+                        
                         hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,NULL,NULL);
 
                         // uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
@@ -309,17 +311,23 @@ void hdlc(void const *arg)
 
 int hdlc_pkt_release(hdlc_buf_t *buf) 
 {
-    // if(buf->mtx.queue.next != NULL) {
+    // if(buf->mtx.queue.next != NULL) { //how to do this??
     //     buf->control.frame = buf->control.seq_no = 0;
     //     mutex_unlock(&buf->mtx);
     //     return 0;
     // }
-
+    
+    buf->control.frame = (yahdlc_frame_t)0;
+    buf->control.seq_no = 0;
+    buf->mtx.unlock();
+    return 0;
+    
     printf("Packet not locked. Might be empty!\n");
-    // return -1;
+    return -1;
 }
 
-int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name, int dev)
+int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void *mail)
+// int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name, int dev)
 {
     osThreadId res;
     recv_buf.data = hdlc_recv_data;
@@ -350,7 +358,7 @@ int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name,
     }
 
     hdlc_thread_pid = res;
-
+    mail=&hdlc_mail_box;
     return (int)res;
 }
 
