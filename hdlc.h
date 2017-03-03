@@ -69,11 +69,13 @@ typedef struct {
    // mutex_t mtx;
 } hdlc_buf_t;
 
+
+
 typedef struct {
     osThreadId sender_pid;    /**< PID of sending thread. Will be filled in
                                      // by msg_send. */
     // RtosTimer timeout;
-
+    void *source_mailbox;
     uint16_t type;              /**< Type field. */
     union {
         void *ptr;              /**< Pointer content field. */
@@ -88,6 +90,8 @@ typedef struct {
     char *data;
     unsigned int length;
 } hdlc_pkt_t;
+
+
 
 /* HDLC thread messages */
 enum {

@@ -71,6 +71,9 @@
 // static msg_t _hdlc_msg_queue[16];
 
 static osThreadId hdlc_dispatcher_pid, sender_pid, hdlc_thread_pid;
+// static void *dispacher_msg_mail_box;
+Mail<msg_t, 16> msg_mail_box;
+Mail<msg_t, 16> *dispacher_msg_mail_box;
 
 
 Timer global_time;
@@ -90,10 +93,6 @@ static hdlc_buf_t ack_buf;//  = { .data = hdlc_ack_frame };
 /* uart access control lock */
 static uint32_t uart_lock = 0;
 
-Mail<msg_t, 16> msg_mail_box;
-
-
-
 
 static void rx_cb(void)//(void *arg, uint8_t data)
 {
@@ -108,6 +107,7 @@ static void rx_cb(void)//(void *arg, uint8_t data)
         msg_t *msg = msg_mail_box.alloc();
         msg->sender_pid=osThreadGetId();
         msg->type = HDLC_MSG_RECV;
+        msg->source_mailbox=&msg_mail_box;
         // msg.content.value = (uint32_t)dev;
         msg_mail_box.put(msg); 
     }
@@ -155,11 +155,11 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 recv_buf.mtx.lock();
                 recv_buf.length = recv_buf.length;
                 // DEBUG("got and expected seq_no %d\n", *recv_seq_no);
-                msg=msg_mail_box.alloc();
+                msg=dispacher_msg_mail_box->alloc();
                 msg->sender_pid=osThreadGetId();
                 msg->type = HDLC_PKT_RDY;
                 msg->content.ptr = &recv_buf;
-                msg_mail_box.put(msg); 
+                dispacher_msg_mail_box->put(msg); 
                 // msg_send(&msg, hdlc_dispatcher_pid);
 
                 (*recv_seq_no)++;
@@ -173,11 +173,11 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             // DEBUG("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
 
             if(recv_buf.control.seq_no == *send_seq_no % 8) {
-                msg=msg_mail_box.alloc();
+                msg=dispacher_msg_mail_box->alloc();
                 msg->sender_pid=osThreadGetId();
                 msg->type = HDLC_RESP_SND_SUCC;
                 msg->content.value = (uint32_t) 0;
-                msg_mail_box.put(msg); 
+                dispacher_msg_mail_box->put(msg); 
 
                 // DEBUG("sender_pid is %d\n", sender_pid);
                 // msg_send(&msg, hdlc_dispatcher_pid);
@@ -201,7 +201,7 @@ void hdlc(void const *arg)
 
     unsigned int recv_seq_no = 0;
     unsigned int send_seq_no = 0;
-
+    osEvent evt;
     while(1) {
         if(uart_lock) {
             int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) global_time.read_us();
@@ -212,21 +212,24 @@ void hdlc(void const *arg)
                 msg2->type = HDLC_MSG_RESEND;
                 msg2->sender_pid=osThreadGetId();
                 msg_mail_box.put(msg2); 
+                evt = msg_mail_box.get();
                 // msg_send_to_self(&msg2);
-                // msg_receive(&msg);
             } else {
+
+                Thread::wait((int32_t)timeout/1000);
+                continue;
                 // timeout
                 // if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
                     // continue;
                 // }
             }
         } else {
-            // msg_receive(&msg);
+            evt = msg_mail_box.get();
         }
         
         
         
-        osEvent evt = msg_mail_box.get();
+        
         if (evt.status == osEventMail) 
         {          
             msg_org = (msg_t*)evt.value.p;
@@ -244,11 +247,12 @@ void hdlc(void const *arg)
                     if (uart_lock) {
                         /* ask thread to try again in x usec */
                         //DEBUG("hdlc: uart locked, telling thr to retry\n");
-                        reply=msg_mail_box.alloc();
+                        reply=((Mail<msg_t, 16>*)msg->source_mailbox)->alloc();
                         reply->type = HDLC_RESP_RETRY_W_TIMEO;
                         reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
                         reply->sender_pid=osThreadGetId();
-     //TODO??                   //msg_send(&reply, msg->sender_pid); need to figure this out
+                        ((Mail<msg_t, 16>*)msg->source_mailbox)->put(reply);
+                        //msg_send(&reply, msg->sender_pid); need to figure this out
                     }else {
                         uart_lock = 1;
                         sender_pid = msg->sender_pid;
@@ -284,6 +288,7 @@ void hdlc(void const *arg)
                 case HDLC_MSG_REG_DISPATCHER:
                     //DEBUG("hdlc: Registering dispatcher thread.\n");
                     hdlc_dispatcher_pid = msg->sender_pid;
+                    dispacher_msg_mail_box=(Mail<msg_t, 16>*)msg->source_mailbox;
                     //DEBUG("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
                     break;
                 default:
