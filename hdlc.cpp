@@ -49,7 +49,7 @@
  * @}
  */
 
-
+//TODO?? Have to figure out how to automatically set DEVICE_SERIAL_ASYNCH=1 without changing the original Serial code
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -73,9 +73,14 @@
 static osThreadId hdlc_dispatcher_pid, sender_pid, hdlc_thread_pid;
 
 
+Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mail_box;
+Mail<msg_t, HDLC_MAILBOX_SIZE> *dispacher_hdlc_mail_box;
 
+
+Timer global_time;
 CircularBuffer<char, UART_BUFSIZE> *ctx;
-
+Serial *hdlc_pc; //used to connect to pc for debugging through a virtual COM port
+void write_hdlc(uint8_t *,int);
 
 // static uart_ctx_t ctx;
 
@@ -83,33 +88,32 @@ static char hdlc_recv_data[HDLC_MAX_PKT_SIZE];
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 
-static hdlc_buf_t recv_buf; // recv_buf.data = hdlc_recv_data;
+static hdlc_buf_t recv_buf; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
 static hdlc_buf_t send_buf;// = { .data = hdlc_send_frame };
 static hdlc_buf_t ack_buf;//  = { .data = hdlc_ack_frame };
 
 /* uart access control lock */
 static uint32_t uart_lock = 0;
 
-Mail<msg_t, 16> msg_mail_box;
-
-
-
 
 static void rx_cb(void)//(void *arg, uint8_t data)
 {
     // uart_t dev = (uart_t)arg;
-    char data=hdlc_pc->getc();
-    ctx->push(data);
+    // 
+    unsigned char data;
+    data=hdlc_pc->getc();     // Get an character from the Serial
+    ctx->push(data);     // Put to the ring/circular buffer
 
     if(data == YAHDLC_FLAG_SEQUENCE)
     {
         
         // wakeup hdlc thread 
-        msg_t *msg = msg_mail_box.alloc();
+        msg_t *msg = hdlc_mail_box.alloc();
         msg->sender_pid=osThreadGetId();
         msg->type = HDLC_MSG_RECV;
+        msg->source_mailbox=&hdlc_mail_box;
         // msg.content.value = (uint32_t)dev;
-        msg_mail_box.put(msg); 
+        hdlc_mail_box.put(msg); 
     }
 }
 
@@ -117,7 +121,7 @@ static void rx_cb(void)//(void *arg, uint8_t data)
 
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 {
-    msg_t msg, ack_msg;
+    msg_t *msg, *ack_msg;
     int ret;
     int retval;
     char c;
@@ -135,49 +139,60 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
         recv_buf.mtx.unlock();
 
 
-        // if (recv_buf.length > 0 && ret != -EIO && 
-        //     (recv_buf.control.seq_no == *recv_seq_no % 8 ||
-        //     recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
-        //     /* valid data frame received */
-        //     // DEBUG("received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
+        if (recv_buf.length > 0 && ret != -EIO && 
+            (recv_buf.control.seq_no == *recv_seq_no % 8 ||
+            recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
+            /* valid data frame received */
+            printf("received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-        //     /* always send ack */
-        //     msg_t *ack_msg = msg_mail_box.alloc();
-        //     ack_msg->type = HDLC_MSG_SND_ACK;
-        //     ack_msg->content.value = recv_buf.control.seq_no;
-        //     msg_send_to_self(&ack_msg); /* send ack */
+            /* always send ack */
+            ack_msg = hdlc_mail_box.alloc();
+            ack_msg->sender_pid=osThreadGetId();
+            ack_msg->type = HDLC_MSG_SND_ACK;
+            ack_msg->content.value = recv_buf.control.seq_no;
+            hdlc_mail_box.put(ack_msg); 
+            // msg_send_to_self(&ack_msg); /* send ack */
 
-        //     /* pass on packet to dispatcher */
-        //     if (recv_buf.control.seq_no == *recv_seq_no % 8) {
-        //         /* lock pkt until dispatcher makes a copy and unlocks */
-        //         recv_buf.mtx.lock();
-        //         recv_buf.length = recv_buf.length;
-        //         // DEBUG("got and expected seq_no %d\n", *recv_seq_no);
-        //         msg.type = HDLC_PKT_RDY;
-        //         msg.content.ptr = &recv_buf;
-        //         msg_mail_box.put(msg); 
-        //         // msg_send(&msg, hdlc_dispatcher_pid);
+            /* pass on packet to dispatcher */
+            if (recv_buf.control.seq_no == *recv_seq_no % 8) {
+                /* lock pkt until dispatcher makes a copy and unlocks */
+                recv_buf.mtx.lock();
+                recv_buf.length = recv_buf.length; // ???????
+                printf("got and expected seq_no %d\n", *recv_seq_no);
+                msg=dispacher_hdlc_mail_box->alloc();
+                msg->sender_pid=osThreadGetId();
+                msg->type = HDLC_PKT_RDY;
+                msg->content.ptr = &recv_buf;
+                dispacher_hdlc_mail_box->put(msg); 
+                // msg_send(&msg, hdlc_dispatcher_pid);
 
-        //         (*recv_seq_no)++;
-        //     }
+                (*recv_seq_no)++;
+            }
 
-        //     recv_buf.control.frame = recv_buf.control.seq_no =  0;
-        // } else if (recv_buf.length == 0 && 
-        //             (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
-        //              recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
-        //     DEBUG("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
+            recv_buf.control.frame = (yahdlc_frame_t)0;
+            recv_buf.control.seq_no =  0;
 
-        //     if(recv_buf.control.seq_no == *send_seq_no % 8) {
-        //         msg.type = HDLC_RESP_SND_SUCC;
-        //         msg.content.value = (uint32_t) 0;
-        //         DEBUG("sender_pid is %d\n", sender_pid);
-        //         msg_send(&msg, hdlc_dispatcher_pid);
-        //         (*send_seq_no)++;
-        //         uart_lock = 0;
-        //     }
+        } else if (recv_buf.length == 0 && 
+                    (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
+                     recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
+            printf("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
+
+            if(recv_buf.control.seq_no == *send_seq_no % 8) {
+                msg=dispacher_hdlc_mail_box->alloc();
+                msg->sender_pid=osThreadGetId();
+                msg->type = HDLC_RESP_SND_SUCC;
+                msg->content.value = (uint32_t) 0;
+                dispacher_hdlc_mail_box->put(msg); 
+
+                printf("sender_pid is %d\n", sender_pid);
+                // msg_send(&msg, hdlc_dispatcher_pid);
+                (*send_seq_no)++;
+                uart_lock = 0;
+            }
                                 
-        //     recv_buf.control.frame = recv_buf.control.seq_no = 0;
-        // } 
+            recv_buf.control.frame = (yahdlc_frame_t)0;
+            recv_buf.control.seq_no = 0;
+        } 
 
     }
 }
@@ -187,78 +202,106 @@ void hdlc(void const *arg)
     // uart_t dev = (uart_t)arg;
     // msg_init_queue(_hdlc_msg_queue, 16);
     uint32_t last_sent = 0;
-    msg_t msg, reply, msg2;
+    msg_t *msg, *msg_org, *reply, *msg2;
+
     unsigned int recv_seq_no = 0;
     unsigned int send_seq_no = 0;
-
+    osEvent evt;
     while(1) {
-        // if(uart_lock) {
-        //     int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) xtimer_now();
-        //     if(timeout < 0) {
-        //         /* send message to self to resend msg */
-        //         msg2.type = HDLC_MSG_RESEND;
-        //         msg_send_to_self(&msg2);
-        //         msg_receive(&msg);
-        //     } else {
-        //         if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
-        //             continue;
-        //         }
-        //     }
-        // } else {
-        //     msg_receive(&msg);
-        // }
-        // 
-        // 
+        if(uart_lock) {
+            int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) global_time.read_us();
+            if(timeout < 0) {
+                /* send message to self to resend msg */
+                msg2=hdlc_mail_box.alloc();
+                msg2->sender_pid=osThreadGetId();
+                msg2->type = HDLC_MSG_RESEND;
+                hdlc_mail_box.put(msg2); 
+                evt = hdlc_mail_box.get();
+                // msg_send_to_self(&msg2);
+            } else {
+
+                Thread::wait((int32_t)timeout/1000);
+                continue;
+                // timeout
+                // if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
+                    // continue;
+                // }
+            }
+        } else {
+            evt = hdlc_mail_box.get();
+        }
         
-        osEvent evt = msg_mail_box.get();
+        
+        
+        
         if (evt.status == osEventMail) 
-        {            
-            switch (msg.type) {
+        {          
+            msg_org = (msg_t*)evt.value.p;
+            msg=new msg_t(); 
+            memcpy(msg, msg_org, sizeof(msg_t));
+            hdlc_mail_box.free(msg_org);
+
+            switch (msg->type) {
                 case HDLC_MSG_RECV:
-                    // DEBUG("hdlc: receiving msg...\n");
+                    printf("hdlc: receiving msg...\n");
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
                     break;
-                // case HDLC_MSG_SND:
-                //     // DEBUG("hdlc: request to send received from pid %d\n", msg.sender_pid);
-                //     if (uart_lock) {
-                //         /* ask thread to try again in x usec */
-                //         DEBUG("hdlc: uart locked, telling thr to retry\n");
-                //         reply.type = HDLC_RESP_RETRY_W_TIMEO;
-                //         reply.content.value = (uint32_t) RTRY_TIMEO_USEC;
-                //         msg_send(&reply, msg.sender_pid);
-                //     }else {
-                //         uart_lock = 1;
-                //         sender_pid = msg.sender_pid;
-                //         DEBUG("hdlc: sender_pid set to %d\n", sender_pid);
-                //         send_buf.control.frame = YAHDLC_FRAME_DATA;
-                //         send_buf.control.seq_no = send_seq_no % 8; 
-                //         hdlc_pkt_t *pkt = msg.content.ptr;
-                //         yahdlc_frame_data(&(send_buf.control), pkt->data, 
-                //                 pkt->length, send_buf.data, &send_buf.length);
-                //         uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
-                //         last_sent = xtimer_now();
-                //     }   
-                //     break;
-                // case HDLC_MSG_SND_ACK:
-                //     /* send ACK */
-                //     ack_buf.control.frame = YAHDLC_FRAME_ACK;
-                //     ack_buf.control.seq_no = msg.content.value;
-                //     yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, &(ack_buf.length));    
-                //     DEBUG("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
-                //     uart_write(dev, (uint8_t *)ack_buf.data, ack_buf.length);   
-                //     break;
-                // case HDLC_MSG_RESEND:
-                //     DEBUG("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
-                //     uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
-                //     last_sent = xtimer_now();
-                //     break;
-                // case HDLC_MSG_REG_DISPATCHER:
-                //     //DEBUG("hdlc: Registering dispatcher thread.\n");
-                //     hdlc_dispatcher_pid = msg.sender_pid;
-                //     //DEBUG("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
-                //     break;
+                case HDLC_MSG_SND:
+                    printf("hdlc: request to send received from pid %d\n", msg->sender_pid);
+                    if (uart_lock) {
+                        /* ask thread to try again in x usec */
+                        printf("hdlc: uart locked, telling thr to retry\n");
+                        reply=((Mail<msg_t, 16>*)msg->source_mailbox)->alloc();
+                        reply->type = HDLC_RESP_RETRY_W_TIMEO;
+                        reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                        reply->sender_pid=osThreadGetId();
+                        ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
+                        //msg_send(&reply, msg->sender_pid); need to figure this out
+                    }else {
+                        uart_lock = 1;
+                        sender_pid = msg->sender_pid;
+                        printf("hdlc: sender_pid set to %d\n", sender_pid);
+                        send_buf.control.frame = YAHDLC_FRAME_DATA;
+                        send_buf.control.seq_no = send_seq_no % 8; 
+                        
+                        // equivalent to hdlc_pkt_t *pkt = msg.content.ptr;
+                        hdlc_pkt_t *pkt = new hdlc_pkt_t();
+                        hdlc_buf_t *pkt_buf=(hdlc_buf_t*)msg->content.ptr;
+                        pkt->data= pkt_buf->data;
+                        pkt->length= pkt_buf->length;
+
+                        yahdlc_frame_data(&(send_buf.control), pkt->data, 
+                                pkt->length, send_buf.data, &send_buf.length);
+                        write_hdlc((uint8_t *)send_buf.data, send_buf.length);
+                        // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,NULL,NULL);
+
+                        // uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
+                        last_sent = global_time.read_us();
+                    }   
+                    break;
+                case HDLC_MSG_SND_ACK:
+                    /* send ACK */
+                    ack_buf.control.frame = YAHDLC_FRAME_ACK;
+                    ack_buf.control.seq_no = msg->content.value;
+                    yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, &(ack_buf.length));    
+                    printf("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
+                    write_hdlc((uint8_t *)ack_buf.data, ack_buf.length);
+                    // hdlc_pc->write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
+                    break;
+                case HDLC_MSG_RESEND:
+                    printf("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
+                    write_hdlc((uint8_t *)send_buf.data, send_buf.length);
+                    // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,0,0);
+                    last_sent = global_time.read_us();
+                    break;
+                case HDLC_MSG_REG_DISPATCHER:
+                    printf("hdlc: Registering dispatcher thread.\n");
+                    hdlc_dispatcher_pid = msg->sender_pid;
+                    dispacher_hdlc_mail_box=(Mail<msg_t, 16>*)msg->source_mailbox;
+                    printf("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
+                    break;
                 default:
-                    //DEBUG("INVALID HDLC MSG\n");
+                    printf("INVALID HDLC MSG\n");
                     //LED3_ON;
                     break;
             }
@@ -271,23 +314,29 @@ void hdlc(void const *arg)
 
 int hdlc_pkt_release(hdlc_buf_t *buf) 
 {
-    // if(buf->mtx.queue.next != NULL) {
+    // if(buf->mtx.queue.next != NULL) { //how to do this??
     //     buf->control.frame = buf->control.seq_no = 0;
     //     mutex_unlock(&buf->mtx);
     //     return 0;
     // }
-
-    // DEBUG("Packet not locked. Might be empty!\n");
-    // return -1;
+    
+    buf->control.frame = (yahdlc_frame_t)0;
+    buf->control.seq_no = 0;
+    buf->mtx.unlock();
+    return 0;
+    
+    printf("Packet not locked. Might be empty!\n");
+    return -1;
 }
 
-int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name, int dev)
+int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void *mail)
+// int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name, int dev)
 {
     osThreadId res;
     recv_buf.data = hdlc_recv_data;
     send_buf.data = hdlc_send_frame;
     ack_buf.data = hdlc_ack_frame;
-
+    global_time.start();
     /* check if uart device number is valid */
     if(dev > UART_NUM - 1) {
         return -ENODEV;
@@ -312,7 +361,13 @@ int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name,
     }
 
     hdlc_thread_pid = res;
-
+    mail=&hdlc_mail_box;
     return (int)res;
 }
+void write_hdlc(uint8_t *ptr,int len)
+{
 
+    for(uint8_t i=1;i<len;i++)
+        hdlc_pc->putc(*(ptr+i));   
+
+}

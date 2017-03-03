@@ -33,9 +33,9 @@
 /** FCS value for valid frames. */
 #define FCS16_GOOD_VALUE 0xF0B8
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
 
 /**
  * Calculates a new FCS based on the current value and value of data.
@@ -46,8 +46,8 @@ extern "C" {
  */
 unsigned short fcs16(unsigned short fcs, unsigned char value);
 
-#ifdef __cplusplus
-}
-#endif
+// #ifdef __cplusplus
+// }
+// #endif
 
 #endif
