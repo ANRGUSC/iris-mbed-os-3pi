@@ -106,6 +106,7 @@ static void rx_cb(void)//(void *arg, uint8_t data)
         
         // wakeup hdlc thread 
         msg_t *msg = msg_mail_box.alloc();
+        msg->sender_pid=osThreadGetId();
         msg->type = HDLC_MSG_RECV;
         // msg.content.value = (uint32_t)dev;
         msg_mail_box.put(msg); 
@@ -116,69 +117,69 @@ static void rx_cb(void)//(void *arg, uint8_t data)
 
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 {
-    // msg_t msg, ack_msg;
-    // int ret;
-    // int retval;
-    // char c;
+    msg_t msg, ack_msg;
+    int ret;
+    int retval;
+    char c;
 
-    // while(1) {
-    //     retval = ringbuffer_get_one(&(ctx.rx_buf));
+    while(1) {
+        retval = ctx->pop(c);
 
-    //     if (retval == -1) {
-    //         break;
-    //     }
+        if (retval == 0) {
+            break;
+        }
 
-    //     c = (char) retval;
+        // c = (char) retval;
+        recv_buf.mtx.lock();
+        ret = yahdlc_get_data(&recv_buf.control, &c, 1, recv_buf.data, &recv_buf.length);
+        recv_buf.mtx.unlock();
 
-    //     mutex_lock(&(recv_buf.mtx));
 
-    //     ret = yahdlc_get_data(&recv_buf.control, &c, 1, recv_buf.data, &recv_buf.length);
+        // if (recv_buf.length > 0 && ret != -EIO && 
+        //     (recv_buf.control.seq_no == *recv_seq_no % 8 ||
+        //     recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
+        //     /* valid data frame received */
+        //     // DEBUG("received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-    //     mutex_unlock(&(recv_buf.mtx));
+        //     /* always send ack */
+        //     msg_t *ack_msg = msg_mail_box.alloc();
+        //     ack_msg->type = HDLC_MSG_SND_ACK;
+        //     ack_msg->content.value = recv_buf.control.seq_no;
+        //     msg_send_to_self(&ack_msg); /* send ack */
 
-    //     if (recv_buf.length > 0 && ret != -EIO && 
-    //         (recv_buf.control.seq_no == *recv_seq_no % 8 ||
-    //         recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
-    //         /* valid data frame received */
-    //         DEBUG("received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
+        //     /* pass on packet to dispatcher */
+        //     if (recv_buf.control.seq_no == *recv_seq_no % 8) {
+        //         /* lock pkt until dispatcher makes a copy and unlocks */
+        //         recv_buf.mtx.lock();
+        //         recv_buf.length = recv_buf.length;
+        //         // DEBUG("got and expected seq_no %d\n", *recv_seq_no);
+        //         msg.type = HDLC_PKT_RDY;
+        //         msg.content.ptr = &recv_buf;
+        //         msg_mail_box.put(msg); 
+        //         // msg_send(&msg, hdlc_dispatcher_pid);
 
-    //         /* always send ack */
-    //         ack_msg.type = HDLC_MSG_SND_ACK;
-    //         ack_msg.content.value = recv_buf.control.seq_no;
-    //         msg_send_to_self(&ack_msg); /* send ack */
+        //         (*recv_seq_no)++;
+        //     }
 
-    //         /* pass on packet to dispatcher */
-    //         if (recv_buf.control.seq_no == *recv_seq_no % 8) {
-    //             /* lock pkt until dispatcher makes a copy and unlocks */
-    //             mutex_lock(&(recv_buf.mtx));
-    //             recv_buf.length = recv_buf.length;
-    //             // DEBUG("got and expected seq_no %d\n", *recv_seq_no);
-    //             msg.type = HDLC_PKT_RDY;
-    //             msg.content.ptr = &recv_buf;
-    //             msg_send(&msg, hdlc_dispatcher_pid);
+        //     recv_buf.control.frame = recv_buf.control.seq_no =  0;
+        // } else if (recv_buf.length == 0 && 
+        //             (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
+        //              recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
+        //     DEBUG("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-    //             (*recv_seq_no)++;
-    //         }
-
-    //         recv_buf.control.frame = recv_buf.control.seq_no =  0;
-    //     } else if (recv_buf.length == 0 && 
-    //                 (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
-    //                  recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
-    //         DEBUG("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
-
-    //         if(recv_buf.control.seq_no == *send_seq_no % 8) {
-    //             msg.type = HDLC_RESP_SND_SUCC;
-    //             msg.content.value = (uint32_t) 0;
-    //             DEBUG("sender_pid is %d\n", sender_pid);
-    //             msg_send(&msg, hdlc_dispatcher_pid);
-    //             (*send_seq_no)++;
-    //             uart_lock = 0;
-    //         }
+        //     if(recv_buf.control.seq_no == *send_seq_no % 8) {
+        //         msg.type = HDLC_RESP_SND_SUCC;
+        //         msg.content.value = (uint32_t) 0;
+        //         DEBUG("sender_pid is %d\n", sender_pid);
+        //         msg_send(&msg, hdlc_dispatcher_pid);
+        //         (*send_seq_no)++;
+        //         uart_lock = 0;
+        //     }
                                 
-    //         recv_buf.control.frame = recv_buf.control.seq_no = 0;
-    //     } 
+        //     recv_buf.control.frame = recv_buf.control.seq_no = 0;
+        // } 
 
-    // }
+    }
 }
 
 void hdlc(void const *arg)

@@ -64,11 +64,13 @@ typedef struct {
     yahdlc_control_t control;
     char *data;
     unsigned int length;
+    Mutex mtx; 
+
    // mutex_t mtx;
 } hdlc_buf_t;
 
 typedef struct {
-    // kernel_pid_t sender_pid;    /**< PID of sending thread. Will be filled in
+    osThreadId sender_pid;    /**< PID of sending thread. Will be filled in
                                      // by msg_send. */
     uint16_t type;              /**< Type field. */
     union {
