@@ -85,7 +85,6 @@ typedef struct {
     } content;                  /**< Content of the message. */
 } msg_t;
 
-extern Serial *hdlc_pc; //used to connect to pc for debugging through a virtual COM port
 
 /* struct for other threads to pass to hdlc thread via IPC */
 typedef struct {

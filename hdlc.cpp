@@ -79,7 +79,8 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *dispacher_hdlc_mail_box;
 
 Timer global_time;
 CircularBuffer<char, UART_BUFSIZE> *ctx;
-
+Serial *hdlc_pc; //used to connect to pc for debugging through a virtual COM port
+void write_hdlc(uint8_t *,int);
 
 // static uart_ctx_t ctx;
 
@@ -239,7 +240,7 @@ void hdlc(void const *arg)
             msg=new msg_t(); 
             memcpy(msg, msg_org, sizeof(msg_t));
             hdlc_mail_box.free(msg_org);
-            
+
             switch (msg->type) {
                 case HDLC_MSG_RECV:
                     printf("hdlc: receiving msg...\n");
@@ -271,8 +272,8 @@ void hdlc(void const *arg)
 
                         yahdlc_frame_data(&(send_buf.control), pkt->data, 
                                 pkt->length, send_buf.data, &send_buf.length);
-                        
-                        hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,NULL,NULL);
+                        write_hdlc((uint8_t *)send_buf.data, send_buf.length);
+                        // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,NULL,NULL);
 
                         // uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
                         last_sent = global_time.read_us();
@@ -284,11 +285,13 @@ void hdlc(void const *arg)
                     ack_buf.control.seq_no = msg->content.value;
                     yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, &(ack_buf.length));    
                     printf("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
-                    hdlc_pc->write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
+                    write_hdlc((uint8_t *)ack_buf.data, ack_buf.length);
+                    // hdlc_pc->write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
                     break;
                 case HDLC_MSG_RESEND:
                     printf("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
-                    hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,0,0);
+                    write_hdlc((uint8_t *)send_buf.data, send_buf.length);
+                    // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,0,0);
                     last_sent = global_time.read_us();
                     break;
                 case HDLC_MSG_REG_DISPATCHER:
@@ -361,4 +364,10 @@ int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, voi
     mail=&hdlc_mail_box;
     return (int)res;
 }
+void write_hdlc(uint8_t *ptr,int len)
+{
 
+    for(uint8_t i=1;i<len;i++)
+        hdlc_pc->putc(*(ptr+i));   
+
+}
