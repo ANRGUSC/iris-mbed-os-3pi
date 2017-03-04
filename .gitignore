@@ -34,3 +34,5 @@ BUILD/
 
 m3pi/
 mbed-os/
+.tags*
+

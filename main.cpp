@@ -87,48 +87,48 @@ int main(void)
         while(1)
         {
             myled=!myled;
-            evt = dispacher_mailbox.get();
-            msg_org = (msg_t*)evt.value.p;
-            msg_resp=new msg_t(); 
-            memcpy(msg_resp, msg_org, sizeof(msg_t));
-            dispacher_mailbox.free(msg_org);
+            // evt = dispacher_mailbox.get();
+            // msg_org = (msg_t*)evt.value.p;
+            // msg_resp=new msg_t(); 
+            // memcpy(msg_resp, msg_org, sizeof(msg_t));
+            // dispacher_mailbox.free(msg_org);
 
-            // msg_receive(&msg_resp);
-            if (evt.status == osEventMail) 
-            {
-                switch (msg_resp->type)
-                {
-                    case HDLC_RESP_SND_SUCC:
-                        printf("dispatcher: sent frame_no %d!\n", frame_no);
-                        exit = 1;
-                        break;
-                    case HDLC_RESP_RETRY_W_TIMEO:
-                        Thread::wait(msg_resp->content.value/1000);
-                        msg_req1=hdlc_mail_box_ptr->alloc();
-                        msg_req1->type = HDLC_MSG_SND;
-                        msg_req1->content.ptr = &pkt;
-                        msg_req1->sender_pid=osThreadGetId();
-                        msg_req1->source_mailbox=&dispacher_mailbox;
+            // // msg_receive(&msg_resp);
+            // if (evt.status == osEventMail) 
+            // {
+            //     switch (msg_resp->type)
+            //     {
+            //         case HDLC_RESP_SND_SUCC:
+            //             printf("dispatcher: sent frame_no %d!\n", frame_no);
+            //             exit = 1;
+            //             break;
+            //         case HDLC_RESP_RETRY_W_TIMEO:
+            //             Thread::wait(msg_resp->content.value/1000);
+            //             msg_req1=hdlc_mail_box_ptr->alloc();
+            //             msg_req1->type = HDLC_MSG_SND;
+            //             msg_req1->content.ptr = &pkt;
+            //             msg_req1->sender_pid=osThreadGetId();
+            //             msg_req1->source_mailbox=&dispacher_mailbox;
 
-                        hdlc_mail_box_ptr->put(msg_req1);
-                        // msg_send(&msg_req, hdlc_pid);
-                        break;
-                    case HDLC_PKT_RDY:
-                        buf = (hdlc_buf_t *)msg_resp->content.ptr;   
-                        memcpy(recv_data, buf->data, buf->length);
-                        printf("dispatcher: received pkt %d\n", recv_data[0]);
-                        hdlc_pkt_release(buf);
-                        break;
-                    default:
-                        /* error */
-                        //LED3_ON;
-                        break;
-                }
-            }    
-            if(exit) {
-                exit = 0;
-                break;
-            }
+            //             hdlc_mail_box_ptr->put(msg_req1);
+            //             // msg_send(&msg_req, hdlc_pid);
+            //             break;
+            //         case HDLC_PKT_RDY:
+            //             buf = (hdlc_buf_t *)msg_resp->content.ptr;   
+            //             memcpy(recv_data, buf->data, buf->length);
+            //             printf("dispatcher: received pkt %d\n", recv_data[0]);
+            //             hdlc_pkt_release(buf);
+            //             break;
+            //         default:
+            //             /* error */
+            //             //LED3_ON;
+            //             break;
+            //     }
+            // }    
+            // if(exit) {
+            //     exit = 0;
+            //     break;
+            // }
         }
 
         frame_no++;
