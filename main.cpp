@@ -46,9 +46,9 @@ int main(void)
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t pkt;
-    pkt.data = send_data;
-    pkt.length = 0;
+    hdlc_pkt_t *pkt= new hdlc_pkt_t;
+    pkt->data = send_data;
+    pkt->length = 0;
     hdlc_buf_t *buf;
     pc.printf("In main");
 
@@ -70,28 +70,29 @@ int main(void)
     while(1)
     {
         myled=!myled;
-        Thread::wait(5000);
+        Thread::wait(1000);
         pc.printf("inside main\n");
-        pkt.data[0] = frame_no;
+        pkt->data[0] = frame_no;
 
         for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
-            pkt.data[i] = (char) ( rand() % 0x7E);
+            pkt->data[i] = (char) ( rand() % 0x7E);
         }
 
-        pkt.length = HDLC_MAX_PKT_SIZE;
+        pkt->length = HDLC_MAX_PKT_SIZE;
 
-        printf("dispatcher: sending pkt no %d\n", frame_no);
 
         /* send pkt =*/
         msg_req1=hdlc_mail_box_ptr->alloc();
         msg_req1->type = HDLC_MSG_SND;
-        msg_req1->content.ptr = &pkt;
+        msg_req1->content.ptr = pkt;
         msg_req1->sender_pid=osThreadGetId();
         msg_req1->source_mailbox=&dispacher_mailbox;
+        
+        printf("dispatcher: sending pkt no %d packet %d\n", frame_no,((hdlc_pkt_t*)msg_req1->content.ptr)->length);
 
         hdlc_mail_box_ptr->put(msg_req1);
 
-        //while(1)
+        while(1)
         {
             myled=!myled;
             evt = dispacher_mailbox.get();
@@ -115,7 +116,7 @@ int main(void)
                         // exit = 1;
                         msg_req1=hdlc_mail_box_ptr->alloc();
                         msg_req1->type = HDLC_MSG_SND;
-                        msg_req1->content.ptr = &pkt;
+                        msg_req1->content.ptr = pkt;
                         msg_req1->sender_pid=osThreadGetId();
                         msg_req1->source_mailbox=&dispacher_mailbox;
 
@@ -126,6 +127,8 @@ int main(void)
                         memcpy(recv_data, buf->data, buf->length);
                         printf("dispatcher: received pkt %d\n", recv_data[0]);
                         hdlc_pkt_release(buf);
+                        // exit = 1;
+
                         break;
                     default:
                         /* error */
