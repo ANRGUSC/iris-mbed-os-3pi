@@ -231,7 +231,7 @@ static void hdlc(void const *arg)
             } else {
                 pc.printf("hdlc: inside timeout positive\n");
 
-                Thread::wait((int32_t)timeout/1000);
+                Thread::wait_us((int32_t)timeout);
                 continue;
                 // timeout
                 // if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
@@ -261,7 +261,7 @@ static void hdlc(void const *arg)
                     break;
                 case HDLC_MSG_SND:
                     pc.printf("hdlc: request to send received from pid %d\n", msg->sender_pid);
-                    uart_lock=1;
+                    // uart_lock=1;
                     if (uart_lock) {
                         /* ask thread to try again in x usec */
                         pc.printf("hdlc: uart locked, telling thr to retry\n");
