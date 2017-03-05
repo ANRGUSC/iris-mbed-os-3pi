@@ -59,7 +59,7 @@
 #define RTRY_TIMEO_USEC         1000000
 #define RETRANSMIT_TIMEO_USEC   1000000
 #define HDLC_MAX_PKT_SIZE       128
-#define HDLC_MAILBOX_SIZE 16
+#define HDLC_MAILBOX_SIZE 32
 extern Serial pc;
 
 
