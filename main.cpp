@@ -70,7 +70,7 @@ int main(void)
     while(1)
     {
         myled=!myled;
-        Thread::wait(1000);
+        //Thread::wait(1000);
         pc.printf("inside main\n");
         pkt->data[0] = frame_no;
 
@@ -109,6 +109,7 @@ int main(void)
                     case HDLC_RESP_SND_SUCC:
                         printf("dispatcher: sent frame_no %d!\n", frame_no);
                         exit = 1;
+                        free(msg_resp);
                         break;
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg_resp->content.value/1000);
@@ -121,16 +122,19 @@ int main(void)
                         msg_req1->source_mailbox=&dispacher_mailbox;
 
                         hdlc_mail_box_ptr->put(msg_req1);
+                        free(msg_resp);
                         break;
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg_resp->content.ptr;   
                         memcpy(recv_data, buf->data, buf->length);
                         printf("dispatcher: received pkt %d\n", recv_data[0]);
-                        hdlc_pkt_release(buf);
+                        free(msg_resp);
+                        // hdlc_pkt_release(buf);
                         // exit = 1;
 
                         break;
                     default:
+                        free(msg_resp);
                         /* error */
                         //LED3_ON;
                         break;

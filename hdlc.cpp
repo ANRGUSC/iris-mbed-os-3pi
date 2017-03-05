@@ -267,6 +267,7 @@ static void hdlc(void const *arg)
                 case HDLC_MSG_RECV:
                     PRINTF("hdlc: receiving msg...\n");
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
+                    free(msg);
                     break;
                 case HDLC_MSG_SND:
                     PRINTF("hdlc: request to send received from pid %d\n", msg->sender_pid);
@@ -298,7 +299,8 @@ static void hdlc(void const *arg)
 
                         // uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
                         last_sent = global_time.read_us();
-                    }   
+                    }  
+                    free(msg); 
                     break;
                 case HDLC_MSG_SND_ACK:
                     /* send ACK */
@@ -308,22 +310,26 @@ static void hdlc(void const *arg)
                     PRINTF("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
                     write_hdlc((uint8_t *)ack_buf.data, ack_buf.length);
                     // hdlc_pc->write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
+                    free(msg); 
                     break;
                 case HDLC_MSG_RESEND:
                     PRINTF("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
                     write_hdlc((uint8_t *)send_buf.data, send_buf.length);
                     // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,0,0);
                     last_sent = global_time.read_us();
+                    free(msg); 
                     break;
                 case HDLC_MSG_REG_DISPATCHER:
                     PRINTF("hdlc: Registering dispatcher thread.\n");
                     hdlc_dispatcher_pid = msg->sender_pid;
                     dispacher_hdlc_mail_box=(Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
                     PRINTF("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
+                    free(msg); 
                     break;
                 default:
                     PRINTF("INVALID HDLC MSG\n");
                     //LED3_ON;
+                    free(msg); 
                     break;
             }
         }
