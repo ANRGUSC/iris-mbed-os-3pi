@@ -261,6 +261,7 @@ static void hdlc(void const *arg)
                     break;
                 case HDLC_MSG_SND:
                     pc.printf("hdlc: request to send received from pid %d\n", msg->sender_pid);
+                    uart_lock=1;
                     if (uart_lock) {
                         /* ask thread to try again in x usec */
                         pc.printf("hdlc: uart locked, telling thr to retry\n");
