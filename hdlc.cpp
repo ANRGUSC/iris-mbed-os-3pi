@@ -60,9 +60,12 @@
 #include "hdlc.h"
 
 #include "rtos.h"
+DigitalOut led2(LED2);
+DigitalOut led3(LED3);
 
 // #define ENABLE_DEBUG (0)
 // #include "debug.h"
+Serial pc(USBTX,USBRX,115200);
 
 #define UART_BUFSIZE            (512U)
 #define UART_NUM        3
@@ -71,9 +74,9 @@
 // static msg_t _hdlc_msg_queue[16];
 
 static osThreadId hdlc_dispatcher_pid, sender_pid, hdlc_thread_pid;
+Thread        *hdlcpointer;
 
-
-Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mail_box;
+Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mail_box;
 Mail<msg_t, HDLC_MAILBOX_SIZE> *dispacher_hdlc_mail_box;
 
 
@@ -108,12 +111,12 @@ static void rx_cb(void)//(void *arg, uint8_t data)
     {
         
         // wakeup hdlc thread 
-        msg_t *msg = hdlc_mail_box.alloc();
+        msg_t *msg = hdlc_mail_box->alloc();
         msg->sender_pid=osThreadGetId();
         msg->type = HDLC_MSG_RECV;
-        msg->source_mailbox=&hdlc_mail_box;
+        msg->source_mailbox=hdlc_mail_box;
         // msg.content.value = (uint32_t)dev;
-        hdlc_mail_box.put(msg); 
+        hdlc_mail_box->put(msg); 
     }
 }
 
@@ -143,14 +146,14 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             (recv_buf.control.seq_no == *recv_seq_no % 8 ||
             recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
             /* valid data frame received */
-            printf("received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
+            pc.printf("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
             /* always send ack */
-            ack_msg = hdlc_mail_box.alloc();
+            ack_msg = hdlc_mail_box->alloc();
             ack_msg->sender_pid=osThreadGetId();
             ack_msg->type = HDLC_MSG_SND_ACK;
             ack_msg->content.value = recv_buf.control.seq_no;
-            hdlc_mail_box.put(ack_msg); 
+            hdlc_mail_box->put(ack_msg); 
             // msg_send_to_self(&ack_msg); /* send ack */
 
             /* pass on packet to dispatcher */
@@ -158,7 +161,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 /* lock pkt until dispatcher makes a copy and unlocks */
                 recv_buf.mtx.lock();
                 recv_buf.length = recv_buf.length; // ???????
-                printf("got and expected seq_no %d\n", *recv_seq_no);
+                pc.printf("hdlc: got and expected seq_no %d\n", *recv_seq_no);
                 msg=dispacher_hdlc_mail_box->alloc();
                 msg->sender_pid=osThreadGetId();
                 msg->type = HDLC_PKT_RDY;
@@ -175,7 +178,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
         } else if (recv_buf.length == 0 && 
                     (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
                      recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
-            printf("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
+            pc.printf("hdlc: received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
 
             if(recv_buf.control.seq_no == *send_seq_no % 8) {
                 msg=dispacher_hdlc_mail_box->alloc();
@@ -184,7 +187,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 msg->content.value = (uint32_t) 0;
                 dispacher_hdlc_mail_box->put(msg); 
 
-                printf("sender_pid is %d\n", sender_pid);
+                pc.printf("hdlc: sender_pid is %d\n", sender_pid);
                 // msg_send(&msg, hdlc_dispatcher_pid);
                 (*send_seq_no)++;
                 uart_lock = 0;
@@ -197,30 +200,38 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     }
 }
 
-void hdlc(void const *arg)
+static void hdlc(void const *arg)
 {
     // uart_t dev = (uart_t)arg;
     // msg_init_queue(_hdlc_msg_queue, 16);
+    //     
+    pc.printf("hdlc: Inside hdlc Thread\n");
+
     uint32_t last_sent = 0;
     msg_t *msg, *msg_org, *reply, *msg2;
-
     unsigned int recv_seq_no = 0;
     unsigned int send_seq_no = 0;
     osEvent evt;
     while(1) {
+
+        pc.printf("hdlc: inside HDLC loop\n");
+        Thread::wait(200);
+        led2=!led2;
         if(uart_lock) {
             int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) global_time.read_us();
             if(timeout < 0) {
+                pc.printf("hdlc: inside timeout negative\n");
                 /* send message to self to resend msg */
-                msg2=hdlc_mail_box.alloc();
+                msg2=hdlc_mail_box->alloc();
                 msg2->sender_pid=osThreadGetId();
                 msg2->type = HDLC_MSG_RESEND;
-                hdlc_mail_box.put(msg2); 
-                evt = hdlc_mail_box.get();
+                hdlc_mail_box->put(msg2); 
+                evt = hdlc_mail_box->get();
                 // msg_send_to_self(&msg2);
             } else {
+                pc.printf("hdlc: inside timeout positive\n");
 
-                Thread::wait((int32_t)timeout/1000);
+                Thread::wait_us((int32_t)timeout);
                 continue;
                 // timeout
                 // if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
@@ -228,7 +239,9 @@ void hdlc(void const *arg)
                 // }
             }
         } else {
-            evt = hdlc_mail_box.get();
+            pc.printf("hdlc: waiting for mail\n");
+
+            evt = hdlc_mail_box->get();
         }
         
         
@@ -239,18 +252,19 @@ void hdlc(void const *arg)
             msg_org = (msg_t*)evt.value.p;
             msg=new msg_t(); 
             memcpy(msg, msg_org, sizeof(msg_t));
-            hdlc_mail_box.free(msg_org);
+            hdlc_mail_box->free(msg_org);
 
             switch (msg->type) {
                 case HDLC_MSG_RECV:
-                    printf("hdlc: receiving msg...\n");
+                    pc.printf("hdlc: receiving msg...\n");
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
                     break;
                 case HDLC_MSG_SND:
-                    printf("hdlc: request to send received from pid %d\n", msg->sender_pid);
+                    pc.printf("hdlc: request to send received from pid %d\n", msg->sender_pid);
+                    // uart_lock=1;
                     if (uart_lock) {
                         /* ask thread to try again in x usec */
-                        printf("hdlc: uart locked, telling thr to retry\n");
+                        pc.printf("hdlc: uart locked, telling thr to retry\n");
                         reply=((Mail<msg_t, 16>*)msg->source_mailbox)->alloc();
                         reply->type = HDLC_RESP_RETRY_W_TIMEO;
                         reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
@@ -260,7 +274,7 @@ void hdlc(void const *arg)
                     }else {
                         uart_lock = 1;
                         sender_pid = msg->sender_pid;
-                        printf("hdlc: sender_pid set to %d\n", sender_pid);
+                        pc.printf("hdlc: sender_pid set to %d\n", sender_pid);
                         send_buf.control.frame = YAHDLC_FRAME_DATA;
                         send_buf.control.seq_no = send_seq_no % 8; 
                         
@@ -284,24 +298,24 @@ void hdlc(void const *arg)
                     ack_buf.control.frame = YAHDLC_FRAME_ACK;
                     ack_buf.control.seq_no = msg->content.value;
                     yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, &(ack_buf.length));    
-                    printf("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
+                    pc.printf("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
                     write_hdlc((uint8_t *)ack_buf.data, ack_buf.length);
                     // hdlc_pc->write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
                     break;
                 case HDLC_MSG_RESEND:
-                    printf("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
+                    pc.printf("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
                     write_hdlc((uint8_t *)send_buf.data, send_buf.length);
                     // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,0,0);
                     last_sent = global_time.read_us();
                     break;
                 case HDLC_MSG_REG_DISPATCHER:
-                    printf("hdlc: Registering dispatcher thread.\n");
+                    pc.printf("hdlc: Registering dispatcher thread.\n");
                     hdlc_dispatcher_pid = msg->sender_pid;
                     dispacher_hdlc_mail_box=(Mail<msg_t, 16>*)msg->source_mailbox;
-                    printf("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
+                    pc.printf("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
                     break;
                 default:
-                    printf("INVALID HDLC MSG\n");
+                    pc.printf("INVALID HDLC MSG\n");
                     //LED3_ON;
                     break;
             }
@@ -309,7 +323,7 @@ void hdlc(void const *arg)
     }
 
     // /* this should never be reached */
-    // return NULL;
+    // return;
 }
 
 int hdlc_pkt_release(hdlc_buf_t *buf) 
@@ -325,48 +339,51 @@ int hdlc_pkt_release(hdlc_buf_t *buf)
     buf->mtx.unlock();
     return 0;
     
-    printf("Packet not locked. Might be empty!\n");
+    pc.printf("hdlc: Packet not locked. Might be empty!\n");
     return -1;
 }
 
-int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void *mail)
+int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void **mail)
 // int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name, int dev)
 {
+    led2=1;
     osThreadId res;
     recv_buf.data = hdlc_recv_data;
     send_buf.data = hdlc_send_frame;
     ack_buf.data = hdlc_ack_frame;
     global_time.start();
     /* check if uart device number is valid */
-    if(dev > UART_NUM - 1) {
-        return -ENODEV;
-    }
+    // if(dev > UART_NUM - 1) {
+    //     return -ENODEV;
+    // }
+    // 
+    hdlc_mail_box= new Mail<msg_t, HDLC_MAILBOX_SIZE>;
+    *mail=hdlc_mail_box;
 
     ctx= new CircularBuffer<char, UART_BUFSIZE>();
     hdlc_pc= new Serial(p28,p27,115200); // need to make the pin tx/rx name into a function call
     void (*fpointer)(void) = &rx_cb;
     hdlc_pc->attach(fpointer,Serial::RxIrq);
     
-    Thread hdlc_thread(hdlc);
-    hdlc_thread.set_priority(priority);
+    hdlcpointer = new Thread(hdlc);
+    hdlcpointer->set_priority(priority);
+    
+    res=hdlcpointer->gettid();
+    pc.printf("hdlc: thread  id %d\n",res);
 
-    res=hdlc_thread.gettid();
-
-    // ,priority,(uint32_t)stacksize);
-    // res = thread_create(stack, stacksize,
-    //                     priority, THREAD_CREATE_STACKTEST, hdlc, (void *) dev, name);
-
-    if (res <= 0) {
-        return -EINVAL;
-    }
+    // if (res <= 0) {
+    //     return -EINVAL;
+    // }
 
     hdlc_thread_pid = res;
-    mail=&hdlc_mail_box;
+    
+    pc.printf("hdlc: hdlc thread creation done!!\n");
+
     return (int)res;
 }
 void write_hdlc(uint8_t *ptr,int len)
 {
-
+    pc.printf("hdlc: Inside write_hdlc\n");
     for(uint8_t i=1;i<len;i++)
         hdlc_pc->putc(*(ptr+i));   
 
