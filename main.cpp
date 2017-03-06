@@ -62,12 +62,15 @@ int main(void)
 
     // random_init(xtimer_now());
 
-    msg_req=hdlc_mail_box_ptr->alloc();
+    msg_req=new msg_t;
+    // hdlc_mail_box_ptr->alloc();
     msg_req->type = HDLC_MSG_REG_DISPATCHER;
     msg_req->content.value = (uint32_t) NULL;
     msg_req->sender_pid=osThreadGetId();
     msg_req->source_mailbox=&dispacher_mailbox;
-    hdlc_mail_box_ptr->put(msg_req);
+    send_hdlc_pkt(msg_req);
+    free(msg_req);
+    // hdlc_mail_box_ptr->put(msg_req);
     // PRINTF("In main");
 
     PRINTF("dispatcher pid is %d \n", osThreadGetId());
@@ -90,15 +93,17 @@ int main(void)
 
 
         /* send pkt =*/
-        msg_req1=hdlc_mail_box_ptr->alloc();
+        msg_req1=new msg_t;
         msg_req1->type = HDLC_MSG_SND;
         msg_req1->content.ptr = pkt;
         msg_req1->sender_pid=osThreadGetId();
         msg_req1->source_mailbox=&dispacher_mailbox;
-        
+        send_hdlc_pkt(msg_req1);
+        free(msg_req1);
+
         printf("dispatcher: sending pkt no %d packet %d\n", frame_no,((hdlc_pkt_t*)msg_req1->content.ptr)->length);
 
-        hdlc_mail_box_ptr->put(msg_req1);
+        // hdlc_mail_box_ptr->put(msg_req1);
 
         while(1)
         {
@@ -123,21 +128,22 @@ int main(void)
                         Thread::wait(msg_resp->content.value/1000);
                         PRINTF("dispatcher: retry frame_no %d \n", frame_no);
                         // exit = 1;
-                        msg_req1=hdlc_mail_box_ptr->alloc();
+                        msg_req1=new msg_t;
                         msg_req1->type = HDLC_MSG_SND;
                         msg_req1->content.ptr = pkt;
                         msg_req1->sender_pid=osThreadGetId();
                         msg_req1->source_mailbox=&dispacher_mailbox;
-
-                        hdlc_mail_box_ptr->put(msg_req1);
+                        send_hdlc_pkt(msg_req1);
                         free(msg_resp);
+                        free(msg_req1);
                         break;
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg_resp->content.ptr;   
                         memcpy(recv_data, buf->data, buf->length);
                         printf("dispatcher: received pkt %d\n", recv_data[0]);
+                        hdlc_pkt_release(buf);
                         free(msg_resp);
-                        // hdlc_pkt_release(buf);
+
                         // exit = 1;
 
                         break;
