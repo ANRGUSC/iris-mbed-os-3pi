@@ -57,9 +57,9 @@
 #include "mbed.h"
 
 #define RTRY_TIMEO_USEC         1000000
-#define RETRANSMIT_TIMEO_USEC   2000000
+#define RETRANSMIT_TIMEO_USEC   1000000
 #define HDLC_MAX_PKT_SIZE       128
-#define HDLC_MAILBOX_SIZE 16
+#define HDLC_MAILBOX_SIZE 128
 extern Serial pc;
 
 
@@ -107,7 +107,7 @@ enum {
     HDLC_PKT_RDY
 };
 
-void send_hdlc_pkt(msg_t *msg_req);
+bool send_hdlc_pkt(msg_t *msg_req);
 int hdlc_pkt_release(hdlc_buf_t *buf);
 int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void **mail);
 

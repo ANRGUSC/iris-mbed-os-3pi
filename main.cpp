@@ -41,7 +41,7 @@ int main(void)
     void *mailbox_ptr;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mail_box_ptr;
     PRINTF("In main");
-
+    bool flag=1;
     int hdlc_pidint=hdlc_init(NULL, osPriorityRealtime, "hdlc", 1,(void**)&hdlc_mail_box_ptr);//UART_DEV(1));
     // pc.printf("In main");
 
@@ -81,8 +81,8 @@ int main(void)
     while(1)
     {
         myled=!myled;
-        //Thread::wait(1000);
-        PRINTF("inside main\n");
+        //Thread::wait(rand() % 0x3E8);
+        PRINTF("inside main: flag %d\n",flag);
         pkt->data[0] = frame_no;
 
         for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
@@ -91,7 +91,8 @@ int main(void)
 
         pkt->length = HDLC_MAX_PKT_SIZE;
 
-
+        if(flag==1)
+        {
         /* send pkt =*/
         msg_req1=new msg_t;
         msg_req1->type = HDLC_MSG_SND;
@@ -102,7 +103,7 @@ int main(void)
         free(msg_req1);
 
         printf("dispatcher: sending pkt no %d packet %d\n", frame_no,((hdlc_pkt_t*)msg_req1->content.ptr)->length);
-
+        }
         // hdlc_mail_box_ptr->put(msg_req1);
 
         while(1)
@@ -122,6 +123,7 @@ int main(void)
                     case HDLC_RESP_SND_SUCC:
                         printf("dispatcher: sent frame_no %d!\n", frame_no);
                         exit = 1;
+                        flag=0;
                         free(msg_resp);
                         break;
                     case HDLC_RESP_RETRY_W_TIMEO:
@@ -140,9 +142,10 @@ int main(void)
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg_resp->content.ptr;   
                         memcpy(recv_data, buf->data, buf->length);
-                        printf("dispatcher: received pkt %d\n", recv_data[0]);
                         hdlc_pkt_release(buf);
                         free(msg_resp);
+                        flag=1;
+                        printf("dispatcher: received pkt %d\n", recv_data[0]);
 
                         // exit = 1;
 
