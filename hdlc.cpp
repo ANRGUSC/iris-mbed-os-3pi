@@ -227,47 +227,36 @@ static void hdlc(void const *arg)
         //Thread::wait(200);
         led2=!led2;
         if(uart_lock) {
-            int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) global_time.read_us();
+            int timeout = (int) ( RETRANSMIT_TIMEO_USEC) - (int) global_time.read_us();
             if(timeout < 0) {
-                PRINTF("hdlc: inside timeout negative\n");
+                // PRINTF("hdlc: inside timeout negative\n");
                 /* send message to self to resend msg */
                 msg2=hdlc_mail_box->alloc();
                 msg2->sender_pid=osThreadGetId();
                 msg2->type = HDLC_MSG_RESEND;
                 hdlc_mail_box->put(msg2); 
-                evt = hdlc_mail_box->get();
-                // msg_send_to_self(&msg2);
             } else {
-                PRINTF("hdlc: inside timeout positive\n");
+                // PRINTF("hdlc: inside timeout positive\n");
 
                 Thread::wait((int32_t)timeout/1000);
                 continue;
-                // timeout
-                // if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
-                    // continue;
-                // }
             }
         } else {
             PRINTF("hdlc: waiting for mail\n");
 
-            evt = hdlc_mail_box->get();
         }
         
-        
-        
-        
+        evt = hdlc_mail_box->get();
+       
         if (evt.status == osEventMail) 
         {          
-            msg_org = (msg_t*)evt.value.p;
-            msg=new msg_t(); 
-            memcpy(msg, msg_org, sizeof(msg_t));
-            hdlc_mail_box->free(msg_org);
+            msg = (msg_t*)evt.value.p;
 
             switch (msg->type) {
                 case HDLC_MSG_RECV:
                     PRINTF("hdlc: receiving msg...\n");
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
-                    free(msg);
+                    hdlc_mail_box->free(msg);
                     break;
                 case HDLC_MSG_SND:
                     PRINTF("hdlc: request to send received from pid %d\n", msg->sender_pid);
@@ -298,38 +287,38 @@ static void hdlc(void const *arg)
                         // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,NULL,NULL);
 
                         // uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
-                        last_sent = global_time.read_us();
+                        global_time.reset();
                     }  
-                    free(msg); 
+                    hdlc_mail_box->free(msg); 
                     break;
                 case HDLC_MSG_SND_ACK:
                     /* send ACK */
                     ack_buf.control.frame = YAHDLC_FRAME_ACK;
                     ack_buf.control.seq_no = msg->content.value;
                     yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, &(ack_buf.length));    
-                    PRINTF("hdlc: sending ack w/ seq no %d\n", ack_buf.control.seq_no);
+                    PRINTF("hdlc: sending ack w/ seq no %d, len %d\n", ack_buf.control.seq_no,ack_buf.length);
                     write_hdlc((uint8_t *)ack_buf.data, ack_buf.length);
                     // hdlc_pc->write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
-                    free(msg); 
+                    hdlc_mail_box->free(msg); 
                     break;
                 case HDLC_MSG_RESEND:
                     PRINTF("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
                     write_hdlc((uint8_t *)send_buf.data, send_buf.length);
                     // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,0,0);
-                    last_sent = global_time.read_us();
-                    free(msg); 
+                    global_time.reset();
+                    hdlc_mail_box->free(msg); 
                     break;
                 case HDLC_MSG_REG_DISPATCHER:
                     PRINTF("hdlc: Registering dispatcher thread.\n");
                     hdlc_dispatcher_pid = msg->sender_pid;
                     dispacher_hdlc_mail_box=(Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
                     PRINTF("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
-                    free(msg); 
+                    hdlc_mail_box->free(msg);
                     break;
                 default:
                     PRINTF("INVALID HDLC MSG\n");
                     //LED3_ON;
-                    free(msg); 
+                    hdlc_mail_box->free(msg); 
                     break;
             }
         }
@@ -396,8 +385,8 @@ int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, voi
 }
 void write_hdlc(uint8_t *ptr,int len)
 {
-    PRINTF("hdlc: Inside write_hdlc\n");
     for(uint8_t i=1;i<len;i++)
         hdlc_pc->putc(*(ptr+i));   
+    PRINTF("hdlc: Inside write_hdlc %d\n",len);
 
 }

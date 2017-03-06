@@ -9,6 +9,14 @@
 #include <inttypes.h>
 #include "yahdlc.h"
 #include "fcs16.h"
+#define DEBUG 1
+
+#if (DEBUG) 
+#define PRINTF(...) pc.printf(__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif /* (DEBUG) & DEBUG_PRINT */
+
 DigitalOut myled(LED1);
 
 // #ifndef UART_STDIO_DEV
@@ -32,9 +40,9 @@ int main(void)
     myled=1;
     void *mailbox_ptr;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mail_box_ptr;
-    pc.printf("In main");
+    PRINTF("In main");
 
-    int hdlc_pidint=hdlc_init(NULL, (osPriority)NULL, "hdlc", 1,(void**)&hdlc_mail_box_ptr);//UART_DEV(1));
+    int hdlc_pidint=hdlc_init(NULL, osPriorityRealtime, "hdlc", 1,(void**)&hdlc_mail_box_ptr);//UART_DEV(1));
     // pc.printf("In main");
 
     hdlc_pid=(osThreadId)hdlc_pidint;
@@ -50,7 +58,7 @@ int main(void)
     pkt->data = send_data;
     pkt->length = 0;
     hdlc_buf_t *buf;
-    pc.printf("In main");
+    PRINTF("In main");
 
     // random_init(xtimer_now());
 
@@ -60,9 +68,9 @@ int main(void)
     msg_req->sender_pid=osThreadGetId();
     msg_req->source_mailbox=&dispacher_mailbox;
     hdlc_mail_box_ptr->put(msg_req);
-    // pc.printf("In main");
+    // PRINTF("In main");
 
-    pc.printf("dispatcher pid is %d \n", osThreadGetId());
+    PRINTF("dispatcher pid is %d \n", osThreadGetId());
 
     msg_req->type = 0;
     int exit = 0;
@@ -71,7 +79,7 @@ int main(void)
     {
         myled=!myled;
         //Thread::wait(1000);
-        pc.printf("inside main\n");
+        PRINTF("inside main\n");
         pkt->data[0] = frame_no;
 
         for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
@@ -113,7 +121,7 @@ int main(void)
                         break;
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg_resp->content.value/1000);
-                        pc.printf("dispatcher: retry frame_no %d \n", frame_no);
+                        PRINTF("dispatcher: retry frame_no %d \n", frame_no);
                         // exit = 1;
                         msg_req1=hdlc_mail_box_ptr->alloc();
                         msg_req1->type = HDLC_MSG_SND;
@@ -148,7 +156,7 @@ int main(void)
 
         frame_no++;
     }
-
+    PRINTF("Reached Exit");
     /* should be never reached */
     return 0;
 }
