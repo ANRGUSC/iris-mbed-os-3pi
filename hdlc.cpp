@@ -68,7 +68,7 @@
 #else
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
-
+static int count=0;
 DigitalOut led2(LED2);
 DigitalOut led3(LED3);
 
@@ -121,11 +121,19 @@ static void rx_cb(void)//(void *arg, uint8_t data)
         
         // wakeup hdlc thread 
         msg_t *msg = hdlc_mail_box->alloc();
+        if(msg==NULL)
+        {
+              PRINTF("hdlc: no more space available on mailbox\n");
+              return;
+        }
         msg->sender_pid=osThreadGetId();
         msg->type = HDLC_MSG_RECV;
         msg->source_mailbox=hdlc_mail_box;
         // msg.content.value = (uint32_t)dev;
         hdlc_mail_box->put(msg); 
+        count++;
+        PRINTF("mailbox: rx_cb count %d\n",count);
+
     }
 }
 
@@ -147,6 +155,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
         // c = (char) retval;
         recv_buf.mtx.lock();
+
         ret = yahdlc_get_data(&recv_buf.control, &c, 1, recv_buf.data, &recv_buf.length);
         recv_buf.mtx.unlock();
 
@@ -159,10 +168,17 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
             /* always send ack */
             ack_msg = hdlc_mail_box->alloc();
+            if(ack_msg==NULL)
+            {
+              PRINTF("hdlc: no more space available on mailbox\n");
+              return;
+            }
             ack_msg->sender_pid=osThreadGetId();
             ack_msg->type = HDLC_MSG_SND_ACK;
             ack_msg->content.value = recv_buf.control.seq_no;
             hdlc_mail_box->put(ack_msg); 
+            count++;
+            PRINTF("mailbox: _hdlc_receive count %d\n",count);
             // msg_send_to_self(&ack_msg); /* send ack */
 
             /* pass on packet to dispatcher */
@@ -223,20 +239,32 @@ static void hdlc(void const *arg)
     osEvent evt;
     while(1) {
 
-        //PRINTF("hdlc: inside HDLC loop\n");
+        PRINTF("hdlc: inside HDLC loop\n");
+        PRINTF("mailbox: hdlc count %d\n",count);
+
         //Thread::wait(200);
         led2=!led2;
         if(uart_lock) {
             int timeout = (int) ( RETRANSMIT_TIMEO_USEC) - (int) global_time.read_us();
             if(timeout < 0) {
-                // PRINTF("hdlc: inside timeout negative\n");
+                PRINTF("hdlc: inside timeout negative\n");
                 /* send message to self to resend msg */
                 msg2=hdlc_mail_box->alloc();
-                msg2->sender_pid=osThreadGetId();
-                msg2->type = HDLC_MSG_RESEND;
-                hdlc_mail_box->put(msg2); 
+                if(msg2==NULL)
+                {
+                    PRINTF("hdlc: no more space available on mailbox");
+                    //Thread::wait(10);
+                }
+                else
+                {
+                    msg2->sender_pid=osThreadGetId();
+                    msg2->type = HDLC_MSG_RESEND;
+                    hdlc_mail_box->put(msg2); 
+                    count++;
+                }
+
             } else {
-                // PRINTF("hdlc: inside timeout positive\n");
+                PRINTF("hdlc: inside timeout positive\n");
 
                 Thread::wait((int32_t)timeout/1000);
                 continue;
@@ -257,6 +285,7 @@ static void hdlc(void const *arg)
                     PRINTF("hdlc: receiving msg...\n");
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
                     hdlc_mail_box->free(msg);
+                    count--;
                     break;
                 case HDLC_MSG_SND:
                     PRINTF("hdlc: request to send received from pid %d\n", msg->sender_pid);
@@ -290,6 +319,7 @@ static void hdlc(void const *arg)
                         global_time.reset();
                     }  
                     hdlc_mail_box->free(msg); 
+                    count--;
                     break;
                 case HDLC_MSG_SND_ACK:
                     /* send ACK */
@@ -299,7 +329,8 @@ static void hdlc(void const *arg)
                     PRINTF("hdlc: sending ack w/ seq no %d, len %d\n", ack_buf.control.seq_no,ack_buf.length);
                     write_hdlc((uint8_t *)ack_buf.data, ack_buf.length);
                     // hdlc_pc->write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
-                    hdlc_mail_box->free(msg); 
+                    hdlc_mail_box->free(msg);
+                    count--;
                     break;
                 case HDLC_MSG_RESEND:
                     PRINTF("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
@@ -307,6 +338,7 @@ static void hdlc(void const *arg)
                     // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,0,0);
                     global_time.reset();
                     hdlc_mail_box->free(msg); 
+                    count--;
                     break;
                 case HDLC_MSG_REG_DISPATCHER:
                     PRINTF("hdlc: Registering dispatcher thread.\n");
@@ -314,11 +346,13 @@ static void hdlc(void const *arg)
                     dispacher_hdlc_mail_box=(Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
                     PRINTF("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
                     hdlc_mail_box->free(msg);
+                    count--;
                     break;
                 default:
                     PRINTF("INVALID HDLC MSG\n");
                     //LED3_ON;
                     hdlc_mail_box->free(msg); 
+                    count--;
                     break;
             }
         }
@@ -330,19 +364,32 @@ static void hdlc(void const *arg)
 
 int hdlc_pkt_release(hdlc_buf_t *buf) 
 {
-    // if(buf->mtx.queue.next != NULL) { //how to do this??
-    //     buf->control.frame = buf->control.seq_no = 0;
-    //     mutex_unlock(&buf->mtx);
-    //     return 0;
-    // }
+    if(buf->mtx.trylock())
+    {
+        PRINTF("hdlc: Packet not locked. Might be empty!\n");
+        return -1;
+    }
+    else
+    {
+        buf->control.frame = (yahdlc_frame_t)0;
+        buf->control.seq_no = 0;
+        buf->mtx.unlock();
+        return 0;
+    }
+
+}
+
+void send_hdlc_pkt(msg_t *msg_req) 
+{
     
-    buf->control.frame = (yahdlc_frame_t)0;
-    buf->control.seq_no = 0;
-    buf->mtx.unlock();
-    return 0;
-    
-    PRINTF("hdlc: Packet not locked. Might be empty!\n");
-    return -1;
+    msg_t *msg;
+    msg=hdlc_mail_box->alloc();
+    memcpy(msg,msg_req,sizeof(msg_t));
+    hdlc_mail_box->put(msg);
+    count++;
+    PRINTF("mailbox: (send_hdlc_pkt) hdlc count %d\n",count);
+
+    return;
 }
 
 int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void **mail)

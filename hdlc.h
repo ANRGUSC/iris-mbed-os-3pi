@@ -107,6 +107,7 @@ enum {
     HDLC_PKT_RDY
 };
 
+void send_hdlc_pkt(msg_t *msg_req);
 int hdlc_pkt_release(hdlc_buf_t *buf);
 int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void **mail);
 
