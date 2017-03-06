@@ -24,17 +24,12 @@
  * SOFTWARE.
  * 
 */
-#
+
 #include "fcs16.h"
 #include "yahdlc.h"
 #include <errno.h>
 #include "hdlc.h"
 #include "mbed.h"
-#if (DEBUG) 
-#define PRINTF(...) pc.printf(__VA_ARGS__)
-#else
-#define PRINTF(...)
-#endif /* (DEBUG) & DEBUG_PRINT */
 #include "rtos.h"
 
 // HDLC Control field bit positions
@@ -250,7 +245,7 @@ int yahdlc_frame_data(yahdlc_control_t *control, const char *src,
   int dest_index = 0;
   unsigned char value = 0;
   unsigned short fcs = FCS16_INIT_VALUE;
-  PRINTF("yahdlc: frame copying\n");
+
   // Make sure that all parameters are valid
   if (!control || (!src && (src_len > 0)) || !dest || !dest_len) {
     return -EINVAL;
@@ -263,13 +258,10 @@ int yahdlc_frame_data(yahdlc_control_t *control, const char *src,
   fcs = fcs16(fcs, YAHDLC_ALL_STATION_ADDR);
   yahdlc_escape_value(YAHDLC_ALL_STATION_ADDR, dest, &dest_index);
 
-
   // Add the framed control field value
   value = yahdlc_frame_control_type(control);
   fcs = fcs16(fcs, value);
   yahdlc_escape_value(value, dest, &dest_index);
-
-  PRINTF("yahdlc: frame copying %d\n",src_len);
 
   // Only DATA frames should contain data
   if (control->frame == YAHDLC_FRAME_DATA) {
@@ -279,8 +271,6 @@ int yahdlc_frame_data(yahdlc_control_t *control, const char *src,
       yahdlc_escape_value(src[i], dest, &dest_index);
     }
   }
-  PRINTF("yahdlc: data copy done\n");
-
 
   // Invert the FCS value accordingly to the specification
   fcs ^= 0xFFFF;
@@ -294,7 +284,6 @@ int yahdlc_frame_data(yahdlc_control_t *control, const char *src,
   // Add end flag sequence and update length of frame
   dest[dest_index++] = YAHDLC_FLAG_SEQUENCE;
   *dest_len = dest_index;
-  PRINTF("yahdlc: frame copy done\n");
 
   return 0;
 }
