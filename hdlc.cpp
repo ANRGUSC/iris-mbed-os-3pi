@@ -386,6 +386,9 @@ void send_hdlc_pkt(msg_t *msg_req)
     msg=hdlc_mail_box->alloc();
     memcpy(msg,msg_req,sizeof(msg_t));
     hdlc_mail_box->put(msg);
+    count++;
+    PRINTF("mailbox: (send_hdlc_pkt) hdlc count %d\n",count);
+
     return;
 }
 
