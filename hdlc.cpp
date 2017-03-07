@@ -239,7 +239,7 @@ static void hdlc(void const *arg)
     osEvent evt;
     while(1) {
 
-        PRINTF("hdlc: inside HDLC loop\n");
+        //PRINTF("hdlc: inside HDLC loop\n");
         // PRINTF("mailbox: hdlc hdlc_mail_count %d\n",hdlc_mail_count);
 
         //Thread::wait(200);
@@ -295,7 +295,7 @@ static void hdlc(void const *arg)
                     if (uart_lock) {
                         /* ask thread to try again in x usec */
                         PRINTF("hdlc: uart locked, telling thr to retry\n");
-                        reply=((Mail<msg_t, 16>*)msg->source_mailbox)->alloc();
+                        reply=((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->alloc();
                         reply->type = HDLC_RESP_RETRY_W_TIMEO;
                         reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
                         reply->sender_pid=osThreadGetId();

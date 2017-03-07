@@ -91,9 +91,7 @@ int main(void)
 
         pkt->length = HDLC_MAX_PKT_SIZE;
 
-        if(flag==1)
-        {
-        /* send pkt =*/
+        // /* send pkt =*/
         msg_req1=new msg_t;
         msg_req1->type = HDLC_MSG_SND;
         msg_req1->content.ptr = pkt;
@@ -103,7 +101,7 @@ int main(void)
         free(msg_req1);
 
         printf("dispatcher: sending pkt no %d packet %d\n", frame_no,((hdlc_pkt_t*)msg_req1->content.ptr)->length);
-        }
+    
         // hdlc_mail_box_ptr->put(msg_req1);
 
         while(1)
@@ -123,7 +121,6 @@ int main(void)
                     case HDLC_RESP_SND_SUCC:
                         printf("dispatcher: sent frame_no %d!\n", frame_no);
                         exit = 1;
-                        flag=0;
                         free(msg_resp);
                         break;
                     case HDLC_RESP_RETRY_W_TIMEO:
@@ -144,7 +141,6 @@ int main(void)
                         memcpy(recv_data, buf->data, buf->length);
                         hdlc_pkt_release(buf);
                         free(msg_resp);
-                        flag=1;
                         printf("dispatcher: received pkt %d\n", recv_data[0]);
 
                         // exit = 1;
