@@ -82,28 +82,26 @@ int main(void)
     {
         myled=!myled;
         //Thread::wait(rand() % 0x3E8);
-        PRINTF("inside main: flag %d\n",flag);
+        PRINTF("inside main\n");
         pkt->data[0] = frame_no;
 
         for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt->data[i] = (char) ( rand() % 0x7E);
         }
 
-        pkt->length = HDLC_MAX_PKT_SIZE;
+        // pkt->length = HDLC_MAX_PKT_SIZE;
 
-        if(flag==1)
-        {
         /* send pkt =*/
-        msg_req1=new msg_t;
-        msg_req1->type = HDLC_MSG_SND;
-        msg_req1->content.ptr = pkt;
-        msg_req1->sender_pid=osThreadGetId();
-        msg_req1->source_mailbox=&dispacher_mailbox;
-        send_hdlc_pkt(msg_req1);
-        free(msg_req1);
+        // msg_req1=new msg_t;
+        // msg_req1->type = HDLC_MSG_SND;
+        // msg_req1->content.ptr = pkt;
+        // msg_req1->sender_pid=osThreadGetId();
+        // msg_req1->source_mailbox=&dispacher_mailbox;
+        // send_hdlc_pkt(msg_req1);
+        // free(msg_req1);
 
-        printf("dispatcher: sending pkt no %d packet %d\n", frame_no,((hdlc_pkt_t*)msg_req1->content.ptr)->length);
-        }
+        // printf("dispatcher: sending pkt no %d packet %d\n", frame_no,((hdlc_pkt_t*)msg_req1->content.ptr)->length);
+        
         // hdlc_mail_box_ptr->put(msg_req1);
 
         while(1)
@@ -123,7 +121,6 @@ int main(void)
                     case HDLC_RESP_SND_SUCC:
                         printf("dispatcher: sent frame_no %d!\n", frame_no);
                         exit = 1;
-                        flag=0;
                         free(msg_resp);
                         break;
                     case HDLC_RESP_RETRY_W_TIMEO:
@@ -144,11 +141,8 @@ int main(void)
                         memcpy(recv_data, buf->data, buf->length);
                         hdlc_pkt_release(buf);
                         free(msg_resp);
-                        flag=1;
                         printf("dispatcher: received pkt %d\n", recv_data[0]);
-
                         // exit = 1;
-
                         break;
                     default:
                         free(msg_resp);
@@ -162,7 +156,6 @@ int main(void)
                 break;
             }
         }
-
         frame_no++;
     }
     PRINTF("Reached Exit");
