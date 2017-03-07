@@ -1,9 +1,17 @@
 from pyOCD.board import MbedBoard
 import os, sys
 import logging
+import serial.tools.list_ports_linux as serial_tools
+
+def serial_ports():
+    ports = list(serial_tools.comports())
+    for p in ports:
+        if "MBED" in p.description:
+            return p.device
+
 logging.basicConfig(level=logging.INFO)
 
-os.system("mbed compile --profile mbed-os/tools/profiles/debug.json -c");
+os.system("mbed compile");
 board = MbedBoard.chooseBoard()
 
 target = board.target
@@ -22,13 +30,16 @@ target.halt()
 # print "pc: 0x%X" % target.readCoreRegister("pc")
 #   pc: 0xA32
 
-flash.flashBinary("./BUILD/LPC1768/GCC_ARM/pololu.bin")
-print "pc: 0x%X" % target.readCoreRegister("pc")
+flash.flashBinary("./BUILD/LPC1768/GCC_ARM/polulu_test.bin")
+print("pc: 0x%X" % target.readCoreRegister("pc"))
 #   pc: 0x10000000
 
 target.reset()
 # target.halt()
 # print "pc: 0x%X" % target.readCoreRegister("pc")
 # #   pc: 0xAAC
+# 
+cmd = "./pyterm -b 115200 -p %s" % serial_ports()
+os.system(cmd)
 
 # board.uninit()
