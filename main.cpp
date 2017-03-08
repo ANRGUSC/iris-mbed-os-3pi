@@ -42,11 +42,11 @@ int main(void)
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mail_box_ptr;
     PRINTF("In main");
     bool flag=1;
-    int hdlc_pidint = hdlc_init(NULL, osPriorityRealtime, "hdlc", 1,(void**)&hdlc_mail_box_ptr);//UART_DEV(1));
+    int hdlc_pidint = hdlc_init(NULL, osPriorityRealtime, "hdlc", 1,(void**)&hdlc_mail_box_ptr);
 
     hdlc_pid = (osThreadId) hdlc_pidint;
 
-    msg_t *msg_resp,*msg_req,*msg_req1,*msg_org;
+    msg_t *msg_req,*msg_req1,*msg_org;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
@@ -102,46 +102,39 @@ int main(void)
         {
             myled=!myled;
             evt = dispacher_mailbox.get();
-            msg_org = (msg_t*)evt.value.p;
-            msg_resp=new msg_t(); 
-            memcpy(msg_resp, msg_org, sizeof(msg_t));
-            dispacher_mailbox.free(msg_org);
 
-            // msg_receive(&msg_resp);
             if (evt.status == osEventMail) 
             {
-                switch (msg_resp->type)
+                msg_org = (msg_t*)evt.value.p;
+
+                switch (msg_org->type)
                 {
                     case HDLC_RESP_SND_SUCC:
                         printf("dispatcher: sent frame_no %d!\n", frame_no);
                         exit = 1;
-                        free(msg_resp);
+                        dispacher_mailbox.free(msg_org);
                         break;
                     case HDLC_RESP_RETRY_W_TIMEO:
-                        Thread::wait(msg_resp->content.value/1000);
+                        Thread::wait(msg_org->content.value/1000);
                         PRINTF("dispatcher: retry frame_no %d \n", frame_no);
-                        // exit = 1;
                         msg_req1=new msg_t;
                         msg_req1->type = HDLC_MSG_SND;
                         msg_req1->content.ptr = pkt;
                         msg_req1->sender_pid=osThreadGetId();
                         msg_req1->source_mailbox=&dispacher_mailbox;
                         send_hdlc_pkt(msg_req1);
-                        free(msg_resp);
+                        dispacher_mailbox.free(msg_org);
                         free(msg_req1);
                         break;
                     case HDLC_PKT_RDY:
-                        buf = (hdlc_buf_t *)msg_resp->content.ptr;   
+                        buf = (hdlc_buf_t *)msg_org->content.ptr;   
                         memcpy(recv_data, buf->data, buf->length);
                         hdlc_pkt_release(buf);
-                        free(msg_resp);
+                        dispacher_mailbox.free(msg_org);
                         printf("dispatcher: received pkt %d\n", recv_data[0]);
-
-                        // exit = 1;
-
                         break;
                     default:
-                        free(msg_resp);
+                        dispacher_mailbox.free(msg_org);
                         /* error */
                         //LED3_ON;
                         break;
