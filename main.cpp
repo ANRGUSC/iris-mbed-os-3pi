@@ -43,7 +43,6 @@ int main(void)
     PRINTF("In main");
     bool flag=1;
     int hdlc_pidint=hdlc_init(NULL, osPriorityRealtime, "hdlc", 1,(void**)&hdlc_mail_box_ptr);//UART_DEV(1));
-    // pc.printf("In main");
 
     hdlc_pid=(osThreadId)hdlc_pidint;
     // Thread::wait(1000);

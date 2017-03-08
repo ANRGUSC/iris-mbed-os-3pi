@@ -258,11 +258,16 @@ static void hdlc(void const *arg)
         if(uart_lock) {
             int timeout = (int)RETRANSMIT_TIMEO_USEC - (int) global_time.read_us();
             if(timeout < 0) {
-                // PRINTF("hdlc: inside timeout negative\n");
+                PRINTF("hdlc: inside timeout negative\n");
                 /* send message to self to resend msg */
                 msg2=hdlc_mail_box->alloc();
-                if(msg2==NULL)
+                if(msg2==NULL) {
                     PRINTF("hdlc: no more space available on mailbox");
+                    evt = hdlc_mail_box->get(50);
+                    if(evt.status == osEventTimeout){
+                        continue;
+                    }
+                }
                 else
                 {
                     hdlc_mail_count++;
@@ -270,12 +275,11 @@ static void hdlc(void const *arg)
                     msg2->type = HDLC_MSG_RESEND;
                     msg2->source_mailbox = hdlc_mail_box;
                     hdlc_mail_box->put(msg2); 
+                    evt = hdlc_mail_box->get();
                 }
 
-                evt = hdlc_mail_box->get();
-
             } else {
-                evt = hdlc_mail_box->get(timeout);
+                evt = hdlc_mail_box->get(timeout / 1000);
                 if(evt.status == osEventTimeout){
                     continue;
                 }
@@ -324,6 +328,7 @@ static void hdlc(void const *arg)
                         // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,NULL,NULL);
 
                         // uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
+                        PRINTF("sent\n");
                         global_time.reset();
                     }  
                     hdlc_mail_box->free(msg); 
@@ -447,9 +452,9 @@ void write_hdlc(uint8_t *ptr,int len)
     int count = 0;
 
     while ( count < len ) {
-        // if (hdlc_pc->writeable()) {
+        if (hdlc_pc->writeable()) {
             hdlc_pc->putc(ptr[count]);   
             count++;
-        // }
+        }
     }
 }
