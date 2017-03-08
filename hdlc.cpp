@@ -90,6 +90,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *dispacher_hdlc_mail_box;
 
 
 Timer global_time;
+
 CircularBuffer<char, UART_BUFSIZE> *ctx;
 Serial *hdlc_pc; //used to connect to pc for debugging through a virtual COM port
 
@@ -114,31 +115,30 @@ static void rx_cb(void)//(void *arg, uint8_t data)
     // uart_t dev = (uart_t)arg;
     // 
     unsigned char data;
-    data=hdlc_pc->getc();     // Get an character from the Serial
-    ctx->push(data);     // Put to the ring/circular buffer
 
-    if(data == YAHDLC_FLAG_SEQUENCE)
-    {
-        
-        // wakeup hdlc thread 
-        msg_t *msg = hdlc_mail_box->alloc();
-        if(msg==NULL)
-        {
-              PRINTF("hdlc: no more space available on mailbox\n");
-              return;
+    while (hdlc_pc->readable()) {
+        data=hdlc_pc->getc();     // Get an character from the Serial
+        ctx->push(data);     // Put to the ring/circular buffer
+
+        if (data == YAHDLC_FLAG_SEQUENCE) {
+            
+            // wakeup hdlc thread 
+            msg_t *msg = hdlc_mail_box->alloc();
+            if(msg==NULL)
+            {
+                  PRINTF("hdlc: rx_cb no more space available on mailbox\n");
+                  return;
+            }
+            hdlc_mail_count++;
+            msg->sender_pid=osThreadGetId();
+            msg->type = HDLC_MSG_RECV;
+            msg->source_mailbox=hdlc_mail_box;
+            // msg.content.value = (uint32_t)dev;
+            hdlc_mail_box->put(msg); 
         }
-        hdlc_mail_count++;
-        msg->sender_pid=osThreadGetId();
-        msg->type = HDLC_MSG_RECV;
-        msg->source_mailbox=hdlc_mail_box;
-        // msg.content.value = (uint32_t)dev;
-        hdlc_mail_box->put(msg); 
-        PRINTF("mailbox: rx_cb hdlc_mail_count %d: data %x\n",hdlc_mail_count,data);
-
     }
+
 }
-
-
 
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 {
@@ -154,11 +154,17 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             break;
         }
 
+        
         // c = (char) retval;
         recv_buf.mtx.lock();
 
         ret = yahdlc_get_data(&recv_buf.control, &c, 1, recv_buf.data, &recv_buf.length);
         recv_buf.mtx.unlock();
+
+        if(ret == -EIO) {
+            puts("FCS ERROR!");
+            PRINTF("hdlc: DATA FRAME SIZE %d\n", recv_buf.length);
+        }
 
 
         if (recv_buf.length > 0 && ret != -EIO && 
@@ -167,11 +173,13 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             /* valid data frame received */
             PRINTF("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
+
+
             /* always send ack */
             ack_msg = hdlc_mail_box->alloc();
             if(ack_msg==NULL)
             {
-              PRINTF("hdlc: no more space available on mailbox\n");
+              PRINTF("hdlc: ACK no more space available on mailbox\n");
               return;
             }
             hdlc_mail_count++;
@@ -196,6 +204,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 msg->content.ptr = &recv_buf;
                 msg->source_mailbox = hdlc_mail_box;
                 dispacher_hdlc_mail_box->put(msg); 
+                hdlc_mail_count++;
                 // msg_send(&msg, hdlc_dispatcher_pid);
 
                 (*recv_seq_no)++;
@@ -215,7 +224,8 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 msg->type = HDLC_RESP_SND_SUCC;
                 msg->content.value = (uint32_t) 0;
                 msg->source_mailbox = hdlc_mail_box;
-                dispacher_hdlc_mail_box->put(msg); 
+                dispacher_hdlc_mail_box->put(msg);
+                hdlc_mail_count++; 
 
                 PRINTF("hdlc: sender_pid is %d\n", sender_pid);
                 // msg_send(&msg, hdlc_dispatcher_pid);
@@ -225,8 +235,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                                 
             recv_buf.control.frame = (yahdlc_frame_t)0;
             recv_buf.control.seq_no = 0;
-        } 
-
+        }
     }
 }
 
@@ -263,20 +272,18 @@ static void hdlc(void const *arg)
                     hdlc_mail_box->put(msg2); 
                 }
 
+                evt = hdlc_mail_box->get();
+
             } else {
-                PRINTF("hdlc: inside timeout positive\n");
-                if(hdlc_mail_count==0)
-                {
-                    Thread::wait((int32_t)timeout/1000);
+                evt = hdlc_mail_box->get(timeout);
+                if(evt.status == osEventTimeout){
                     continue;
                 }
             }
         } else {
             PRINTF("hdlc: waiting for mail\n");
-
+            evt = hdlc_mail_box->get();
         }
-        
-        evt = hdlc_mail_box->get();
        
         if (evt.status == osEventMail) 
         {          
@@ -300,7 +307,7 @@ static void hdlc(void const *arg)
                         reply->sender_pid=osThreadGetId();
                         ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
                         //msg_send(&reply, msg->sender_pid); need to figure this out
-                    }else {
+                    } else {
                         uart_lock = 1;
                         sender_pid = msg->sender_pid;
                         PRINTF("hdlc: sender_pid set to %d\n", sender_pid);
@@ -368,6 +375,7 @@ int hdlc_pkt_release(hdlc_buf_t *buf)
     if(buf->mtx.trylock())
     {
         PRINTF("hdlc: Packet not locked. Might be empty!\n");
+        buf->mtx.unlock();
         return -1;
     }
     else
@@ -414,7 +422,7 @@ int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, voi
     *mail=hdlc_mail_box;
 
     ctx= new CircularBuffer<char, UART_BUFSIZE>();
-    hdlc_pc= new Serial(p28,p27,115200); // need to make the pin tx/rx name into a function call
+    hdlc_pc= new Serial(p28,p27, 115200); // need to make the pin tx/rx name into a function call
     void (*fpointer)(void) = &rx_cb;
     hdlc_pc->attach(fpointer,Serial::RxIrq);
     
@@ -436,8 +444,12 @@ int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, voi
 }
 void write_hdlc(uint8_t *ptr,int len)
 {
-    for(uint8_t i=1;i<len;i++)
-        hdlc_pc->putc(*(ptr+i));   
-    PRINTF("hdlc: Inside write_hdlc %d\n",len);
+    int count = 0;
 
+    while ( count < len ) {
+        // if (hdlc_pc->writeable()) {
+            hdlc_pc->putc(ptr[count]);   
+            count++;
+        // }
+    }
 }

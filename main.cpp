@@ -81,8 +81,6 @@ int main(void)
     while(1)
     {
         myled=!myled;
-        //Thread::wait(rand() % 0x3E8);
-        PRINTF("inside main: flag %d\n",flag);
         pkt->data[0] = frame_no;
 
         for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
@@ -91,7 +89,7 @@ int main(void)
 
         pkt->length = HDLC_MAX_PKT_SIZE;
 
-        // /* send pkt =*/
+        /* send pkt =*/
         msg_req1=new msg_t;
         msg_req1->type = HDLC_MSG_SND;
         msg_req1->content.ptr = pkt;

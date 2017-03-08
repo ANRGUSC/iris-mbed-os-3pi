@@ -24,7 +24,6 @@
  * SOFTWARE.
  * 
 */
-#
 #include "fcs16.h"
 #include "yahdlc.h"
 #include <errno.h>
