@@ -164,6 +164,8 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
         if(ret == -EIO) {
             puts("FCS ERROR!");
             PRINTF("hdlc: DATA FRAME SIZE %d\n", recv_buf.length);
+            recv_buf.control.frame = (yahdlc_frame_t)0;
+            recv_buf.control.seq_no = 0;
         }
 
 
@@ -198,8 +200,8 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 recv_buf.mtx.lock();
                 recv_buf.length = recv_buf.length; // ???????
                 PRINTF("hdlc: got and expected seq_no %d\n", *recv_seq_no);
-                msg=dispacher_hdlc_mail_box->alloc();
-                msg->sender_pid=osThreadGetId();
+                msg = dispacher_hdlc_mail_box->alloc();
+                msg->sender_pid = osThreadGetId();
                 msg->type = HDLC_PKT_RDY;
                 msg->content.ptr = &recv_buf;
                 msg->source_mailbox = hdlc_mail_box;
@@ -213,12 +215,14 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             recv_buf.control.frame = (yahdlc_frame_t)0;
             recv_buf.control.seq_no =  0;
 
-        } else if (recv_buf.length == 0 && 
+        } else if (recv_buf.length == 0 && ret != -EIO &&
                     (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
                      recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
             PRINTF("hdlc: received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
 
             if(recv_buf.control.seq_no == *send_seq_no % 8) {
+                (*send_seq_no)++;
+                uart_lock = 0;
                 msg=dispacher_hdlc_mail_box->alloc();
                 msg->sender_pid=osThreadGetId();
                 msg->type = HDLC_RESP_SND_SUCC;
@@ -226,11 +230,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 msg->source_mailbox = hdlc_mail_box;
                 dispacher_hdlc_mail_box->put(msg);
                 hdlc_mail_count++; 
-
                 PRINTF("hdlc: sender_pid is %d\n", sender_pid);
-                // msg_send(&msg, hdlc_dispatcher_pid);
-                (*send_seq_no)++;
-                uart_lock = 0;
             }
                                 
             recv_buf.control.frame = (yahdlc_frame_t)0;
@@ -310,7 +310,6 @@ static void hdlc(void const *arg)
                         reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
                         reply->sender_pid=osThreadGetId();
                         ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
-                        //msg_send(&reply, msg->sender_pid); need to figure this out
                     } else {
                         uart_lock = 1;
                         sender_pid = msg->sender_pid;
@@ -325,10 +324,6 @@ static void hdlc(void const *arg)
 
 
                         write_hdlc((uint8_t *)send_buf.data, send_buf.length);
-                        // hdlc_pc->write((uint8_t *)send_buf.data, send_buf.length,NULL,NULL);
-
-                        // uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
-                        PRINTF("sent\n");
                         global_time.reset();
                     }  
                     hdlc_mail_box->free(msg); 
