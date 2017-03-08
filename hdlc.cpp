@@ -63,7 +63,7 @@
 
 #include "rtos.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -222,8 +222,8 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
             if(recv_buf.control.seq_no == *send_seq_no % 8) {
                 (*send_seq_no)++;
-                uart_lock = 0;
                 msg=dispacher_hdlc_mail_box->alloc();
+                uart_lock = 0;
                 msg->sender_pid=osThreadGetId();
                 msg->type = HDLC_RESP_SND_SUCC;
                 msg->content.value = (uint32_t) 0;
