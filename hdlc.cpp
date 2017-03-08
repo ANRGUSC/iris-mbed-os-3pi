@@ -409,44 +409,6 @@ bool send_hdlc_pkt(msg_t *msg_req)
     return 1;
 }
 
-int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void **mail)
-// int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name, int dev)
-{
-    led2=1;
-    osThreadId res;
-    recv_buf.data = hdlc_recv_data;
-    send_buf.data = hdlc_send_frame;
-    ack_buf.data = hdlc_ack_frame;
-    global_time.start();
-    /* check if uart device number is valid */
-    // if(dev > UART_NUM - 1) {
-    //     return -ENODEV;
-    // }
-    // 
-    hdlc_mail_box= new Mail<msg_t, HDLC_MAILBOX_SIZE>;
-    *mail=hdlc_mail_box;
-
-    ctx= new CircularBuffer<char, UART_BUFSIZE>();
-    hdlc_pc= new Serial(p28,p27, 115200); // need to make the pin tx/rx name into a function call
-    void (*fpointer)(void) = &rx_cb;
-    hdlc_pc->attach(fpointer,Serial::RxIrq);
-    
-    hdlcthread = new Thread(hdlc);
-    hdlcthread->set_priority(priority);
-    
-    res=hdlcthread->gettid();
-    PRINTF("hdlc: thread  id %d\n",res);
-
-    // if (res <= 0) {
-    //     return -EINVAL;
-    // }
-
-    hdlc_thread_pid = res;
-    
-    PRINTF("hdlc: hdlc thread creation done!!\n");
-
-    return (int)res;
-}
 void write_hdlc(uint8_t *ptr,int len)
 {
     int count = 0;
@@ -458,3 +420,30 @@ void write_hdlc(uint8_t *ptr,int len)
         }
     }
 }
+
+int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void **mail)
+{
+    led2=1;
+    recv_buf.data = hdlc_recv_data;
+    send_buf.data = hdlc_send_frame;
+    ack_buf.data = hdlc_ack_frame;
+    global_time.start();
+
+    hdlc_mail_box = new Mail<msg_t, HDLC_MAILBOX_SIZE>;
+    *mail = hdlc_mail_box;
+
+    ctx = new CircularBuffer<char, UART_BUFSIZE>();
+    hdlc_pc = new Serial(p28,p27, 115200); // need to make the pin tx/rx name into a function call
+    hdlc_pc->attach(&rx_cb,Serial::RxIrq);
+    
+    hdlcthread = new Thread(hdlc);
+    hdlcthread->set_priority(priority);
+    
+    hdlc_thread_pid = hdlcthread->gettid();
+    PRINTF("hdlc: thread  id %d\n",hdlc_thread_pid);
+    
+    PRINTF("hdlc: hdlc thread creation done!!\n");
+
+    return (int)hdlc_thread_pid;
+}
+

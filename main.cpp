@@ -42,12 +42,9 @@ int main(void)
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mail_box_ptr;
     PRINTF("In main");
     bool flag=1;
-    int hdlc_pidint=hdlc_init(NULL, osPriorityRealtime, "hdlc", 1,(void**)&hdlc_mail_box_ptr);//UART_DEV(1));
+    int hdlc_pidint = hdlc_init(NULL, osPriorityRealtime, "hdlc", 1,(void**)&hdlc_mail_box_ptr);//UART_DEV(1));
 
-    hdlc_pid=(osThreadId)hdlc_pidint;
-    // Thread::wait(1000);
-    // printf("Available devices:               %i\n", UART_NUMOF);
-    // printf("UART used for STDIO (the shell): UART_DEV(%i)\n\n", UART_STDIO_DEV);
+    hdlc_pid = (osThreadId) hdlc_pidint;
 
     msg_t *msg_resp,*msg_req,*msg_req1,*msg_org;
     char frame_no = 0;
