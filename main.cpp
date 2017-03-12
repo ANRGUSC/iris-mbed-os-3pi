@@ -71,93 +71,94 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> thread1_mailbox;
 
 void _thread1()
 {
-// /* Initial Direction of the Antenna*/
+/* Initial Direction of the Antenna*/
 
-//     char thread1_frame_no = 0;
-//     msg_t *msg, *msg2;
-//     char send_data[HDLC_MAX_PKT_SIZE];
-//     char recv_data[HDLC_MAX_PKT_SIZE];
-//     hdlc_pkt_t *pkt= new hdlc_pkt_t;
-//     pkt->data = send_data;
-//     pkt->length = 0;
-//     hdlc_buf_t *buf;
-//     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-//     hdlc_mailbox_ptr=get_hdlc_mailbox();
-//     int exit = 0;
-//     osEvent evt;
+    char thread1_frame_no = 0;
+    msg_t *msg, *msg2;
+    char send_data[HDLC_MAX_PKT_SIZE];
+    char recv_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t *pkt= new hdlc_pkt_t;
+    pkt->data = send_data;
+    pkt->length = 0;
+    hdlc_buf_t *buf;
+    Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
+    hdlc_mailbox_ptr=get_hdlc_mailbox();
+    int exit = 0;
+    osEvent evt;
 
-//     while (true) 
-//     {
-//         Thread:wait(1000);
+    while (true) 
+    {
 
-//         myled3=!myled3;
-//         pkt->data[0] = thread1_frame_no;
+        myled3=!myled3;
+        pkt->data[0] = thread1_frame_no;
 
-//         for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
-//             pkt->data[i] = (char) ( rand() % 0x7E);
-//         }
+        for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
+            pkt->data[i] = (char) ( rand() % 0x7E);
+        }
 
-//         pkt->length = HDLC_MAX_PKT_SIZE;
+        pkt->length = HDLC_MAX_PKT_SIZE;
 
-//         /* send pkt */
-//         msg = hdlc_mailbox_ptr->alloc();
-//         msg->type = HDLC_MSG_SND;
-//         msg->content.ptr = pkt;
-//         msg->sender_pid = osThreadGetId();
-//         msg->source_mailbox = &thread1_mailbox;
-//         hdlc_mailbox_ptr->put(msg);
-//         PRINTF("thread1: sending pkt no %d \n", thread1_frame_no);
+        /* send pkt */
+        msg = hdlc_mailbox_ptr->alloc();
+        msg->type = HDLC_MSG_SND;
+        msg->content.ptr = pkt;
+        msg->sender_pid = osThreadGetId();
+        msg->source_mailbox = &thread1_mailbox;
+        hdlc_mailbox_ptr->put(msg);
+        PRINTF("thread1: sending pkt no %d \n", thread1_frame_no);
 
-//         while(1)
-//         {
-//             evt = thread1_mailbox.get();
-//             if (evt.status == osEventMail) 
-//             {
-//                 msg = (msg_t*)evt.value.p;
-//                 switch (msg->type)
-//                 {
-//                     case HDLC_RESP_SND_SUCC:
-//                         PRINTF("thread1: sent frame_no %d!\n", thread1_frame_no);
-//                         exit = 1;
-//                         thread1_mailbox.free(msg);
-//                         break;    
-//                     case HDLC_RESP_RETRY_W_TIMEO:
-//                         Thread::wait(msg->content.value/1000);
-//                         PRINTF("thread1: retry frame_no %d \n", thread1_frame_no);
-//                         msg2 = hdlc_mailbox_ptr->alloc();
-//                         if (msg2 == NULL) {
-//                             Thread::wait(50);
-//                             msg2 = hdlc_mailbox_ptr->alloc();
-//                         }
-//                         msg2->type = HDLC_MSG_SND;
-//                         msg2->content.ptr = pkt;
-//                         msg2->sender_pid = osThreadGetId();
-//                         msg2->source_mailbox = &thread1_mailbox;
-//                         hdlc_mailbox_ptr->put(msg2);
-//                         thread1_mailbox.free(msg);
-//                         break;
-//                     case HDLC_PKT_RDY:
-//                         buf = (hdlc_buf_t *)msg->content.ptr;   
-//                         memcpy(recv_data, buf->data, buf->length);
-//                         hdlc_pkt_release(buf);
-//                         thread1_mailbox.free(msg);
-//                         PRINTF("thread1: received pkt %d\n", recv_data[0]);
-//                         break;
-//                     default:
-//                         thread1_mailbox.free(msg);
-//                         /* error */
-//                         //LED3_ON;
-//                         break;
-//                 }
-//             }    
-//             if(exit) {
-//                 exit = 0;
-//                 break;
-//             }
-//         }
+        while(1)
+        {
+            evt = thread1_mailbox.get();
+            if (evt.status == osEventMail) 
+            {
+                msg = (msg_t*)evt.value.p;
+                switch (msg->type)
+                {
+                    case HDLC_RESP_SND_SUCC:
+                        PRINTF("thread1: sent frame_no %d!\n", thread1_frame_no);
+                        exit = 1;
+                        thread1_mailbox.free(msg);
+                        break;    
+                    case HDLC_RESP_RETRY_W_TIMEO:
+                        Thread::wait(msg->content.value/1000);
+                        PRINTF("thread1: retry frame_no %d \n", thread1_frame_no);
+                        msg2 = hdlc_mailbox_ptr->alloc();
+                        if (msg2 == NULL) {
+                            Thread::wait(50);
+                            msg2 = hdlc_mailbox_ptr->alloc();
+                        }
+                        msg2->type = HDLC_MSG_SND;
+                        msg2->content.ptr = pkt;
+                        msg2->sender_pid = osThreadGetId();
+                        msg2->source_mailbox = &thread1_mailbox;
+                        hdlc_mailbox_ptr->put(msg2);
+                        thread1_mailbox.free(msg);
+                        break;
+                    case HDLC_PKT_RDY:
+                        buf = (hdlc_buf_t *)msg->content.ptr;   
+                        memcpy(recv_data, buf->data, buf->length);
+                        hdlc_pkt_release(buf);
+                        thread1_mailbox.free(msg);
+                        PRINTF("thread1: received pkt %d\n", recv_data[0]);
+                        break;
+                    default:
+                        thread1_mailbox.free(msg);
+                        /* error */
+                        //LED3_ON;
+                        break;
+                }
+            }    
+            if(exit) {
+                exit = 0;
+                break;
+            }
+        }
 
-//         thread1_frame_no++;
-//     }
+        thread1_frame_no++;
+        Thread::wait(1000);
+
+    }
 }
 
 int main(void)
@@ -184,13 +185,12 @@ int main(void)
 
     PRINTF("dispatcher pid is %d \n", osThreadGetId());
 
-    // Thread thread1(_thread1);
+    Thread thread1(_thread1);
 
     int exit = 0;
     osEvent evt;
     while(1)
     {
-        Thread:wait(1000);
         myled=!myled;
         pkt->data[0] = frame_no;
 
@@ -262,6 +262,8 @@ int main(void)
         }
 
         frame_no++;
+        Thread::wait(1000);
+
     }
     PRINTF("Reached Exit");
     /* should be never reached */

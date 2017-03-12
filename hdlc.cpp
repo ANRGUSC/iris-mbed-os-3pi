@@ -55,7 +55,7 @@
 #include "hdlc.h"
 #include "rtos.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if (DEBUG) 
     #define PRINTF(...) pc.printf(__VA_ARGS__)
