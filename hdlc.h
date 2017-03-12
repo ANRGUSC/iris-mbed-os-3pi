@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
@@ -56,12 +56,10 @@
 #include "rtos.h"
 #include "mbed.h"
 
-#define RTRY_TIMEO_USEC         1000000
-#define RETRANSMIT_TIMEO_USEC   1000000
+#define RTRY_TIMEO_USEC         500000
+#define RETRANSMIT_TIMEO_USEC   50000
 #define HDLC_MAX_PKT_SIZE       128
-#define HDLC_MAILBOX_SIZE 128
-extern Serial pc;
-
+#define HDLC_MAILBOX_SIZE       32
 
 typedef struct {
     yahdlc_control_t control;
@@ -71,13 +69,10 @@ typedef struct {
 
    // mutex_t mtx;
 } hdlc_buf_t;
-
-
+// bool hdlc_ready; // To guarantee that the dispacher is setup properly before you send message.
 
 typedef struct {
-    osThreadId sender_pid;    /**< PID of sending thread. Will be filled in
-                                     // by msg_send. */
-    // RtosTimer timeout;
+    osThreadId sender_pid;    
     void *source_mailbox;
     uint16_t type;              /**< Type field. */
     union {
@@ -86,14 +81,11 @@ typedef struct {
     } content;                  /**< Content of the message. */
 } msg_t;
 
-
 /* struct for other threads to pass to hdlc thread via IPC */
 typedef struct {
     char *data;
     unsigned int length;
 } hdlc_pkt_t;
-
-
 
 /* HDLC thread messages */
 enum {
@@ -104,13 +96,12 @@ enum {
     HDLC_MSG_SND_ACK,
     HDLC_RESP_RETRY_W_TIMEO,
     HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY
+    HDLC_PKT_RDY,
+    HDLC_DISPACHET_THR_REG
 };
 
-bool send_hdlc_pkt(msg_t *msg_req);
 int hdlc_pkt_release(hdlc_buf_t *buf);
-int hdlc_init(int stacksize, osPriority priority, const char *name, int dev, void **mail);
+Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
+Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
 
-// int hdlc_init(char *stack, int stacksize, osPriority priority, const char *name, int dev);
-
-#endif /* MUTEX_H_ */
+#endif /* HDLC_H_*/ 
