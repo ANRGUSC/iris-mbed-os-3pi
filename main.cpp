@@ -124,9 +124,16 @@ void _thread1()
                         Thread::wait(msg->content.value/1000);
                         PRINTF("thread1: retry frame_no %d \n", thread1_frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        if (msg2 == NULL) {
+                        while (msg2 == NULL) {
                             Thread::wait(50);
-                            msg2 = hdlc_mailbox_ptr->alloc();
+                            msg2 = thread1_mailbox.alloc();  
+                            msg2->type = HDLC_RESP_RETRY_W_TIMEO;
+                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            msg2->sender_pid = osThreadGetId();
+                            msg2->source_mailbox = &thread1_mailbox;
+                            thread1_mailbox.put(msg2);
+                            thread1_mailbox.free(msg);
+                            break;
                         }
                         msg2->type = HDLC_MSG_SND;
                         msg2->content.ptr = pkt;
@@ -193,6 +200,7 @@ int main(void)
     {
         myled=!myled;
         pkt->data[0] = frame_no;
+        pkt->data[1] = frame_no;
 
         for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt->data[i] = (char) ( rand() % 0x7E);
@@ -230,9 +238,16 @@ int main(void)
                         Thread::wait(msg->content.value/1000);
                         PRINTF("dispatcher: retry frame_no %d \n", frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        if (msg2 == NULL) {
+                        while (msg2 == NULL) {
                             Thread::wait(50);
-                            msg2 = hdlc_mailbox_ptr->alloc();
+                            msg2 = dispatcher_mailbox.alloc();  
+                            msg2->type = HDLC_RESP_RETRY_W_TIMEO;
+                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            msg2->sender_pid = osThreadGetId();
+                            msg2->source_mailbox = &dispatcher_mailbox;
+                            dispatcher_mailbox.put(msg2);
+                            dispatcher_mailbox.free(msg);
+                            break;
                         }
                         msg2->type = HDLC_MSG_SND;
                         msg2->content.ptr = pkt;
