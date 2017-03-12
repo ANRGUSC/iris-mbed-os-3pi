@@ -55,7 +55,7 @@
 #include "hdlc.h"
 #include "rtos.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if (DEBUG) 
     #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -74,6 +74,7 @@ Thread hdlc;
 Serial uart2(p28,p27, 115200);
 
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatcher_mailbox_ptr;
+static Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mailbox;
 
 Timer global_time;
@@ -192,12 +193,12 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             if(recv_buf.control.seq_no == *send_seq_no % 8) {
                 (*send_seq_no)++;
                 uart_lock = 0;
-                msg=dispatcher_mailbox_ptr->alloc();
+                msg=sender_mailbox_ptr->alloc();
                 msg->sender_pid=osThreadGetId();
                 msg->type = HDLC_RESP_SND_SUCC;
                 msg->content.value = (uint32_t) 0;
                 msg->source_mailbox = &hdlc_mailbox;
-                dispatcher_mailbox_ptr->put(msg);
+                sender_mailbox_ptr->put(msg);
                 PRINTF("hdlc: sender_pid is %d\n", sender_pid);
             }
                                 
@@ -278,6 +279,8 @@ static void _hdlc()
                         yahdlc_frame_data(&(send_buf.control), pkt->data, 
                                 pkt->length, send_buf.data, &send_buf.length);
 
+                        sender_mailbox_ptr=(Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
+                        PRINTF("hdlc: sending frame seq no %d, len %d\n", send_buf.control.seq_no,send_buf.length);
 
                         write_hdlc((uint8_t *)send_buf.data, send_buf.length);
                         global_time.reset();

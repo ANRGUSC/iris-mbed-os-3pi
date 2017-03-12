@@ -100,5 +100,6 @@ enum {
 
 int hdlc_pkt_release(hdlc_buf_t *buf);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
+Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
 
 #endif /* HDLC_H_ */
