@@ -87,6 +87,8 @@ void _thread1()
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr=get_hdlc_mailbox();
     int exit = 0;
+    static int port_no=register_thread(&thread1_mailbox);
+
     osEvent evt;
 
     while (true) 
@@ -94,8 +96,8 @@ void _thread1()
 
         myled3=!myled3;
         pkt->data[0] = thread1_frame_no;
-
-        for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
+        pkt->data[1] = port_no;
+        for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt->data[i] = (char) ( rand() % 0x7E);
         }
 
@@ -125,11 +127,15 @@ void _thread1()
                         break;    
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg->content.value/1000);
-                        PRINTF("thread1: retry frame_no %d \n", thread1_frame_no);
+                        PRINTF("main_thr: retry frame_no %d \n", thread1_frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        while (msg2 == NULL) {
+                        if (msg2 == NULL) {
                             Thread::wait(50);
-                            msg2 = thread1_mailbox.alloc();  
+                            while(msg2==NULL)
+                            {
+                                msg2 = thread1_mailbox.alloc();  
+                                Thread::wait(10);
+                            }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
                             msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
@@ -148,9 +154,9 @@ void _thread1()
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         memcpy(recv_data, buf->data, buf->length);
-                        hdlc_pkt_release(buf);
                         thread1_mailbox.free(msg);
-                        PRINTF("thread1: received pkt %d\n", recv_data[0]);
+                        hdlc_pkt_release(buf);
+                        PRINTF("thread1: received pkt %d; thr %d\n", recv_data[0], recv_data[1]);
                         break;
                     default:
                         thread1_mailbox.free(msg);
@@ -166,10 +172,11 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(1000);
+        Thread::wait(500);
 
     }
 }
+
 
 int main(void)
 {
@@ -189,19 +196,28 @@ int main(void)
     pkt->data = send_data;
     pkt->length = 0;
     hdlc_buf_t *buf;
-    PRINTF("In main");
-  
+    PRINTF("In main\n");
+    static int port_no=register_thread(&main_thr_mailbox);
+    // PT
     // Thread thread1(_thread1);
+    PRINTF("main_thread: port no %d \n", port_no);
+    Thread thr;
+    thr.start(_thread1);
 
     int exit = 0;
     osEvent evt;
     while(1)
     {
+
+        // Thread::wait(100);
+        // PRINTF("In main\n");
+
         myled=!myled;
         pkt->data[0] = frame_no;
         // pkt->data[1] = frame_no;
+        pkt->data[1] = port_no;
 
-        for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
+        for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt->data[i] = (char) ( rand() % 0x7E);
         }
 
@@ -215,7 +231,7 @@ int main(void)
         msg->source_mailbox = &main_thr_mailbox;
         hdlc_mailbox_ptr->put(msg);
 
-        printf("main_thread: sending pkt no %d \n", frame_no);
+        PRINTF("main_thread: sending pkt no %d \n", frame_no);
 
         while(1)
         {
@@ -224,12 +240,12 @@ int main(void)
 
             if (evt.status == osEventMail) 
             {
-                msg = (msg_t*)evt.value.p;
+mail_check:      msg = (msg_t*)evt.value.p;
 
                 switch (msg->type)
                 {
                     case HDLC_RESP_SND_SUCC:
-                        printf("main_thr: sent frame_no %d!\n", frame_no);
+                        PRINTF("main_thr: sent frame_no %d!\n", frame_no);
                         exit = 1;
                         main_thr_mailbox.free(msg);
                         break;
@@ -237,9 +253,13 @@ int main(void)
                         Thread::wait(msg->content.value/1000);
                         PRINTF("main_thr: retry frame_no %d \n", frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        while (msg2 == NULL) {
-                            Thread::wait(50);
-                            msg2 = main_thr_mailbox.alloc();  
+                        if (msg2 == NULL) {
+                            // Thread::wait(50);
+                            while(msg2==NULL)
+                            {
+                                msg2 = main_thr_mailbox.alloc();  
+                                Thread::wait(10);
+                            }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
                             msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
@@ -258,9 +278,9 @@ int main(void)
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         memcpy(recv_data, buf->data, buf->length);
-                        hdlc_pkt_release(buf);
                         main_thr_mailbox.free(msg);
-                        printf("main_thr: received pkt %d\n", recv_data[0]);
+                        hdlc_pkt_release(buf);
+                        printf("main_thr: received pkt %d ; thr %d\n", recv_data[0], recv_data[1]);
                         break;
                     default:
                         main_thr_mailbox.free(msg);
@@ -270,13 +290,18 @@ int main(void)
                 }
             }    
             if(exit) {
+                // evt = main_thr_mailbox.get(100);
+                // if (evt.status == osEventMail) 
+                // {
+                //     goto mail_check;
+                // }
                 exit = 0;
                 break;
             }
         }
 
         frame_no++;
-        // Thread::wait(1000);
+        Thread::wait(360);
 
     }
     PRINTF("Reached Exit");
