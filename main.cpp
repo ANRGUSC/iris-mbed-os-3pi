@@ -167,9 +167,9 @@ void _thread1()
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         memcpy(recv_data, buf->data, buf->length);
-                        hdlc_pkt_release(buf);
+                        PRINTF("thread1: received pkt %d; thread %d\n", buf->data[0],buf->data[1]);
                         thread1_mailbox.free(msg);
-                        PRINTF("thread1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                        hdlc_pkt_release(buf);
                         break;
                     default:
                         thread1_mailbox.free(msg);
@@ -216,7 +216,7 @@ int main(void)
 
     PRINTF("dispatcher pid is %d \n", osThreadGetId());
 
-    // Thread thread1(_thread1);
+    Thread thread1(_thread1);
 
     int exit = 0;
     osEvent evt;
@@ -294,10 +294,18 @@ int main(void)
                                 memcpy(msg2,msg,sizeof(msg_t));
                                 sender_mailbox_ptr->put(msg2);
                             }    
+                            dispatcher_mailbox.free(msg);
+
                         }
-                        hdlc_pkt_release(buf);
-                        dispatcher_mailbox.free(msg);
-                        printf("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                        else
+                        {
+                            dispatcher_mailbox.free(msg);
+                            hdlc_pkt_release(buf);
+                            PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                        }
+
+                        // 
+
                         break;
                     default:
                         dispatcher_mailbox.free(msg);
@@ -313,7 +321,7 @@ int main(void)
         }
 
         frame_no++;
-        // Thread::wait(1000);
+        Thread::wait(1000);
 
     }
     PRINTF("Reached Exit");

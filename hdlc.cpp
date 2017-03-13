@@ -55,7 +55,7 @@
 #include "hdlc.h"
 #include "rtos.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if (DEBUG) 
     #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -76,7 +76,9 @@ Serial uart2(p28,p27, 115200);
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatcher_mailbox_ptr;
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mailbox;
+Semaphore recv_buf_mutex(1);
 
+// Mutex recv_buf_mutex;
 Timer global_time;
 
 CircularBuffer<char, UART_BUFSIZE> circ_buf;
@@ -131,10 +133,10 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
         if (!circ_buf.pop(c)) {
             return;
         }
-        recv_buf.mtx.lock();
+        recv_buf_mutex.wait();
         ret = yahdlc_get_data(&recv_buf.control, &c, 1, recv_buf.data, 
                                 &recv_buf.length);
-        recv_buf.mtx.unlock();
+        recv_buf_mutex.release();
 
         if (ret == -ENOMSG) {
             continue; //full packet not yet parsed
@@ -169,16 +171,20 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             /* pass on packet to dispatcher */
             if (recv_buf.control.seq_no == (*recv_seq_no % 8)){
                 /* lock pkt until dispatcher makes a copy and unlocks */
-                recv_buf.mtx.lock();
+                recv_buf_mutex.wait();
                 PRINTF("hdlc: got and expected seq_no %d\n", *recv_seq_no);
                 msg = dispatcher_mailbox_ptr->alloc();
-                if(msg==NULL)
+                if(msg ==NULL)
                     return;
                 msg->sender_pid = osThreadGetId();
                 msg->type = HDLC_PKT_RDY;
                 msg->content.ptr = &recv_buf;
                 msg->source_mailbox = &hdlc_mailbox;
                 (*recv_seq_no)++;
+                hdlc_buf_t *buf1;
+                buf1=(hdlc_buf_t *)msg->content.ptr;
+                PRINTF("hdlc: Thread seq_no %d: thr %d\n", buf1->data[0],recv_buf.data[1]);
+
                 dispatcher_mailbox_ptr->put(msg); 
 
             }
@@ -192,11 +198,12 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                      recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
             PRINTF("hdlc: received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-            if(recv_buf.control.seq_no == *send_seq_no % 8) {
-                uart_lock = 0;
+            if(recv_buf.control.seq_no == (*send_seq_no % 8)) {
                 msg=sender_mailbox_ptr->alloc();
                 if(msg==NULL)
                     return;
+
+                uart_lock = 0;
                 (*send_seq_no)++;
                 msg->sender_pid=osThreadGetId();
                 msg->type = HDLC_RESP_SND_SUCC;
@@ -331,17 +338,19 @@ static void _hdlc()
 
 int hdlc_pkt_release(hdlc_buf_t *buf) 
 {
-    if(buf->mtx.trylock())
+    if(recv_buf_mutex.wait(0))
     {
         PRINTF("hdlc: Packet not locked. Might be empty!\n");
-        buf->mtx.unlock();
+        recv_buf_mutex.release();
         return -1;
     }
     else
     {
         buf->control.frame = (yahdlc_frame_t)0;
         buf->control.seq_no = 0;
-        buf->mtx.unlock();
+        PRINTF("hdlc: relesed lock!\n");
+
+        recv_buf_mutex.release();
         return 0;
     }
 
