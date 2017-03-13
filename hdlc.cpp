@@ -167,18 +167,20 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             hdlc_mailbox.put(ack_msg); 
             
             /* pass on packet to dispatcher */
-            if (recv_buf.control.seq_no == *recv_seq_no % 8) {
+            if (recv_buf.control.seq_no == (*recv_seq_no % 8)){
                 /* lock pkt until dispatcher makes a copy and unlocks */
                 recv_buf.mtx.lock();
                 PRINTF("hdlc: got and expected seq_no %d\n", *recv_seq_no);
                 msg = dispatcher_mailbox_ptr->alloc();
+                if(msg==NULL)
+                    return;
                 msg->sender_pid = osThreadGetId();
                 msg->type = HDLC_PKT_RDY;
                 msg->content.ptr = &recv_buf;
                 msg->source_mailbox = &hdlc_mailbox;
+                (*recv_seq_no)++;
                 dispatcher_mailbox_ptr->put(msg); 
 
-                (*recv_seq_no)++;
             }
 
             recv_buf.control.frame = (yahdlc_frame_t)0;
@@ -191,9 +193,11 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             PRINTF("hdlc: received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
 
             if(recv_buf.control.seq_no == *send_seq_no % 8) {
-                (*send_seq_no)++;
                 uart_lock = 0;
                 msg=sender_mailbox_ptr->alloc();
+                if(msg==NULL)
+                    return;
+                (*send_seq_no)++;
                 msg->sender_pid=osThreadGetId();
                 msg->type = HDLC_RESP_SND_SUCC;
                 msg->content.value = (uint32_t) 0;
@@ -217,12 +221,13 @@ static void _hdlc()
     osEvent evt;
 
     while(1) {
-        led2=!led2;
 
+        led2=!led2;
+        // hdlc_ready=1;
         if(uart_lock) {
             int timeout = (int)RETRANSMIT_TIMEO_USEC - (int) global_time.read_us();
             if(timeout < 0) {
-                PRINTF("hdlc: inside timeout negative\n");
+                // PRINTF("hdlc: inside timeout negative\n");
                 /* send message to self to resend msg */
                 msg = hdlc_mailbox.alloc();
                 if(msg == NULL) {
@@ -245,7 +250,7 @@ static void _hdlc()
                 }
             }
         } else {
-            PRINTF("hdlc: waiting for mail\n");
+            // PRINTF("hdlc: waiting for mail\n");
             evt = hdlc_mailbox.get();
         }
        
@@ -255,7 +260,7 @@ static void _hdlc()
 
             switch (msg->type) {
                 case HDLC_MSG_RECV:
-                    PRINTF("hdlc: receiving msg...\n");
+                    // PRINTF("hdlc: receiving msg...\n");
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
                     hdlc_mailbox.free(msg);
                     break;
@@ -368,11 +373,10 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
     global_time.start();
 
     uart2.attach(&rx_cb,Serial::RxIrq);
-    
-    hdlc.set_priority(priority);
+    // hdlc.set_priority(priority);
     hdlc.start(_hdlc);
     PRINTF("hdlc: thread  id %d\n",hdlc.gettid());
-
+    
     return &hdlc_mailbox;
 }
 

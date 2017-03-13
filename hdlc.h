@@ -59,7 +59,7 @@
 #define RTRY_TIMEO_USEC         500000
 #define RETRANSMIT_TIMEO_USEC   50000
 #define HDLC_MAX_PKT_SIZE       128
-#define HDLC_MAILBOX_SIZE       64
+#define HDLC_MAILBOX_SIZE       128
 
 typedef struct {
     yahdlc_control_t control;

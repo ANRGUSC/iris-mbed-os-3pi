@@ -53,6 +53,14 @@
 #include <inttypes.h>
 #include "yahdlc.h"
 #include "fcs16.h"
+#include <map>
+
+
+
+std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
+static int thread_cnt=0;
+
+
 #define DEBUG   1
 
 #if (DEBUG) 
@@ -68,6 +76,17 @@ DigitalOut myled3(LED3); //to notify when a character was received on mbed
 DigitalOut myled(LED1);
 Mail<msg_t, HDLC_MAILBOX_SIZE> dispatcher_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE> thread1_mailbox;
+Mutex thread_cnt_mtx;
+
+int register_thread(Mail<msg_t, HDLC_MAILBOX_SIZE> *arg)
+{
+    thread_cnt_mtx.lock();
+    thread_cnt++;
+    mailbox_list[thread_cnt]=arg;
+    thread_cnt_mtx.unlock();
+    return thread_cnt;
+}
+
 
 void _thread1()
 {
@@ -83,16 +102,19 @@ void _thread1()
     hdlc_buf_t *buf;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr=get_hdlc_mailbox();
+
+    static int port_no=register_thread(&thread1_mailbox);
     int exit = 0;
     osEvent evt;
-
+    PRINTF("thread1: PORT no %d\n",port_no);
     while (true) 
     {
 
         myled3=!myled3;
         pkt->data[0] = thread1_frame_no;
+        pkt->data[1] = port_no;
 
-        for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
+        for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt->data[i] = (char) ( rand() % 0x7E);
         }
 
@@ -147,7 +169,7 @@ void _thread1()
                         memcpy(recv_data, buf->data, buf->length);
                         hdlc_pkt_release(buf);
                         thread1_mailbox.free(msg);
-                        PRINTF("thread1: received pkt %d\n", recv_data[0]);
+                        PRINTF("thread1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
                         break;
                     default:
                         thread1_mailbox.free(msg);
@@ -163,7 +185,7 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(1000);
+        Thread::wait(2000);
 
     }
 }
@@ -172,6 +194,8 @@ int main(void)
 {
     myled=1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
+    Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
+
     PRINTF("In main");
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
     msg_t *msg, *msg2;
@@ -192,7 +216,7 @@ int main(void)
 
     PRINTF("dispatcher pid is %d \n", osThreadGetId());
 
-    Thread thread1(_thread1);
+    // Thread thread1(_thread1);
 
     int exit = 0;
     osEvent evt;
@@ -200,9 +224,9 @@ int main(void)
     {
         myled=!myled;
         pkt->data[0] = frame_no;
-        pkt->data[1] = frame_no;
+        pkt->data[1] = 0;
 
-        for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
+        for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt->data[i] = (char) ( rand() % 0x7E);
         }
 
@@ -259,9 +283,21 @@ int main(void)
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         memcpy(recv_data, buf->data, buf->length);
+                        if(recv_data[1]>0)
+                        {
+                            sender_mailbox_ptr=mailbox_list[(char)recv_data[1]];
+                            if(sender_mailbox_ptr!=NULL)
+                            {
+                                msg2 = sender_mailbox_ptr->alloc();
+                                if(msg2==NULL)
+                                    break;
+                                memcpy(msg2,msg,sizeof(msg_t));
+                                sender_mailbox_ptr->put(msg2);
+                            }    
+                        }
                         hdlc_pkt_release(buf);
                         dispatcher_mailbox.free(msg);
-                        printf("dispatcher: received pkt %d\n", recv_data[0]);
+                        printf("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
                         break;
                     default:
                         dispatcher_mailbox.free(msg);
@@ -277,7 +313,7 @@ int main(void)
         }
 
         frame_no++;
-        Thread::wait(1000);
+        // Thread::wait(1000);
 
     }
     PRINTF("Reached Exit");
