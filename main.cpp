@@ -105,6 +105,7 @@ void _thread1()
 
     static int port_no=register_thread(&thread1_mailbox);
     int exit = 0;
+    int retrans=0;
     osEvent evt;
     PRINTF("thread1: PORT no %d\n",port_no);
     while (true) 
@@ -122,12 +123,15 @@ void _thread1()
 
         /* send pkt */
         msg = hdlc_mailbox_ptr->alloc();
-        msg->type = HDLC_MSG_SND;
-        msg->content.ptr = pkt;
-        msg->sender_pid = osThreadGetId();
-        msg->source_mailbox = &thread1_mailbox;
-        hdlc_mailbox_ptr->put(msg);
-        PRINTF("thread1: sending pkt no %d \n", thread1_frame_no);
+        if (msg!=NULL)
+        {
+            msg->type = HDLC_MSG_SND;
+            msg->content.ptr = pkt;
+            msg->sender_pid = osThreadGetId();
+            msg->source_mailbox = &thread1_mailbox;
+            hdlc_mailbox_ptr->put(msg);
+            PRINTF("thread1: sending pkt no %d \n", thread1_frame_no);
+        }
 
         while(1)
         {
@@ -146,9 +150,13 @@ void _thread1()
                         Thread::wait(msg->content.value/1000);
                         PRINTF("thread1: retry frame_no %d \n", thread1_frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        while (msg2 == NULL) {
+                        if (msg2 == NULL) {
                             Thread::wait(50);
-                            msg2 = thread1_mailbox.alloc();  
+                            while(msg2==NULL)
+                            {
+                                msg2 = thread1_mailbox.alloc();  
+                                Thread::wait(10);
+                            }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
                             msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
@@ -185,7 +193,7 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(2000);
+        Thread::wait(1400);
 
     }
 }
@@ -234,14 +242,18 @@ int main(void)
 
         /* send pkt */
         msg = hdlc_mailbox_ptr->alloc();
-        msg->type = HDLC_MSG_SND;
-        msg->content.ptr = pkt;
-        msg->sender_pid = osThreadGetId();
-        msg->source_mailbox = &dispatcher_mailbox;
-        hdlc_mailbox_ptr->put(msg);
+        if (msg!=NULL)
+        {
+            msg->type = HDLC_MSG_SND;
+            msg->content.ptr = pkt;
+            msg->sender_pid = osThreadGetId();
+            msg->source_mailbox = &dispatcher_mailbox;
+            hdlc_mailbox_ptr->put(msg);
 
-        printf("dispatcher: sending pkt no %d \n", frame_no);
+            printf("dispatcher: sending pkt no %d \n", frame_no);
 
+        }
+        
         while(1)
         {
             myled=!myled;
@@ -262,15 +274,19 @@ int main(void)
                         Thread::wait(msg->content.value/1000);
                         PRINTF("dispatcher: retry frame_no %d \n", frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        while (msg2 == NULL) {
+                        if (msg2 == NULL) {
                             Thread::wait(50);
-                            msg2 = dispatcher_mailbox.alloc();  
+                            while(msg2==NULL)
+                            {
+                                msg2 = thread1_mailbox.alloc();  
+                                Thread::wait(10);
+                            }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
                             msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
-                            msg2->source_mailbox = &dispatcher_mailbox;
-                            dispatcher_mailbox.put(msg2);
-                            dispatcher_mailbox.free(msg);
+                            msg2->source_mailbox = &thread1_mailbox;
+                            thread1_mailbox.put(msg2);
+                            thread1_mailbox.free(msg);
                             break;
                         }
                         msg2->type = HDLC_MSG_SND;

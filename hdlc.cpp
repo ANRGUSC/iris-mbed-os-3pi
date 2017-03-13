@@ -55,7 +55,7 @@
 #include "hdlc.h"
 #include "rtos.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if (DEBUG) 
     #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -155,7 +155,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             /* valid data frame received */
             PRINTF("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-            /* always send ack */
+            /* always send ack. This maybe bogging down the mailbox */
             ack_msg = hdlc_mailbox.alloc();
             if(ack_msg == NULL)
             {
@@ -277,10 +277,17 @@ static void _hdlc()
                         /* ask thread to try again in x usec */
                         PRINTF("hdlc: uart locked, telling thr to retry\n");
                         reply=((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->alloc();
-                        reply->type = HDLC_RESP_RETRY_W_TIMEO;
-                        reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
-                        reply->sender_pid=osThreadGetId();
-                        ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
+                        if(reply==NULL)
+                        {
+                            PRINTF("hdlc: no space in thread mailbox. ERROR!!\n");
+                        }
+                        else
+                        {
+                            reply->type = HDLC_RESP_RETRY_W_TIMEO;
+                            reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            reply->sender_pid=osThreadGetId();
+                            ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
+                        }
                     } else {
                         uart_lock = 1;
                         sender_pid = msg->sender_pid;
@@ -382,7 +389,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
     global_time.start();
 
     uart2.attach(&rx_cb,Serial::RxIrq);
-    // hdlc.set_priority(priority);
+    hdlc.set_priority(priority);
     hdlc.start(_hdlc);
     PRINTF("hdlc: thread  id %d\n",hdlc.gettid());
     
