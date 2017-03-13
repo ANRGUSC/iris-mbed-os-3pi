@@ -65,8 +65,7 @@ typedef struct {
     yahdlc_control_t control;
     char *data;
     unsigned int length;
-    Mutex mtx; 
-
+    // Semaphore mtx; 
    // mutex_t mtx;
 } hdlc_buf_t;
 
@@ -101,5 +100,6 @@ enum {
 int hdlc_pkt_release(hdlc_buf_t *buf);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
+void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
 
 #endif /* HDLC_H_ */

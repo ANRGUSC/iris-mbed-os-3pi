@@ -102,6 +102,7 @@ void _thread1()
     hdlc_buf_t *buf;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr=get_hdlc_mailbox();
+    Timer timeout;
 
     static int port_no=register_thread(&thread1_mailbox);
     int exit = 0;
@@ -132,6 +133,7 @@ void _thread1()
             hdlc_mailbox_ptr->put(msg);
             PRINTF("thread1: sending pkt no %d \n", thread1_frame_no);
         }
+        timeout.reset();
 
         while(1)
         {
@@ -185,7 +187,13 @@ void _thread1()
                         //LED3_ON;
                         break;
                 }
-            }    
+            }  
+            int uart_ll=(int)timeout.read_ms();
+            // if(uart_ll>(10*RETRANSMIT_TIMEO_USEC/1000))
+            // {   
+            //     PRINTF("dispatcher: too long wait\n");
+            //     exit=1;
+            // }  
             if(exit) {
                 exit = 0;
                 break;
@@ -193,7 +201,7 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(1400);
+        Thread::wait(150);
 
     }
 }
@@ -203,7 +211,7 @@ int main(void)
     myled=1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
-
+    Timer timeout;
     PRINTF("In main");
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
     msg_t *msg, *msg2;
@@ -253,7 +261,7 @@ int main(void)
             printf("dispatcher: sending pkt no %d \n", frame_no);
 
         }
-        
+        timeout.reset();
         while(1)
         {
             myled=!myled;
@@ -329,7 +337,14 @@ int main(void)
                         //LED3_ON;
                         break;
                 }
-            }    
+            }  
+
+            int uart_ll=(int)timeout.read_ms();
+            // if(uart_ll>(10*RETRANSMIT_TIMEO_USEC/1000))
+            // {   
+            //     PRINTF("dispatcher: too long wait\n");
+            //     exit=1;
+            // }
             if(exit) {
                 exit = 0;
                 break;
@@ -337,7 +352,7 @@ int main(void)
         }
 
         frame_no++;
-        Thread::wait(1000);
+        Thread::wait(100);
 
     }
     PRINTF("Reached Exit");
