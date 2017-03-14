@@ -127,11 +127,15 @@ void _thread1()
                         break;    
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg->content.value/1000);
-                        PRINTF("thread1: retry frame_no %d \n", thread1_frame_no);
+                        PRINTF("main_thr: retry frame_no %d \n", thread1_frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        while (msg2 == NULL) {
+                        if (msg2 == NULL) {
                             Thread::wait(50);
-                            msg2 = thread1_mailbox.alloc();  
+                            while(msg2==NULL)
+                            {
+                                msg2 = thread1_mailbox.alloc();  
+                                Thread::wait(10);
+                            }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
                             msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
@@ -152,7 +156,7 @@ void _thread1()
                         memcpy(recv_data, buf->data, buf->length);
                         thread1_mailbox.free(msg);
                         hdlc_pkt_release(buf);
-                        PRINTF("thread1: received pkt %d\n", recv_data[0]);
+                        PRINTF("thread1: received pkt %d; thr %d\n", recv_data[0], recv_data[1]);
                         break;
                     default:
                         thread1_mailbox.free(msg);
@@ -168,7 +172,7 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(1700);
+        Thread::wait(500);
 
     }
 }
@@ -197,14 +201,16 @@ int main(void)
     // PT
     // Thread thread1(_thread1);
     PRINTF("main_thread: port no %d \n", port_no);
+    Thread thr;
+    thr.start(_thread1);
 
     int exit = 0;
     osEvent evt;
     while(1)
     {
 
-        Thread::wait(100);
-        PRINTF("In main\n");
+        // Thread::wait(100);
+        // PRINTF("In main\n");
 
         myled=!myled;
         pkt->data[0] = frame_no;
@@ -248,7 +254,7 @@ mail_check:      msg = (msg_t*)evt.value.p;
                         PRINTF("main_thr: retry frame_no %d \n", frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
                         if (msg2 == NULL) {
-                            Thread::wait(50);
+                            // Thread::wait(50);
                             while(msg2==NULL)
                             {
                                 msg2 = main_thr_mailbox.alloc();  
@@ -274,7 +280,7 @@ mail_check:      msg = (msg_t*)evt.value.p;
                         memcpy(recv_data, buf->data, buf->length);
                         main_thr_mailbox.free(msg);
                         hdlc_pkt_release(buf);
-                        printf("main_thr: received pkt %d\n", recv_data[0]);
+                        printf("main_thr: received pkt %d ; thr %d\n", recv_data[0], recv_data[1]);
                         break;
                     default:
                         main_thr_mailbox.free(msg);
@@ -295,7 +301,7 @@ mail_check:      msg = (msg_t*)evt.value.p;
         }
 
         frame_no++;
-        Thread::wait(100);
+        Thread::wait(360);
 
     }
     PRINTF("Reached Exit");
