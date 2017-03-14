@@ -192,15 +192,20 @@ int main(void)
     pkt->data = send_data;
     pkt->length = 0;
     hdlc_buf_t *buf;
-    PRINTF("In main");
-    static int port_no=register_thread(&thread1_mailbox);
-
+    PRINTF("In main\n");
+    static int port_no=register_thread(&main_thr_mailbox);
+    // PT
     // Thread thread1(_thread1);
+    PRINTF("main_thread: port no %d \n", port_no);
 
     int exit = 0;
     osEvent evt;
     while(1)
     {
+
+        Thread::wait(100);
+        PRINTF("In main\n");
+
         myled=!myled;
         pkt->data[0] = frame_no;
         // pkt->data[1] = frame_no;
@@ -220,7 +225,7 @@ int main(void)
         msg->source_mailbox = &main_thr_mailbox;
         hdlc_mailbox_ptr->put(msg);
 
-        printf("main_thread: sending pkt no %d \n", frame_no);
+        PRINTF("main_thread: sending pkt no %d \n", frame_no);
 
         while(1)
         {
@@ -229,12 +234,12 @@ int main(void)
 
             if (evt.status == osEventMail) 
             {
-                msg = (msg_t*)evt.value.p;
+mail_check:      msg = (msg_t*)evt.value.p;
 
                 switch (msg->type)
                 {
                     case HDLC_RESP_SND_SUCC:
-                        printf("main_thr: sent frame_no %d!\n", frame_no);
+                        PRINTF("main_thr: sent frame_no %d!\n", frame_no);
                         exit = 1;
                         main_thr_mailbox.free(msg);
                         break;
@@ -279,13 +284,18 @@ int main(void)
                 }
             }    
             if(exit) {
+                // evt = main_thr_mailbox.get(100);
+                // if (evt.status == osEventMail) 
+                // {
+                //     goto mail_check;
+                // }
                 exit = 0;
                 break;
             }
         }
 
         frame_no++;
-        Thread::wait(1100);
+        Thread::wait(100);
 
     }
     PRINTF("Reached Exit");

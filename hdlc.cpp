@@ -55,7 +55,7 @@
 #include "hdlc.h"
 #include "rtos.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if (DEBUG) 
     #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -173,10 +173,13 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             ack_msg->content.value = recv_buf.control.seq_no;
             ack_msg->source_mailbox = &hdlc_mailbox;
             hdlc_mailbox.put(ack_msg); 
-            
+            PRINTF("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
+
             /* pass on packet to dispatcher */
             if (recv_buf.control.seq_no == (*recv_seq_no % 8)){
                 /* lock pkt until dispatcher makes a copy and unlocks */
+                PRINTF("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
+
                 recv_buf_cpy_mutex.wait();
 
                 recv_buf_mutex.wait();
@@ -348,6 +351,8 @@ static void _hdlc()
                     dispatcher_mailbox_ptr=(Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
                     PRINTF("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
                     hdlc_mailbox.free(msg);
+                    LPC_UART2->IER = 1; //Disable The Interrupt
+
                     break;
                 default:
                     PRINTF("INVALID HDLC MSG\n");
@@ -418,7 +423,9 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
     hdlc.set_priority(priority);
     hdlc.start(_hdlc);
     PRINTF("hdlc: thread  id %d\n",hdlc.gettid());
-    
+    LPC_UART2->IER = 0; //Disable The Interrupt
+
+
     return &hdlc_mailbox;
 }
 

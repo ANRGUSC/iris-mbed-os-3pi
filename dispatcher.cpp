@@ -56,7 +56,7 @@
 #include <map>
 #include "dispatcher.h"
 
-#define DEBUG   0
+#define DEBUG   1
 
 #if (DEBUG) 
 #define PRINTF(...) printf(__VA_ARGS__)
@@ -69,7 +69,7 @@
 DigitalOut led1(LED1);
 Mail<msg_t, HDLC_MAILBOX_SIZE> dispatcher_mailbox;
 Thread dispatcher; 
-std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
+static std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
 static int registered_thr_cnt=0;
 Mutex thread_cnt_mtx;
 static int thread_cnt=0;
@@ -119,9 +119,10 @@ void _dispatcher(void)
     while(1)
     {
         led1=!led1;
-        Thread::wait(1000);
-        evt = dispatcher_mailbox.get();
+        // Thread::wait(1000);
+        // PRINTF("dispacther: inside loop\n");
 
+        evt = dispatcher_mailbox.get();
         if (evt.status == osEventMail) 
         {
             msg = (msg_t*)evt.value.p;
@@ -130,25 +131,30 @@ void _dispatcher(void)
                 case HDLC_PKT_RDY:
                     buf = (hdlc_buf_t *)msg->content.ptr;   
                     memcpy(recv_data, buf->data, buf->length);
+                    // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+
                     if(recv_data[1]>0)
                     {
-                        sender_mailbox_ptr=mailbox_list[(char)recv_data[1]];
+                        sender_mailbox_ptr=mailbox_list[recv_data[1]];
                         if(sender_mailbox_ptr!=NULL)
                         {
+
                             msg2 = sender_mailbox_ptr->alloc();
                             if(msg2==NULL)
                                 break;
                             memcpy(msg2,msg,sizeof(msg_t));
                             sender_mailbox_ptr->put(msg2);
+                            // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
                         }    
                         dispatcher_mailbox.free(msg);
 
                     }
                     else
                     {
+                        PRINTF("dispatcher1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+
                         dispatcher_mailbox.free(msg);
                         hdlc_pkt_release(buf);
-                        PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
                     }
                     break;
                 default:
