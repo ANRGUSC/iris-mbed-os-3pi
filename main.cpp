@@ -195,7 +195,7 @@ int main(void)
     PRINTF("In main");
     static int port_no=register_thread(&thread1_mailbox);
 
-    Thread thread1(_thread1);
+    // Thread thread1(_thread1);
 
     int exit = 0;
     osEvent evt;
@@ -242,9 +242,13 @@ int main(void)
                         Thread::wait(msg->content.value/1000);
                         PRINTF("main_thr: retry frame_no %d \n", frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        while (msg2 == NULL) {
+                        if (msg2 == NULL) {
                             Thread::wait(50);
-                            msg2 = main_thr_mailbox.alloc();  
+                            while(msg2==NULL)
+                            {
+                                msg2 = main_thr_mailbox.alloc();  
+                                Thread::wait(10);
+                            }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
                             msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();

@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
@@ -58,18 +58,16 @@
 
 #define RTRY_TIMEO_USEC         500000
 #define RETRANSMIT_TIMEO_USEC   50000
-#define HDLC_MAX_PKT_SIZE       128
-#define HDLC_MAILBOX_SIZE       64
+#define HDLC_MAX_PKT_SIZE       10
+#define HDLC_MAILBOX_SIZE       128
 
 typedef struct {
     yahdlc_control_t control;
     char *data;
     unsigned int length;
-    Mutex mtx; 
-
+    // Semaphore mtx; 
    // mutex_t mtx;
 } hdlc_buf_t;
-// bool hdlc_ready; // To guarantee that the dispacher is setup properly before you send message.
 
 typedef struct {
     osThreadId sender_pid;    
@@ -96,12 +94,12 @@ enum {
     HDLC_MSG_SND_ACK,
     HDLC_RESP_RETRY_W_TIMEO,
     HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY,
-    HDLC_DISPACHET_THR_REG
+    HDLC_PKT_RDY
 };
 
 int hdlc_pkt_release(hdlc_buf_t *buf);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
+void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
 
-#endif /* HDLC_H_*/ 
+#endif /* HDLC_H_ */

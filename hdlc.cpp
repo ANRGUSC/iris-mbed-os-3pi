@@ -55,7 +55,7 @@
 #include "hdlc.h"
 #include "rtos.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if (DEBUG) 
     #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -77,19 +77,25 @@ static Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatcher_mailbox_ptr;
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mailbox;
 Semaphore recv_buf_mutex(1);
-
+Semaphore recv_buf_cpy_mutex(1); 
 // Mutex recv_buf_mutex;
 Timer global_time;
+Timer uart_lock_time;
+
 
 CircularBuffer<char, UART_BUFSIZE> circ_buf;
 
 void write_hdlc(uint8_t *,int);
 
 static char hdlc_recv_data[HDLC_MAX_PKT_SIZE];
+static char hdlc_recv_data_cpy[HDLC_MAX_PKT_SIZE];
+
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 
 static hdlc_buf_t recv_buf; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
+static hdlc_buf_t recv_buf_cpy; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
+
 static hdlc_buf_t send_buf;// = { .data = hdlc_send_frame };
 static hdlc_buf_t ack_buf;//  = { .data = hdlc_ack_frame };
 
@@ -155,7 +161,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             /* valid data frame received */
             PRINTF("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-            /* always send ack */
+            /* always send ack. This maybe bogging down the mailbox */
             ack_msg = hdlc_mailbox.alloc();
             if(ack_msg == NULL)
             {
@@ -171,14 +177,19 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             /* pass on packet to dispatcher */
             if (recv_buf.control.seq_no == (*recv_seq_no % 8)){
                 /* lock pkt until dispatcher makes a copy and unlocks */
+                recv_buf_cpy_mutex.wait();
+
                 recv_buf_mutex.wait();
+                buffer_cpy(&recv_buf_cpy,&recv_buf);
+                recv_buf_mutex.release();
+
                 PRINTF("hdlc: got and expected seq_no %d\n", *recv_seq_no);
                 msg = dispatcher_mailbox_ptr->alloc();
                 if(msg ==NULL)
                     return;
                 msg->sender_pid = osThreadGetId();
                 msg->type = HDLC_PKT_RDY;
-                msg->content.ptr = &recv_buf;
+                msg->content.ptr = &recv_buf_cpy;
                 msg->source_mailbox = &hdlc_mailbox;
                 (*recv_seq_no)++;
                 hdlc_buf_t *buf1;
@@ -232,6 +243,13 @@ static void _hdlc()
         led2=!led2;
         // hdlc_ready=1;
         if(uart_lock) {
+            int uart_ll=(int)uart_lock_time.read_us();
+            // if(uart_ll>10*RETRANSMIT_TIMEO_USEC)
+            // {
+            //     PRINTF("hdlc: UART is locked for %d us_seconds\n",uart_ll);
+            //     uart_lock=0;
+            //     goto getmail;
+            // }    
             int timeout = (int)RETRANSMIT_TIMEO_USEC - (int) global_time.read_us();
             if(timeout < 0) {
                 // PRINTF("hdlc: inside timeout negative\n");
@@ -258,7 +276,7 @@ static void _hdlc()
             }
         } else {
             // PRINTF("hdlc: waiting for mail\n");
-            evt = hdlc_mailbox.get();
+  getmail:          evt = hdlc_mailbox.get();
         }
        
         if (evt.status == osEventMail) 
@@ -277,10 +295,17 @@ static void _hdlc()
                         /* ask thread to try again in x usec */
                         PRINTF("hdlc: uart locked, telling thr to retry\n");
                         reply=((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->alloc();
-                        reply->type = HDLC_RESP_RETRY_W_TIMEO;
-                        reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
-                        reply->sender_pid=osThreadGetId();
-                        ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
+                        if(reply==NULL)
+                        {
+                            PRINTF("hdlc: no space in thread mailbox. ERROR!!\n");
+                        }
+                        else
+                        {
+                            reply->type = HDLC_RESP_RETRY_W_TIMEO;
+                            reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            reply->sender_pid=osThreadGetId();
+                            ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
+                        }
                     } else {
                         uart_lock = 1;
                         sender_pid = msg->sender_pid;
@@ -296,6 +321,7 @@ static void _hdlc()
 
                         write_hdlc((uint8_t *)send_buf.data, send_buf.length);
                         global_time.reset();
+                        uart_lock_time.reset();
                     }  
                     hdlc_mailbox.free(msg); 
                     break;
@@ -338,10 +364,10 @@ static void _hdlc()
 
 int hdlc_pkt_release(hdlc_buf_t *buf) 
 {
-    if(recv_buf_mutex.wait(0))
+    if(recv_buf_cpy_mutex.wait(0))
     {
         PRINTF("hdlc: Packet not locked. Might be empty!\n");
-        recv_buf_mutex.release();
+        recv_buf_cpy_mutex.release();
         return -1;
     }
     else
@@ -350,7 +376,7 @@ int hdlc_pkt_release(hdlc_buf_t *buf)
         buf->control.seq_no = 0;
         PRINTF("hdlc: relesed lock!\n");
 
-        recv_buf_mutex.release();
+        recv_buf_cpy_mutex.release();
         return 0;
     }
 
@@ -372,19 +398,27 @@ void write_hdlc(uint8_t *ptr,int len)
         }
     }
 }
+void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src)
+{
+    memcpy(dst->data,src->data,HDLC_MAX_PKT_SIZE);
+    memcpy(&dst->control,&src->control,sizeof(yahdlc_control_t));
+    dst->length=src->length;
+}
 
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority) 
 {
     led2=1;
     recv_buf.data = hdlc_recv_data;
+    recv_buf_cpy.data= hdlc_recv_data_cpy;
     send_buf.data = hdlc_send_frame;
     ack_buf.data = hdlc_ack_frame;
     global_time.start();
-
+    uart_lock_time.start();
     uart2.attach(&rx_cb,Serial::RxIrq);
-    // hdlc.set_priority(priority);
+    hdlc.set_priority(priority);
     hdlc.start(_hdlc);
     PRINTF("hdlc: thread  id %d\n",hdlc.gettid());
     
     return &hdlc_mailbox;
 }
+
