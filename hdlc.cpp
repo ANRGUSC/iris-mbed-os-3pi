@@ -93,15 +93,32 @@ static char hdlc_recv_data_cpy[HDLC_MAX_PKT_SIZE];
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 
-static hdlc_buf_t recv_buf; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
-static hdlc_buf_t recv_buf_cpy; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
+static hdlc_buf_t recv_buf = { 
+    .control = {YAHDLC_FRAME_DATA, 0}, 
+    .data = hdlc_recv_data, 
+    .length = 0
+};
 
-static hdlc_buf_t send_buf;// = { .data = hdlc_send_frame };
-static hdlc_buf_t ack_buf;//  = { .data = hdlc_ack_frame };
+static hdlc_buf_t recv_buf_cpy = {
+    .control = {YAHDLC_FRAME_DATA, 0}, 
+    .data = hdlc_recv_data_cpy, 
+    .length = 0
+};
+
+static hdlc_buf_t send_buf = {
+    .control = {YAHDLC_FRAME_DATA, 0}, 
+    .data = hdlc_send_frame, 
+    .length = 0
+};
+
+static hdlc_buf_t ack_buf = {
+    .control = {YAHDLC_FRAME_DATA, 0}, 
+    .data = hdlc_ack_frame, 
+    .length = 0
+};
 
 /* uart access control lock */
-static uint32_t uart_lock = 0;
-
+static bool uart_lock = 0;
 
 static void rx_cb(void)//(void *arg, uint8_t data)
 {
@@ -115,7 +132,7 @@ static void rx_cb(void)//(void *arg, uint8_t data)
             
             // wakeup hdlc thread 
             msg_t *msg = hdlc_mailbox.alloc();
-            if(msg==NULL)
+            if(msg == NULL)
             {
                   PRINTF("hdlc: rx_cb no more space available on mailbox\n");
                   return;
@@ -148,7 +165,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             continue; //full packet not yet parsed
         }
 
-        if(ret == -EIO) {
+        if (ret == -EIO) {
             PRINTF("FCS ERROR OR INVALID FRAME!\n");
             recv_buf.control.frame = (yahdlc_frame_t)0;
             recv_buf.control.seq_no = 0;
@@ -163,7 +180,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
             /* always send ack. This maybe bogging down the mailbox */
             ack_msg = hdlc_mailbox.alloc();
-            if(ack_msg == NULL)
+            if (ack_msg == NULL)
             {
               PRINTF("hdlc: ACK no more space available on mailbox\n");
               return;
@@ -195,9 +212,9 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 msg->content.ptr = &recv_buf_cpy;
                 msg->source_mailbox = &hdlc_mailbox;
                 (*recv_seq_no)++;
-                hdlc_buf_t *buf1;
-                buf1=(hdlc_buf_t *)msg->content.ptr;
-                PRINTF("hdlc: Thread seq_no %d: thr %d\n", buf1->data[0],recv_buf.data[1]);
+                PRINTF("hdlc: Thread seq_no %d: thr %d\n", 
+                    ((hdlc_buf_t *) msg->content.ptr)->data[0], 
+                    recv_buf.data[1]);
 
                 dispatcher_mailbox_ptr->put(msg); 
 
@@ -214,12 +231,12 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
             if(recv_buf.control.seq_no == (*send_seq_no % 8)) {
                 msg=sender_mailbox_ptr->alloc();
-                if(msg==NULL)
+                if (msg == NULL)
                     return;
 
                 uart_lock = 0;
                 (*send_seq_no)++;
-                msg->sender_pid=osThreadGetId();
+                msg->sender_pid = osThreadGetId();
                 msg->type = HDLC_RESP_SND_SUCC;
                 msg->content.value = (uint32_t) 0;
                 msg->source_mailbox = &hdlc_mailbox;
@@ -246,7 +263,7 @@ static void _hdlc()
         led2=!led2;
         // hdlc_ready=1;
         if(uart_lock) {
-            int uart_ll=(int)uart_lock_time.read_us();
+            // int uart_ll=(int)uart_lock_time.read_us();
             // if(uart_ll>10*RETRANSMIT_TIMEO_USEC)
             // {
             //     PRINTF("hdlc: UART is locked for %d us_seconds\n",uart_ll);
@@ -298,12 +315,10 @@ static void _hdlc()
                         /* ask thread to try again in x usec */
                         PRINTF("hdlc: uart locked, telling thr to retry\n");
                         reply=((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->alloc();
-                        if(reply==NULL)
-                        {
+                        if(reply == NULL) {
                             PRINTF("hdlc: no space in thread mailbox. ERROR!!\n");
                         }
-                        else
-                        {
+                        else {
                             reply->type = HDLC_RESP_RETRY_W_TIMEO;
                             reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
                             reply->sender_pid=osThreadGetId();
@@ -320,7 +335,8 @@ static void _hdlc()
                                 pkt->length, send_buf.data, &send_buf.length);
 
                         sender_mailbox_ptr=(Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
-                        PRINTF("hdlc: sending frame seq no %d, len %d\n", send_buf.control.seq_no,send_buf.length);
+                        PRINTF("hdlc: sending frame seq no %d, len %d\n", 
+                            send_buf.control.seq_no,send_buf.length);
 
                         write_hdlc((uint8_t *)send_buf.data, send_buf.length);
                         global_time.reset();
@@ -332,14 +348,17 @@ static void _hdlc()
                     /* send ACK */
                     ack_buf.control.frame = YAHDLC_FRAME_ACK;
                     ack_buf.control.seq_no = msg->content.value;
-                    yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, &(ack_buf.length));    
-                    PRINTF("hdlc: sending ack w/ seq no %d, len %d\n", ack_buf.control.seq_no,ack_buf.length);
+                    yahdlc_frame_data(&(ack_buf.control), NULL, 0, ack_buf.data, 
+                        &(ack_buf.length));    
+                    PRINTF("hdlc: sending ack w/ seq no %d, len %d\n", 
+                        ack_buf.control.seq_no,ack_buf.length);
                     write_hdlc((uint8_t *)ack_buf.data, ack_buf.length);
                     // uart2.write((uint8_t *)ack_buf.data, ack_buf.length,0,0);   
                     hdlc_mailbox.free(msg);
                     break;
                 case HDLC_MSG_RESEND:
-                    PRINTF("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
+                    PRINTF("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", 
+                        send_buf.control.seq_no, send_seq_no);
                     write_hdlc((uint8_t *)send_buf.data, send_buf.length);
                     // uart2.write((uint8_t *)send_buf.data, send_buf.length,0,0);
                     global_time.reset();
@@ -348,7 +367,7 @@ static void _hdlc()
                 case HDLC_MSG_REG_DISPATCHER:
                     PRINTF("hdlc: Registering dispatcher thread.\n");
                     hdlc_dispatcher_pid = msg->sender_pid;
-                    dispatcher_mailbox_ptr=(Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
+                    dispatcher_mailbox_ptr = (Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
                     PRINTF("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
                     hdlc_mailbox.free(msg);
                     LPC_UART2->IER = 1; //Disable The Interrupt
@@ -363,8 +382,7 @@ static void _hdlc()
         }
     }
 
-    // /* this should never be reached */
-    // return;
+    /* this should never be reached */
 }
 
 int hdlc_pkt_release(hdlc_buf_t *buf) 
@@ -413,10 +431,6 @@ void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src)
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority) 
 {
     led2=1;
-    recv_buf.data = hdlc_recv_data;
-    recv_buf_cpy.data= hdlc_recv_data_cpy;
-    send_buf.data = hdlc_send_frame;
-    ack_buf.data = hdlc_ack_frame;
     global_time.start();
     uart_lock_time.start();
     uart2.attach(&rx_cb,Serial::RxIrq);
