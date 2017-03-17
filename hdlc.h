@@ -65,8 +65,6 @@ typedef struct {
     yahdlc_control_t control;
     char *data;
     unsigned int length;
-    // Semaphore mtx; 
-   // mutex_t mtx;
 } hdlc_buf_t;
 
 typedef struct {
