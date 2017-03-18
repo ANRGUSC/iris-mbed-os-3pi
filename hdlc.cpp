@@ -120,6 +120,7 @@ static hdlc_buf_t ack_buf = {
 /* uart access control lock */
 static bool uart_lock = 0;
 
+
 static void rx_cb(void)//(void *arg, uint8_t data)
 {
     unsigned char data;
@@ -273,6 +274,7 @@ static void _hdlc()
             int timeout = (int)RETRANSMIT_TIMEO_USEC - (int) global_time.read_us();
             if(timeout < 0) {
                 // PRINTF("hdlc: inside timeout negative\n");
+
                 /* send message to self to resend msg */
                 msg = hdlc_mailbox.alloc();
                 if(msg == NULL) {
@@ -306,6 +308,7 @@ static void _hdlc()
             switch (msg->type) {
                 case HDLC_MSG_RECV:
                     // PRINTF("hdlc: receiving msg...\n");
+
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
                     hdlc_mailbox.free(msg);
                     break;
@@ -371,7 +374,6 @@ static void _hdlc()
                     PRINTF("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
                     hdlc_mailbox.free(msg);
                     LPC_UART2->IER = 1; //Disable The Interrupt
-
                     break;
                 default:
                     PRINTF("INVALID HDLC MSG\n");
@@ -438,7 +440,6 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
     hdlc.start(_hdlc);
     PRINTF("hdlc: thread  id %d\n",hdlc.gettid());
     LPC_UART2->IER = 0; //Disable The Interrupt
-
 
     return &hdlc_mailbox;
 }

@@ -61,6 +61,7 @@
 #define HDLC_MAX_PKT_SIZE       4
 #define HDLC_MAILBOX_SIZE       80
 
+
 typedef struct {
     yahdlc_control_t control;
     char *data;

@@ -71,7 +71,6 @@ DigitalOut myled(LED1);
 Mail<msg_t, HDLC_MAILBOX_SIZE> thread1_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE> main_thr_mailbox;
 
-
 void _thread1()
 {
 /* Initial Direction of the Antenna*/
@@ -100,7 +99,6 @@ void _thread1()
         for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt->data[i] = (char) ( rand() % 0x7E);
         }
-
         pkt->length = HDLC_MAX_PKT_SIZE;
 
         /* send pkt */
@@ -173,7 +171,6 @@ void _thread1()
 
         thread1_frame_no++;
         Thread::wait(500);
-
     }
 }
 
