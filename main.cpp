@@ -173,8 +173,10 @@ void _thread1()
 
         thread1_frame_no++;
         Thread::wait(500);
-
     }
+    PRINTF("Reached Exit");
+    /* should be never reached */
+    return 0;
 }
 
 
