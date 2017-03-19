@@ -58,16 +58,13 @@
 
 #define RTRY_TIMEO_USEC         500000
 #define RETRANSMIT_TIMEO_USEC   50000
-#define HDLC_MAX_PKT_SIZE       128
-#define HDLC_MAILBOX_SIZE       128
+#define HDLC_MAX_PKT_SIZE       4
+#define HDLC_MAILBOX_SIZE       80
 
 typedef struct {
     yahdlc_control_t control;
     char *data;
     unsigned int length;
-    Mutex mtx; 
-
-   // mutex_t mtx;
 } hdlc_buf_t;
 
 typedef struct {
@@ -100,5 +97,7 @@ enum {
 
 int hdlc_pkt_release(hdlc_buf_t *buf);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
+Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
+void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
 
 #endif /* HDLC_H_ */
