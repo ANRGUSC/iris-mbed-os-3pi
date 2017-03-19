@@ -70,9 +70,8 @@ DigitalOut led1(LED1);
 Mail<msg_t, HDLC_MAILBOX_SIZE> dispatcher_mailbox;
 Thread dispatcher; 
 static std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
-static int registered_thr_cnt=0;
 Mutex thread_cnt_mtx;
-static int thread_cnt=0;
+static int thread_cnt = 0;
 
 int register_thread(Mail<msg_t, HDLC_MAILBOX_SIZE> *arg)
 {
@@ -92,11 +91,9 @@ void _dispatcher(void)
 
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     msg_t *msg, *msg2;
-    char frame_no = 0;
-    char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
 
-    hdlc_buf_t *buf;
+    hdlc_pkt_t *pkt;
     PRINTF("In dispatcher");
 
     msg = hdlc_mailbox_ptr->alloc();
@@ -129,8 +126,8 @@ void _dispatcher(void)
             switch (msg->type)
             {
                 case HDLC_PKT_RDY:
-                    buf = (hdlc_buf_t *)msg->content.ptr;   
-                    memcpy(recv_data, buf->data, buf->length);
+                    pkt = (hdlc_pkt_t *)msg->content.ptr;   
+                    memcpy(recv_data, pkt->data, pkt->length);
                     // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
 
                     if(recv_data[1]>0)
@@ -154,7 +151,7 @@ void _dispatcher(void)
                         PRINTF("dispatcher1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
 
                         dispatcher_mailbox.free(msg);
-                        hdlc_pkt_release(buf);
+                        hdlc_pkt_release(pkt);
                     }
                     break;
                 default:
@@ -171,11 +168,11 @@ void _dispatcher(void)
     /* should be never reached */
     // return 0;
 }
+
 Mail<msg_t, HDLC_MAILBOX_SIZE>* get_dispacther_mailbox()
 {
     return &dispatcher_mailbox;
 }
-
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>* dispacher_init() 
 {
