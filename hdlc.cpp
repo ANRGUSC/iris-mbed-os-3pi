@@ -78,10 +78,8 @@ static Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mailbox;
 Semaphore recv_buf_mutex(1);
 Semaphore recv_buf_cpy_mutex(1); 
-// Mutex recv_buf_mutex;
 Timer global_time;
 Timer uart_lock_time;
-
 
 CircularBuffer<char, UART_BUFSIZE> circ_buf;
 
@@ -153,17 +151,16 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     char c;
 
     while(1) {
-        if (!circ_buf.pop(c)) {
+        if (!circ_buf.pop(c))
             return;
-        }
+
         recv_buf_mutex.wait();
         ret = yahdlc_get_data(&recv_buf.control, &c, 1, recv_buf.data, 
                                 &recv_buf.length);
         recv_buf_mutex.release();
 
-        if (ret == -ENOMSG) {
+        if (ret == -ENOMSG) 
             continue; //full packet not yet parsed
-        }
 
         if (ret == -EIO) {
             PRINTF("FCS ERROR OR INVALID FRAME!\n");
@@ -180,8 +177,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
             /* always send ack. This maybe bogging down the mailbox */
             ack_msg = hdlc_mailbox.alloc();
-            if (ack_msg == NULL)
-            {
+            if (ack_msg == NULL) {
               PRINTF("hdlc: ACK no more space available on mailbox\n");
               return;
             }
@@ -217,7 +213,6 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                     recv_buf.data[1]);
 
                 dispatcher_mailbox_ptr->put(msg); 
-
             }
 
             recv_buf.control.frame = (yahdlc_frame_t)0;
@@ -231,6 +226,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
             if(recv_buf.control.seq_no == (*send_seq_no % 8)) {
                 msg=sender_mailbox_ptr->alloc();
+
                 if (msg == NULL)
                     return;
 
@@ -259,7 +255,6 @@ static void _hdlc()
     osEvent evt;
 
     while(1) {
-
         led2=!led2;
         // hdlc_ready=1;
         if(uart_lock) {
@@ -296,7 +291,7 @@ static void _hdlc()
             }
         } else {
             // PRINTF("hdlc: waiting for mail\n");
-  getmail:          evt = hdlc_mailbox.get();
+getmail:    evt = hdlc_mailbox.get();
         }
        
         if (evt.status == osEventMail) 
@@ -371,7 +366,6 @@ static void _hdlc()
                     PRINTF("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
                     hdlc_mailbox.free(msg);
                     LPC_UART2->IER = 1; //Disable The Interrupt
-
                     break;
                 default:
                     PRINTF("INVALID HDLC MSG\n");
@@ -387,18 +381,15 @@ static void _hdlc()
 
 int hdlc_pkt_release(hdlc_buf_t *buf) 
 {
-    if(recv_buf_cpy_mutex.wait(0))
-    {
+    if(recv_buf_cpy_mutex.wait(0)) {
         PRINTF("hdlc: Packet not locked. Might be empty!\n");
         recv_buf_cpy_mutex.release();
         return -1;
     }
-    else
-    {
+    else {
         buf->control.frame = (yahdlc_frame_t)0;
         buf->control.seq_no = 0;
         PRINTF("hdlc: relesed lock!\n");
-
         recv_buf_cpy_mutex.release();
         return 0;
     }
@@ -438,7 +429,6 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
     hdlc.start(_hdlc);
     PRINTF("hdlc: thread  id %d\n",hdlc.gettid());
     LPC_UART2->IER = 0; //Disable The Interrupt
-
 
     return &hdlc_mailbox;
 }

@@ -240,7 +240,7 @@ int main(void)
 
             if (evt.status == osEventMail) 
             {
-mail_check:      msg = (msg_t*)evt.value.p;
+mail_check:     msg = (msg_t*)evt.value.p;
 
                 switch (msg->type)
                 {
@@ -285,7 +285,6 @@ mail_check:      msg = (msg_t*)evt.value.p;
                     default:
                         main_thr_mailbox.free(msg);
                         /* error */
-                        //LED3_ON;
                         break;
                 }
             }    
@@ -302,7 +301,6 @@ mail_check:      msg = (msg_t*)evt.value.p;
 
         frame_no++;
         Thread::wait(360);
-
     }
     PRINTF("Reached Exit");
     /* should be never reached */
