@@ -12,5 +12,7 @@ Install mbed-cli:
 Initializing mbed project after cloning this repo:
 
 `cd m3pi-mbed-os`
+
 `mbed deploy`
+
 `mbed new .` #(not too sure about this line)
