@@ -93,29 +93,12 @@ static char hdlc_recv_data_cpy[HDLC_MAX_PKT_SIZE];
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 
-static hdlc_buf_t recv_buf = { 
-    .control = {YAHDLC_FRAME_DATA, 0}, 
-    .data = hdlc_recv_data, 
-    .length = 0
-};
+static hdlc_buf_t recv_buf; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
+static hdlc_buf_t recv_buf_cpy; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
 
-static hdlc_buf_t recv_buf_cpy = {
-    .control = {YAHDLC_FRAME_DATA, 0}, 
-    .data = hdlc_recv_data_cpy, 
-    .length = 0
-};
+static hdlc_buf_t send_buf;// = { .data = hdlc_send_frame };
+static hdlc_buf_t ack_buf;//  = { .data = hdlc_ack_frame };
 
-static hdlc_buf_t send_buf = {
-    .control = {YAHDLC_FRAME_DATA, 0}, 
-    .data = hdlc_send_frame, 
-    .length = 0
-};
-
-static hdlc_buf_t ack_buf = {
-    .control = {YAHDLC_FRAME_DATA, 0}, 
-    .data = hdlc_ack_frame, 
-    .length = 0
-};
 
 /* uart access control lock */
 static bool uart_lock = 0;
@@ -431,6 +414,10 @@ void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src)
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority) 
 {
     led2=1;
+    recv_buf.data = hdlc_recv_data;
+    recv_buf_cpy.data= hdlc_recv_data_cpy;
+    send_buf.data = hdlc_send_frame;
+    ack_buf.data = hdlc_ack_frame;
     global_time.start();
     uart_lock_time.start();
     uart2.attach(&rx_cb,Serial::RxIrq);
