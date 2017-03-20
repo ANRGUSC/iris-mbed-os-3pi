@@ -68,7 +68,11 @@
 
 DigitalOut led1(LED1);
 Mail<msg_t, HDLC_MAILBOX_SIZE> dispatcher_mailbox;
-Thread dispatcher; 
+
+static unsigned char DISPACHER_STACK[DEFAULT_STACK_SIZE];
+Thread dispatcher(osPriorityNormal, 
+    (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)DISPACHER_STACK); 
+
 static std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
 static int registered_thr_cnt=0;
 Mutex thread_cnt_mtx;
