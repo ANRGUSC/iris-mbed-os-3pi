@@ -70,7 +70,11 @@ DigitalOut led2(LED2);
 
 static osThreadId hdlc_dispatcher_pid, sender_pid;
 
-Thread hdlc; 
+static unsigned char HDLC_STACK[DEFAULT_STACK_SIZE];
+
+Thread hdlc(osPriorityNormal, 
+    (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)HDLC_STACK); 
+
 Serial uart2(p28,p27, 115200);
 
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatcher_mailbox_ptr;
@@ -430,7 +434,7 @@ void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src)
 
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority) 
 {
-    led2=1;
+    led2 = 1;
     global_time.start();
     uart_lock_time.start();
     uart2.attach(&rx_cb,Serial::RxIrq);
