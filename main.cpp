@@ -80,14 +80,14 @@ void _thread1()
     msg_t *msg, *msg2;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t *pkt= new hdlc_pkt_t;
-    pkt->data = send_data;
-    pkt->length = 0;
-    hdlc_buf_t *buf;
+    hdlc_pkt_t pkt;
+    pkt.data = send_data;
+    pkt.length = 0;
+    hdlc_pkt_t *recv_pkt;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr=get_hdlc_mailbox();
     int exit = 0;
-    static int port_no=register_thread(&thread1_mailbox);
+    static int port_no = register_thread(&thread1_mailbox);
 
     osEvent evt;
 
@@ -95,18 +95,18 @@ void _thread1()
     {
 
         myled3=!myled3;
-        pkt->data[0] = thread1_frame_no;
-        pkt->data[1] = port_no;
+        pkt.data[0] = thread1_frame_no;
+        pkt.data[1] = port_no;
         for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
-            pkt->data[i] = (char) ( rand() % 0x7E);
+            pkt.data[i] = (char) ( rand() % 0x7E);
         }
 
-        pkt->length = HDLC_MAX_PKT_SIZE;
+        pkt.length = HDLC_MAX_PKT_SIZE;
 
         /* send pkt */
         msg = hdlc_mailbox_ptr->alloc();
         msg->type = HDLC_MSG_SND;
-        msg->content.ptr = pkt;
+        msg->content.ptr = &pkt;
         msg->sender_pid = osThreadGetId();
         msg->source_mailbox = &thread1_mailbox;
         hdlc_mailbox_ptr->put(msg);
@@ -145,17 +145,17 @@ void _thread1()
                             break;
                         }
                         msg2->type = HDLC_MSG_SND;
-                        msg2->content.ptr = pkt;
+                        msg2->content.ptr = &pkt;
                         msg2->sender_pid = osThreadGetId();
                         msg2->source_mailbox = &thread1_mailbox;
                         hdlc_mailbox_ptr->put(msg2);
                         thread1_mailbox.free(msg);
                         break;
                     case HDLC_PKT_RDY:
-                        buf = (hdlc_buf_t *)msg->content.ptr;   
-                        memcpy(recv_data, buf->data, buf->length);
+                        recv_pkt = (hdlc_pkt_t *)msg->content.ptr;   
+                        memcpy(recv_data, recv_pkt->data, recv_pkt->length);
                         thread1_mailbox.free(msg);
-                        hdlc_pkt_release(buf);
+                        hdlc_pkt_release(recv_pkt);
                         PRINTF("thread1: received pkt %d; thr %d\n", recv_data[0], recv_data[1]);
                         break;
                     default:
@@ -186,18 +186,18 @@ int main(void)
     // PRINTF("In main");
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
-    dispatch_mailbox_ptr=dispacher_init();
+    dispatch_mailbox_ptr = dispacher_init();
 
     msg_t *msg, *msg2;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t *pkt= new hdlc_pkt_t;
-    pkt->data = send_data;
-    pkt->length = 0;
-    hdlc_buf_t *buf;
+    hdlc_pkt_t pkt;
+    pkt.data = send_data;
+    pkt.length = 0;
+    hdlc_pkt_t *recv_pkt;
     PRINTF("In main\n");
-    static int port_no=register_thread(&main_thr_mailbox);
+    static int port_no = register_thread(&main_thr_mailbox);
     // PT
     // Thread thread1(_thread1);
     PRINTF("main_thread: port no %d \n", port_no);
@@ -213,20 +213,20 @@ int main(void)
         // PRINTF("In main\n");
 
         myled=!myled;
-        pkt->data[0] = frame_no;
-        // pkt->data[1] = frame_no;
-        pkt->data[1] = port_no;
+        pkt.data[0] = frame_no;
+        // pkt.data[1] = frame_no;
+        pkt.data[1] = port_no;
 
         for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
-            pkt->data[i] = (char) ( rand() % 0x7E);
+            pkt.data[i] = (char) ( rand() % 0x7E);
         }
 
-        pkt->length = HDLC_MAX_PKT_SIZE;
+        pkt.length = HDLC_MAX_PKT_SIZE;
 
         /* send pkt */
         msg = hdlc_mailbox_ptr->alloc();
         msg->type = HDLC_MSG_SND;
-        msg->content.ptr = pkt;
+        msg->content.ptr = &pkt;
         msg->sender_pid = osThreadGetId();
         msg->source_mailbox = &main_thr_mailbox;
         hdlc_mailbox_ptr->put(msg);
@@ -269,17 +269,17 @@ mail_check:      msg = (msg_t*)evt.value.p;
                             break;
                         }
                         msg2->type = HDLC_MSG_SND;
-                        msg2->content.ptr = pkt;
+                        msg2->content.ptr = &pkt;
                         msg2->sender_pid = osThreadGetId();
                         msg2->source_mailbox = &main_thr_mailbox;
                         hdlc_mailbox_ptr->put(msg2);
                         main_thr_mailbox.free(msg);
                         break;
                     case HDLC_PKT_RDY:
-                        buf = (hdlc_buf_t *)msg->content.ptr;   
-                        memcpy(recv_data, buf->data, buf->length);
+                        recv_pkt = (hdlc_pkt_t *)msg->content.ptr;   
+                        memcpy(recv_data, recv_pkt->data, recv_pkt->length);
                         main_thr_mailbox.free(msg);
-                        hdlc_pkt_release(buf);
+                        hdlc_pkt_release(recv_pkt);
                         printf("main_thr: received pkt %d ; thr %d\n", recv_data[0], recv_data[1]);
                         break;
                     default:

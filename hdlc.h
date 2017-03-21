@@ -62,12 +62,6 @@
 #define HDLC_MAILBOX_SIZE       80
 
 typedef struct {
-    yahdlc_control_t control;
-    char *data;
-    unsigned int length;
-} hdlc_buf_t;
-
-typedef struct {
     osThreadId sender_pid;    
     void *source_mailbox;
     uint16_t type;              /**< Type field. */
@@ -95,9 +89,8 @@ enum {
     HDLC_PKT_RDY
 };
 
-int hdlc_pkt_release(hdlc_buf_t *buf);
+int hdlc_pkt_release(hdlc_pkt_t *pkt);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
-void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
 
 #endif /* HDLC_H_ */
