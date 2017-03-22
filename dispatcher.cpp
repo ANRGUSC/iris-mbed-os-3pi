@@ -66,7 +66,6 @@
 
 /* the only instance of pc -- debug statements in other files depend on it */
 
-DigitalOut led1(LED1);
 Mail<msg_t, HDLC_MAILBOX_SIZE> dispatcher_mailbox;
 
 static unsigned char DISPACHER_STACK[DEFAULT_STACK_SIZE];
@@ -74,15 +73,21 @@ Thread dispatcher(osPriorityNormal,
     (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)DISPACHER_STACK); 
 
 static std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
-static int registered_thr_cnt=0;
-Mutex thread_cnt_mtx;
-static int thread_cnt=0;
 
+static int  registered_thr_cnt=0;
+Mutex       thread_cnt_mtx;
+static int  thread_cnt=0;
+
+/**
+ * @brief registers a thread with the dispatcher
+ * @param  arg thread's mailbox pointer
+ * @return     the thread port number 
+ */
 int register_thread(Mail<msg_t, HDLC_MAILBOX_SIZE> *arg)
 {
     thread_cnt_mtx.lock();
     thread_cnt++;
-    mailbox_list[thread_cnt]=arg;
+    mailbox_list[thread_cnt] = arg;
     thread_cnt_mtx.unlock();
     return thread_cnt;
 }
@@ -90,7 +95,6 @@ int register_thread(Mail<msg_t, HDLC_MAILBOX_SIZE> *arg)
 
 void _dispatcher(void)
 {
-    led1=1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 
@@ -114,18 +118,11 @@ void _dispatcher(void)
     msg->source_mailbox = &dispatcher_mailbox;
     hdlc_mailbox_ptr->put(msg);
 
-
-    // Thread thread1(_thread1);
-    // dispacher_ready=1;
     PRINTF("dispatcher pid is %d \n", osThreadGetId());
 
     osEvent evt;
     while(1)
     {
-        led1=!led1;
-        // Thread::wait(1000);
-        // PRINTF("dispacther: inside loop\n");
-
         evt = dispatcher_mailbox.get();
         if (evt.status == osEventMail) 
         {
@@ -137,14 +134,13 @@ void _dispatcher(void)
                     memcpy(recv_data, buf->data, buf->length);
                     // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
 
-                    if(recv_data[1]>0)
+                    if (recv_data[1] > 0)
                     {
-                        sender_mailbox_ptr=mailbox_list[recv_data[1]];
-                        if(sender_mailbox_ptr!=NULL)
+                        sender_mailbox_ptr = mailbox_list[recv_data[1]];
+                        if (sender_mailbox_ptr != NULL)
                         {
-
                             msg2 = sender_mailbox_ptr->alloc();
-                            if(msg2==NULL)
+                            if( msg2 == NULL)
                                 break;
                             memcpy(msg2,msg,sizeof(msg_t));
                             sender_mailbox_ptr->put(msg2);
@@ -156,7 +152,6 @@ void _dispatcher(void)
                     else
                     {
                         PRINTF("dispatcher1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
-
                         dispatcher_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                     }
@@ -164,7 +159,6 @@ void _dispatcher(void)
                 default:
                     dispatcher_mailbox.free(msg);
                         /* error */
-                        //LED3_ON;
                     break;
             }    
 
@@ -173,15 +167,20 @@ void _dispatcher(void)
     }
     PRINTF("Reached Exit");
     /* should be never reached */
-    // return 0;
 }
-Mail<msg_t, HDLC_MAILBOX_SIZE>* get_dispacther_mailbox()
+
+/**
+ * @brief returns the mailbox mailbox of the dispatcher
+ */
+Mail<msg_t, HDLC_MAILBOX_SIZE>* get_dispatcher_mailbox()
 {
     return &dispatcher_mailbox;
 }
 
-
-Mail<msg_t, HDLC_MAILBOX_SIZE>* dispacher_init() 
+/**
+ * @brief Initializes the dispatcher thread
+ */
+Mail<msg_t, HDLC_MAILBOX_SIZE>* dispatcher_init() 
 {
   
     dispatcher.start(_dispatcher);
