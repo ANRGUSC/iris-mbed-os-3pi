@@ -80,11 +80,11 @@ Serial uart2(p28,p27, 115200);
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatcher_mailbox_ptr;
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mailbox;
-Semaphore recv_buf_mutex(1);
-Semaphore recv_buf_cpy_mutex(1); 
+Semaphore   recv_buf_mutex(1);
+Semaphore   recv_buf_cpy_mutex(1); 
 // Mutex recv_buf_mutex;
-Timer global_time;
-Timer uart_lock_time;
+Timer       global_time;
+Timer       uart_lock_time;
 
 
 CircularBuffer<char, UART_BUFSIZE> circ_buf;
@@ -97,11 +97,12 @@ static char hdlc_recv_data_cpy[HDLC_MAX_PKT_SIZE];
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 
-static hdlc_buf_t recv_buf; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
-static hdlc_buf_t recv_buf_cpy; // recv_buf.data = hdlc_recv_data; the initialization is done in the hdlc init function
 
-static hdlc_buf_t send_buf;// = { .data = hdlc_send_frame };
-static hdlc_buf_t ack_buf;//  = { .data = hdlc_ack_frame };
+static hdlc_buf_t recv_buf; // the initialization is done in the hdlc init function
+static hdlc_buf_t recv_buf_cpy; // the initialization is done in the hdlc init function
+static hdlc_buf_t send_buf;
+static hdlc_buf_t ack_buf;
+
 
 
 /* uart access control lock */
@@ -112,7 +113,7 @@ static void rx_cb(void)//(void *arg, uint8_t data)
     unsigned char data;
 
     while (uart2.readable()) {
-        data=uart2.getc();     // Get an character from the Serial
+        data = uart2.getc();     // Get an character from the Serial
         circ_buf.push(data);     // Put to the ring/circular buffer
 
         if (data == YAHDLC_FLAG_SEQUENCE) {
@@ -192,7 +193,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
                 PRINTF("hdlc: got and expected seq_no %d\n", *recv_seq_no);
                 msg = dispatcher_mailbox_ptr->alloc();
-                if(msg ==NULL)
+                if (msg == NULL)
                     return;
                 msg->sender_pid = osThreadGetId();
                 msg->type = HDLC_PKT_RDY;
@@ -268,7 +269,7 @@ static void _hdlc()
                     evt = hdlc_mailbox.get();
                 }
                 else {
-                    msg->sender_pid=osThreadGetId();
+                    msg->sender_pid = osThreadGetId();
                     msg->type = HDLC_MSG_RESEND;
                     msg->source_mailbox = &hdlc_mailbox;
                     hdlc_mailbox.put(msg); 
@@ -308,7 +309,7 @@ static void _hdlc()
                         else {
                             reply->type = HDLC_RESP_RETRY_W_TIMEO;
                             reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
-                            reply->sender_pid=osThreadGetId();
+                            reply->sender_pid = osThreadGetId();
                             ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
                         }
                     } else {
@@ -429,7 +430,6 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
     hdlc.start(_hdlc);
     PRINTF("hdlc: thread  id %d\n",hdlc.gettid());
     LPC_UART2->IER = 0; //Disable The Interrupt
-
 
     return &hdlc_mailbox;
 }
