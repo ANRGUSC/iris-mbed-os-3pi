@@ -63,13 +63,12 @@
 #endif /* (DEBUG) & DEBUG_PRINT */
 
 /* the only instance of pc -- debug statements in other files depend on it */
-Serial pc(USBTX,USBRX,115200);
-DigitalOut myled3(LED3); //to notify when a character was received on mbed
+Serial                          pc(USBTX,USBRX,115200);
+DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
+DigitalOut                      myled(LED1);
 
-DigitalOut myled(LED1);
-// Mail<msg_t, HDLC_MAILBOX_SIZE> dispatcher_mailbox;
-Mail<msg_t, HDLC_MAILBOX_SIZE> thread1_mailbox;
-Mail<msg_t, HDLC_MAILBOX_SIZE> main_thr_mailbox;
+Mail<msg_t, HDLC_MAILBOX_SIZE>  thread1_mailbox;
+Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 
 void _thread1()
@@ -80,12 +79,12 @@ void _thread1()
     msg_t *msg, *msg2;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t *pkt= new hdlc_pkt_t;
-    pkt->data = send_data;
-    pkt->length = 0;
+    hdlc_pkt_t pkt;
+    pkt.data = send_data;
+    pkt.length = 0;
     hdlc_buf_t *buf;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-    hdlc_mailbox_ptr=get_hdlc_mailbox();
+    hdlc_mailbox_ptr = get_hdlc_mailbox();
     int exit = 0;
     static int port_no=register_thread(&thread1_mailbox);
 
@@ -94,19 +93,19 @@ void _thread1()
     while (true) 
     {
 
-        myled3=!myled3;
-        pkt->data[0] = thread1_frame_no;
-        pkt->data[1] = port_no;
+        myled3 =! myled3;
+        pkt.data[0] = thread1_frame_no;
+        pkt.data[1] = port_no;
         for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
-            pkt->data[i] = (char) ( rand() % 0x7E);
+            pkt.data[i] = (char) ( rand() % 0x7E);
         }
 
-        pkt->length = HDLC_MAX_PKT_SIZE;
+        pkt.length = HDLC_MAX_PKT_SIZE;
 
         /* send pkt */
         msg = hdlc_mailbox_ptr->alloc();
         msg->type = HDLC_MSG_SND;
-        msg->content.ptr = pkt;
+        msg->content.ptr = &pkt;
         msg->sender_pid = osThreadGetId();
         msg->source_mailbox = &thread1_mailbox;
         hdlc_mailbox_ptr->put(msg);
@@ -131,7 +130,7 @@ void _thread1()
                         msg2 = hdlc_mailbox_ptr->alloc();
                         if (msg2 == NULL) {
                             Thread::wait(50);
-                            while(msg2==NULL)
+                            while (msg2 == NULL)
                             {
                                 msg2 = thread1_mailbox.alloc();  
                                 Thread::wait(10);
@@ -145,7 +144,7 @@ void _thread1()
                             break;
                         }
                         msg2->type = HDLC_MSG_SND;
-                        msg2->content.ptr = pkt;
+                        msg2->content.ptr = &pkt;
                         msg2->sender_pid = osThreadGetId();
                         msg2->source_mailbox = &thread1_mailbox;
                         hdlc_mailbox_ptr->put(msg2);
@@ -161,7 +160,6 @@ void _thread1()
                     default:
                         thread1_mailbox.free(msg);
                         /* error */
-                        //LED3_ON;
                         break;
                 }
             }    
@@ -173,33 +171,30 @@ void _thread1()
 
         thread1_frame_no++;
         Thread::wait(500);
-
     }
 }
 
 
 int main(void)
 {
-    myled=1;
+    myled = 1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatch_mailbox_ptr;
-    // PRINTF("In main");
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
-    dispatch_mailbox_ptr=dispacher_init();
+    dispatch_mailbox_ptr=dispatcher_init();
 
     msg_t *msg, *msg2;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t *pkt= new hdlc_pkt_t;
-    pkt->data = send_data;
-    pkt->length = 0;
+    hdlc_pkt_t pkt;
+    pkt.data = send_data;
+    pkt.length = 0;
     hdlc_buf_t *buf;
     PRINTF("In main\n");
     static int port_no=register_thread(&main_thr_mailbox);
-    // PT
-    // Thread thread1(_thread1);
+
     PRINTF("main_thread: port no %d \n", port_no);
     Thread thr;
     thr.start(_thread1);
@@ -208,25 +203,20 @@ int main(void)
     osEvent evt;
     while(1)
     {
-
-        // Thread::wait(100);
-        // PRINTF("In main\n");
-
         myled=!myled;
-        pkt->data[0] = frame_no;
-        // pkt->data[1] = frame_no;
-        pkt->data[1] = port_no;
+        pkt.data[0] = frame_no;
+        pkt.data[1] = port_no;
 
         for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
-            pkt->data[i] = (char) ( rand() % 0x7E);
+            pkt.data[i] = (char) ( rand() % 0x7E);
         }
 
-        pkt->length = HDLC_MAX_PKT_SIZE;
+        pkt.length = HDLC_MAX_PKT_SIZE;
 
         /* send pkt */
         msg = hdlc_mailbox_ptr->alloc();
         msg->type = HDLC_MSG_SND;
-        msg->content.ptr = pkt;
+        msg->content.ptr = &pkt;
         msg->sender_pid = osThreadGetId();
         msg->source_mailbox = &main_thr_mailbox;
         hdlc_mailbox_ptr->put(msg);
@@ -240,12 +230,12 @@ int main(void)
 
             if (evt.status == osEventMail) 
             {
-mail_check:      msg = (msg_t*)evt.value.p;
+                msg = (msg_t*)evt.value.p;
 
                 switch (msg->type)
                 {
                     case HDLC_RESP_SND_SUCC:
-                        PRINTF("main_thr: sent frame_no %d!\n", frame_no);
+                        PRINTF("main_thread: sent frame_no %d!\n", frame_no);
                         exit = 1;
                         main_thr_mailbox.free(msg);
                         break;
@@ -269,7 +259,7 @@ mail_check:      msg = (msg_t*)evt.value.p;
                             break;
                         }
                         msg2->type = HDLC_MSG_SND;
-                        msg2->content.ptr = pkt;
+                        msg2->content.ptr = &pkt;
                         msg2->sender_pid = osThreadGetId();
                         msg2->source_mailbox = &main_thr_mailbox;
                         hdlc_mailbox_ptr->put(msg2);
@@ -290,11 +280,6 @@ mail_check:      msg = (msg_t*)evt.value.p;
                 }
             }    
             if(exit) {
-                // evt = main_thr_mailbox.get(100);
-                // if (evt.status == osEventMail) 
-                // {
-                //     goto mail_check;
-                // }
                 exit = 0;
                 break;
             }
