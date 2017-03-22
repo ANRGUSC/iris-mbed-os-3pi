@@ -97,10 +97,12 @@ static char hdlc_recv_data_cpy[HDLC_MAX_PKT_SIZE];
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 
+
 static hdlc_buf_t recv_buf; // the initialization is done in the hdlc init function
 static hdlc_buf_t recv_buf_cpy; // the initialization is done in the hdlc init function
 static hdlc_buf_t send_buf;
 static hdlc_buf_t ack_buf;
+
 
 
 /* uart access control lock */
