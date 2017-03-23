@@ -70,10 +70,10 @@ DigitalOut led2(LED2);
 
 static osThreadId hdlc_dispatcher_pid, sender_pid;
 
-static unsigned char HDLC_STACK[DEFAULT_STACK_SIZE];
+static unsigned char HDLC_STACK[DEFAULT_STACK_SIZE/2];
 
 Thread hdlc(osPriorityNormal, 
-    (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)HDLC_STACK); 
+    (uint32_t) DEFAULT_STACK_SIZE/2, (unsigned char *)HDLC_STACK); 
 
 Serial uart2(p28,p27, 115200);
 

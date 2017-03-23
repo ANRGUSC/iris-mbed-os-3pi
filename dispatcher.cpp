@@ -68,9 +68,9 @@
 
 Mail<msg_t, HDLC_MAILBOX_SIZE> dispatcher_mailbox;
 
-static unsigned char DISPACHER_STACK[DEFAULT_STACK_SIZE];
+static unsigned char DISPACHER_STACK[DEFAULT_STACK_SIZE/2];
 Thread dispatcher(osPriorityNormal, 
-    (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)DISPACHER_STACK); 
+    (uint32_t) DEFAULT_STACK_SIZE/2, (unsigned char *)DISPACHER_STACK); 
 
 static std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
 
