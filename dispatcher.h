@@ -4,6 +4,7 @@
 #include "rtos.h"
 #include "mbed.h"
 #include "hdlc.h"
+#include "rssi.h"
 
 
 // static bool dispacher_ready; // To guarantee that the dispacher is setup properly before you send message.

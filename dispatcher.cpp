@@ -92,6 +92,25 @@ int register_thread(Mail<msg_t, HDLC_MAILBOX_SIZE> *arg)
     return thread_cnt;
 }
 
+void process_received_data(char *data)
+{
+    riot_to_mbed_msg_t type = (riot_to_mbed_msg_t) (*(data + 2));
+    float value = (float) (*(data + 3));
+
+    switch (type){
+        
+        case RSSI_DATA_PKT:
+            put_rssi(value);
+            break;
+
+        case RANGE_DATA_PKT:
+            put_range(value);
+            break;
+
+        default:
+            break;
+    }
+}
 
 void _dispatcher(void)
 {
@@ -152,6 +171,7 @@ void _dispatcher(void)
                     else
                     {
                         PRINTF("dispatcher1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                        process_received_data(recv_data); // This puts rssi/range data in the appropriate structure.
                         dispatcher_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                     }

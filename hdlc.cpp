@@ -372,7 +372,87 @@ static void _hdlc()
 
     /* this should never be reached */
 }
+/**
+ * @brief Send @p pkt as an hdlc command packet over serial. This function blocks.
+ * @param  pkt            Packet to be sent.
+ * @param  sender_mailbox Pointer to sender's mailbox.
+ * @return                [description]
+ */
+int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, 
+                                                    riot_to_mbed_msg_t reply)
+{
+/* TODO: should the second input not be a void pointer? */
+/* TODO: limit the number of retries */
+    msg_t *msg, *msg2;
+    hdlc_buf_t *buf;
+    char recv_data_local[HDLC_MAX_PKT_SIZE];
 
+    /* send pkt */
+    msg = hdlc_mailbox.alloc();
+    msg->type = HDLC_MSG_SND;
+    msg->content.ptr = pkt;
+    msg->sender_pid = osThreadGetId();
+    msg->source_mailbox = sender_mailbox;
+    hdlc_mailbox.put(msg);
+    printf("hdlc: in hdlc send command\n");
+    while(1)
+    {
+        osEvent evt = sender_mailbox->get();
+
+        if (evt.status == osEventMail) 
+        {
+            msg = (msg_t*)evt.value.p;
+
+            switch (msg->type)
+            {
+                case HDLC_RESP_SND_SUCC:
+                    printf("sent frame_no %d!\n", pkt->data[0]);
+                    sender_mailbox->free(msg);
+                    break;
+                case HDLC_RESP_RETRY_W_TIMEO:
+                    Thread::wait(msg->content.value/1000);
+                    msg2 = hdlc_mailbox.alloc();
+                    if (msg2 == NULL) {
+                        while(msg2 == NULL)
+                        {
+                            msg2 = sender_mailbox->alloc();  
+                            Thread::wait(10);
+                        }
+                        /* TODO: this doesn't seem right... */
+                        msg2->type = HDLC_RESP_RETRY_W_TIMEO;
+                        msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                        msg2->sender_pid = osThreadGetId();
+                        msg2->source_mailbox = sender_mailbox;
+                        sender_mailbox->put(msg2);
+                        sender_mailbox->free(msg);
+                        break;
+                    }
+                    msg2->type = HDLC_MSG_SND;
+                    msg2->content.ptr = pkt;
+                    msg2->sender_pid = osThreadGetId();
+                    msg2->source_mailbox = sender_mailbox;
+                    hdlc_mailbox.put(msg2);
+                    sender_mailbox->free(msg);
+                    break;
+                case HDLC_PKT_RDY: 
+                    buf = (hdlc_buf_t *)msg->content.ptr;   
+                    memcpy(recv_data_local, buf->data, buf->length);
+                    hdlc_pkt_release(buf);
+                    sender_mailbox->free(msg);
+                    PRINTF("antenna_thread: received pkt %d\n", recv_data_local[0]);
+                    if (recv_data_local[PACKET_DATA] == reply)
+                        return 1;
+                    else
+                        return 0;
+                    break;
+                default:
+                    sender_mailbox->free(msg);
+                    /* error */
+                    break;
+            }
+        }    
+    }
+}
 int hdlc_pkt_release(hdlc_buf_t *buf) 
 {
     if(recv_buf_cpy_mutex.wait(0))
