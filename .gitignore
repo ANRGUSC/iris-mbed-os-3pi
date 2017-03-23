@@ -32,7 +32,8 @@ BUILD/
 *.dSYM/
 *.su
 
+*.py
 m3pi/
 mbed-os/
 .tags*
-
+main.cpp
