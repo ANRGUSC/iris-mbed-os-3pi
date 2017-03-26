@@ -53,7 +53,10 @@
 #include <inttypes.h>
 #include "yahdlc.h"
 #include "fcs16.h"
+#include "uart_pkt.h"
 #include "dispatcher.h"
+#include "main-conf.h"
+
 #define DEBUG   1
 
 #if (DEBUG) 
@@ -83,20 +86,24 @@ void _thread1()
     pkt.data = send_data;
     pkt.length = 0;
     hdlc_buf_t *buf;
+    uart_pkt_hdr_t recv_hdr;
+    uart_pkt_hdr_t send_hdr = { THREAD1_PORT, THREAD1_PORT, NULL_PKT_TYPE };
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     int exit = 0;
-    static int port_no=register_thread(&thread1_mailbox);
+    dispatcher_entry_t thread1 = { NULL, THREAD1_PORT, &thread1_mailbox };
+    dispatcher_register(&thread1);
 
     osEvent evt;
 
-    while (true) 
+    while (1) 
     {
 
         myled3 =! myled3;
-        pkt.data[0] = thread1_frame_no;
-        pkt.data[1] = port_no;
-        for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
+        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
+
+        pkt.data[UART_PKT_DATA_FIELD] = thread1_frame_no;
+        for(int i = UART_PKT_DATA_FIELD + 1; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt.data[i] = (char) ( rand() % 0x7E);
         }
 
@@ -152,10 +159,14 @@ void _thread1()
                         break;
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
-                        memcpy(recv_data, buf->data, buf->length);
+                        uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                        if (recv_hdr.pkt_type == NULL_PKT_TYPE) {
+                            memcpy(recv_data, buf->data, buf->length);
+                            printf("thread1: received pkt %d ; dst_port %d\n", 
+                            recv_data[UART_PKT_DATA_FIELD], recv_hdr.dst_port);
+                        }
                         thread1_mailbox.free(msg);
                         hdlc_pkt_release(buf);
-                        PRINTF("thread1: received pkt %d; thr %d\n", recv_data[0], recv_data[1]);
                         break;
                     default:
                         thread1_mailbox.free(msg);
@@ -182,7 +193,7 @@ int main(void)
     Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatch_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
-    dispatch_mailbox_ptr=dispatcher_init();
+    dispatch_mailbox_ptr = dispatcher_init();
 
     msg_t *msg, *msg2;
     char frame_no = 0;
@@ -192,10 +203,12 @@ int main(void)
     pkt.data = send_data;
     pkt.length = 0;
     hdlc_buf_t *buf;
+    uart_pkt_hdr_t recv_hdr;
+    uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, NULL_PKT_TYPE };
     PRINTF("In main\n");
-    static int port_no=register_thread(&main_thr_mailbox);
+    dispatcher_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
+    dispatcher_register(&main_thr);
 
-    PRINTF("main_thread: port no %d \n", port_no);
     Thread thr;
     thr.start(_thread1);
 
@@ -204,10 +217,10 @@ int main(void)
     while(1)
     {
         myled=!myled;
-        pkt.data[0] = frame_no;
-        pkt.data[1] = port_no;
+        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
 
-        for(int i = 2; i < HDLC_MAX_PKT_SIZE; i++) {
+        pkt.data[UART_PKT_DATA_FIELD] = frame_no;
+        for(int i = UART_PKT_DATA_FIELD + 1; i < HDLC_MAX_PKT_SIZE; i++) {
             pkt.data[i] = (char) ( rand() % 0x7E);
         }
 
@@ -267,10 +280,14 @@ int main(void)
                         break;
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
-                        memcpy(recv_data, buf->data, buf->length);
+                        uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                        if (recv_hdr.pkt_type == NULL_PKT_TYPE) {
+                            memcpy(recv_data, buf->data, buf->length);
+                            printf("main_thr: received pkt %d ; dst_port %d\n", 
+                            recv_data[UART_PKT_DATA_FIELD], recv_hdr.dst_port);
+                        }
                         main_thr_mailbox.free(msg);
                         hdlc_pkt_release(buf);
-                        printf("main_thr: received pkt %d ; thr %d\n", recv_data[0], recv_data[1]);
                         break;
                     default:
                         main_thr_mailbox.free(msg);

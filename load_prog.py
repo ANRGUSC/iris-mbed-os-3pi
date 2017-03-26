@@ -38,11 +38,13 @@ print("pc: 0x%X" % target.readCoreRegister("pc"))
 #   pc: 0x10000000
 
 target.reset()
+
 # target.halt()
 # print "pc: 0x%X" % target.readCoreRegister("pc")
 # #   pc: 0xAAC
 # 
 cmd = "./pyterm -b 115200 -p %s" % serial_ports(board.unique_id)
+
 os.system(cmd)
 
 # board.uninit()
