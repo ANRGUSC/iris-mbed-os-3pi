@@ -53,6 +53,7 @@
 #include <inttypes.h>
 #include "yahdlc.h"
 #include "fcs16.h"
+#include "uart_pkt.h"
 #include "dispatcher.h"
 #include "utlist.h"
 
@@ -86,7 +87,7 @@ void dispatcher_unregister(dispatcher_entry_t *entry)
     LL_DELETE(dispatcher_reg, entry);
 }
 
-void _dispatcher(void)
+static void _dispatcher(void)
 {
     dispatcher_entry_t *entry;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
@@ -94,8 +95,9 @@ void _dispatcher(void)
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     msg_t *msg, *msg2;
     char recv_data[HDLC_MAX_PKT_SIZE];
-
     hdlc_buf_t *buf;
+    uart_pkt_hdr_t hdr;
+
     PRINTF("In dispatcher");
 
     msg = hdlc_mailbox_ptr->alloc();
@@ -122,34 +124,25 @@ void _dispatcher(void)
             {
                 case HDLC_PKT_RDY:
                     buf = (hdlc_buf_t *)msg->content.ptr;   
-                    memcpy(recv_data, buf->data, buf->length);
-                    // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                    uart_pkt_parse_hdr(&hdr, (void *)buf->data, (size_t) (buf->length));
+                    LL_SEARCH_SCALAR(dispatcher_reg, entry, port, hdr.dst_port);
 
-                    if (recv_data[1] > 0)
-                    {
-                        LL_SEARCH_SCALAR(dispatcher_reg, entry, port, recv_data[1]);
-                        if (entry != NULL)
-                        {
-                            msg2 = entry->mailbox->alloc();
-                            if( msg2 == NULL)
-                                break;
-                            memcpy(msg2, msg, sizeof(msg_t));
-                            entry->mailbox->put(msg2);
-                            // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
-                        }    
-                        dispatcher_mailbox.free(msg);
-
-                    }
-                    else
-                    {
-                        PRINTF("dispatcher1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
-                        dispatcher_mailbox.free(msg);
+                    if (entry) {
+                        msg2 = entry->mailbox->alloc();
+                        if( msg2 == NULL)
+                            break;
+                        memcpy(msg2, msg, sizeof(msg_t));
+                        entry->mailbox->put(msg2);
+                        // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                    } else {
                         hdlc_pkt_release(buf);
                     }
+
+                    dispatcher_mailbox.free(msg);
                     break;
                 default:
                     dispatcher_mailbox.free(msg);
-                        /* error */
+                    /* error */
                     break;
             }    
 
