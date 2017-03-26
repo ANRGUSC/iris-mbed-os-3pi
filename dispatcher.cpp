@@ -53,8 +53,8 @@
 #include <inttypes.h>
 #include "yahdlc.h"
 #include "fcs16.h"
-#include <map>
 #include "dispatcher.h"
+#include "utlist.h"
 
 #define DEBUG   1
 
@@ -72,36 +72,27 @@ static unsigned char DISPACHER_STACK[DEFAULT_STACK_SIZE];
 Thread dispatcher(osPriorityNormal, 
     (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)DISPACHER_STACK); 
 
-static std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
 
-static int  registered_thr_cnt=0;
-Mutex       thread_cnt_mtx;
-static int  thread_cnt=0;
+static dispatcher_entry_t *dispatcher_reg;
 
-/**
- * @brief registers a thread with the dispatcher
- * @param  arg thread's mailbox pointer
- * @return     the thread port number 
- */
-int register_thread(Mail<msg_t, HDLC_MAILBOX_SIZE> *arg)
+
+void dispatcher_register(dispatcher_entry_t *entry)
 {
-    thread_cnt_mtx.lock();
-    thread_cnt++;
-    mailbox_list[thread_cnt] = arg;
-    thread_cnt_mtx.unlock();
-    return thread_cnt;
+    LL_PREPEND(dispatcher_reg, entry);
 }
 
+void dispatcher_unregister(dispatcher_entry_t *entry)
+{
+    LL_DELETE(dispatcher_reg, entry);
+}
 
 void _dispatcher(void)
 {
+    dispatcher_entry_t *entry;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     msg_t *msg, *msg2;
-    char frame_no = 0;
-    char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
 
     hdlc_buf_t *buf;
@@ -136,14 +127,14 @@ void _dispatcher(void)
 
                     if (recv_data[1] > 0)
                     {
-                        sender_mailbox_ptr = mailbox_list[recv_data[1]];
-                        if (sender_mailbox_ptr != NULL)
+                        LL_SEARCH_SCALAR(dispatcher_reg, entry, port, recv_data[1]);
+                        if (entry != NULL)
                         {
-                            msg2 = sender_mailbox_ptr->alloc();
+                            msg2 = entry->mailbox->alloc();
                             if( msg2 == NULL)
                                 break;
-                            memcpy(msg2,msg,sizeof(msg_t));
-                            sender_mailbox_ptr->put(msg2);
+                            memcpy(msg2, msg, sizeof(msg_t));
+                            entry->mailbox->put(msg2);
                             // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
                         }    
                         dispatcher_mailbox.free(msg);

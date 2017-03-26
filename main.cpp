@@ -54,6 +54,8 @@
 #include "yahdlc.h"
 #include "fcs16.h"
 #include "dispatcher.h"
+#include "main-conf.h"
+
 #define DEBUG   1
 
 #if (DEBUG) 
@@ -86,7 +88,9 @@ void _thread1()
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     int exit = 0;
-    static int port_no=register_thread(&thread1_mailbox);
+    dispatcher_entry_t thread1 = { NULL, THREAD1_PORT, &thread1_mailbox };
+    dispatcher_register(&thread1);
+    int port_no = THREAD1_PORT; 
 
     osEvent evt;
 
@@ -182,7 +186,7 @@ int main(void)
     Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatch_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
-    dispatch_mailbox_ptr=dispatcher_init();
+    dispatch_mailbox_ptr = dispatcher_init();
 
     msg_t *msg, *msg2;
     char frame_no = 0;
@@ -193,7 +197,9 @@ int main(void)
     pkt.length = 0;
     hdlc_buf_t *buf;
     PRINTF("In main\n");
-    static int port_no=register_thread(&main_thr_mailbox);
+    dispatcher_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
+    dispatcher_register(&main_thr);
+    int port_no = MAIN_THR_PORT;
 
     PRINTF("main_thread: port no %d \n", port_no);
     Thread thr;
