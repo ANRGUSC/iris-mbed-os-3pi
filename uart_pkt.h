@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
@@ -7,6 +7,7 @@
  *
  * Contributors:
  * Jason A. Tran
+ * Pradipta Ghosh
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,69 +36,56 @@
  */
 
 /**
- * @ingroup     examples
- * @{
- *
- * @file
- * @brief       Full duplex hdlc implementation.
- *
- * This implementation leverages yahdlc, an open source library. The current 
- * implementation is stop & wait.
+ * @file        uart_pkt.h
+ * @brief       Helper library for creating packets to be over UART via hdlc.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
- *
- * @}
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * 
  */
 
-#ifndef HDLC_H_
-#define HDLC_H_
+#ifndef UART_PKT_H_
+#define UART_PKT_H_
 
-#include "yahdlc.h"
-#include "rtos.h"
-#include "mbed.h"
+#define UART_PKT_HDR_LEN            5
+#define UART_PKT_TYPE_FIELD         4
+#define UART_PKT_DATA_FIELD         5
 
-#define RTRY_TIMEO_USEC         500000
-#define RETRANSMIT_TIMEO_USEC   50000
-#define HDLC_MAX_PKT_SIZE       10
-#define HDLC_MAILBOX_SIZE       80
+typedef struct __attribute__((packed)) {
+    uint16_t    src_port;      
+    uint16_t    dst_port;      
+    uint8_t     pkt_type;                 
+} uart_pkt_hdr_t;
 
-typedef struct {
-    yahdlc_control_t control;
-    char *data;
-    unsigned int length;
-} hdlc_buf_t;
+/**
+ * @brief Message types from mbed-os to riot-os
+ */
+typedef enum {
+    RADIO_SET_CHAN          = 0,
+    RADIO_SET_POWER         = 1,
+    SOUND_RANGE_REQ         = 2,
+    SOUND_RANGE_X10_REQ     = 3,
+    RSSI_DUMP_START         = 4,
+    RSSI_DUMP_STOP          = 5
+} mbed_to_riot_t;
 
-typedef struct {
-    osThreadId sender_pid;    
-    void *source_mailbox;
-    uint16_t type;              /**< Type field. */
-    union {
-        void *ptr;              /**< Pointer content field. */
-        uint32_t value;         /**< Value content field. */
-    } content;                  /**< Content of the message. */
-} msg_t;
+/**
+ * @brief Message types from riot-os to mbed-os
+ */
+typedef enum  {
+    RADIO_SET_CHAN_SUCCESS  = 0,
+    RADIO_SET_CHAN_FAIL     = 1,
+    RADIO_SET_POWER_SUCCESS = 2,
+    RADIO_SET_POWER_FAIL    = 3,
+    SOUND_RANGE_DONE        = 4,
+    RSSI_SCAN_STARTED       = 5,
+    RSSI_SCAN_STOPPED       = 6,
+    RSSI_DATA_PKT           = 7,
+    RADIO_FWD_UDP_PKT       = 8
+} riot_to_mbed_t;
 
-/* struct for other threads to pass to hdlc thread via IPC */
-typedef struct {
-    char *data;
-    unsigned int length;
-} hdlc_pkt_t;
+void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);
+size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, size_t data_len);
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr,  const void *src,  size_t src_len);
 
-/* HDLC thread messages */
-enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY
-};
-
-int hdlc_pkt_release(hdlc_buf_t *buf);
-Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
-Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
-void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
-
-#endif /* HDLC_H_ */
+#endif /* UART_PKT_H_ */

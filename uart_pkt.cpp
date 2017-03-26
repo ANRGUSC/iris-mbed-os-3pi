@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
@@ -7,6 +7,7 @@
  *
  * Contributors:
  * Jason A. Tran
+ * Pradipta Ghosh
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,69 +36,66 @@
  */
 
 /**
- * @ingroup     examples
- * @{
- *
- * @file
- * @brief       Full duplex hdlc implementation.
- *
- * This implementation leverages yahdlc, an open source library. The current 
- * implementation is stop & wait.
+ * @file        uart_pkt.c
+ * @brief       Helper library for creating packets to be over UART via hdlc.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
- *
- * @}
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * 
  */
 
-#ifndef HDLC_H_
-#define HDLC_H_
+#include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
+#include "uart_pkt.h"
 
-#include "yahdlc.h"
-#include "rtos.h"
-#include "mbed.h"
+#define DEBUG 0
 
-#define RTRY_TIMEO_USEC         500000
-#define RETRANSMIT_TIMEO_USEC   50000
-#define HDLC_MAX_PKT_SIZE       10
-#define HDLC_MAILBOX_SIZE       80
+#if (DEBUG) 
+    #define DEBUG(...) pc.printf(__VA_ARGS__)
+    extern Serial pc;
+#else
+    #define DEBUG(...)
+#endif /* (DEBUG) */
 
-typedef struct {
-    yahdlc_control_t control;
-    char *data;
-    unsigned int length;
-} hdlc_buf_t;
+void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
+{
+    if (buf_len < UART_PKT_HDR_LEN) {
+        DEBUG("Buffer size too small\n");
+        return NULL;
+    }
 
-typedef struct {
-    osThreadId sender_pid;    
-    void *source_mailbox;
-    uint16_t type;              /**< Type field. */
-    union {
-        void *ptr;              /**< Pointer content field. */
-        uint32_t value;         /**< Value content field. */
-    } content;                  /**< Content of the message. */
-} msg_t;
+    memcpy(buf, hdr, sizeof(uart_pkt_hdr_t));
+    return (buf + UART_PKT_DATA_FIELD);
+}
 
-/* struct for other threads to pass to hdlc thread via IPC */
-typedef struct {
-    char *data;
-    unsigned int length;
-} hdlc_pkt_t;
+/**
+ * Copy data from an array into a uart packet buffer.
+ * @param  buf      destination buffer
+ * @param  buf_len  destination buffer size
+ * @param  data     buffer containing data
+ * @param  data_len size of buffer containing data
+ * @return          total size of packet on success or 0 on failure.
+ */
+size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, 
+    size_t data_len)
+{
+    if (data_len + 5 > buf_len) {
+        DEBUG("Not enough space in destination buffer\n");
+        return 0;
+    }
 
-/* HDLC thread messages */
-enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY
-};
+    memcpy(buf, data, data_len);
+    return (UART_PKT_HDR_LEN + data_len);
+}
 
-int hdlc_pkt_release(hdlc_buf_t *buf);
-Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
-Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
-void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
+{
+    if(src_len < 5) {
+        DEBUG("Invalid source buffer size.\n");
+        return -1;
+    }
 
-#endif /* HDLC_H_ */
+    memcpy(dst_hdr, src, UART_PKT_HDR_LEN);
+    return 0;
+}
