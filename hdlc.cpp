@@ -54,6 +54,7 @@
 #include "platform/CircularBuffer.h"
 #include "hdlc.h"
 #include "rtos.h"
+#include "uart_pkt.h"
 
 #define DEBUG 0
 
@@ -379,13 +380,14 @@ static void _hdlc()
  * @return                [description]
  */
 int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, 
-                                                    riot_to_mbed_msg_t reply)
+                                                    riot_to_mbed_t reply)
 {
-/* TODO: should the second input not be a void pointer? */
-/* TODO: limit the number of retries */
+// /* TODO: should the second input not be a void pointer? */
+// /* TODO: limit the number of retries */
     msg_t *msg, *msg2;
     hdlc_buf_t *buf;
     char recv_data_local[HDLC_MAX_PKT_SIZE];
+    uart_pkt_hdr_t hdr;
 
     /* send pkt */
     msg = hdlc_mailbox.alloc();
@@ -406,7 +408,7 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
             switch (msg->type)
             {
                 case HDLC_RESP_SND_SUCC:
-                    printf("sent frame_no %d!\n", pkt->data[0]);
+                    printf("sent frame_no!\n");
                     sender_mailbox->free(msg);
                     break;
                 case HDLC_RESP_RETRY_W_TIMEO:
@@ -436,11 +438,11 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
                     break;
                 case HDLC_PKT_RDY: 
                     buf = (hdlc_buf_t *)msg->content.ptr;   
-                    memcpy(recv_data_local, buf->data, buf->length);
+                    uart_pkt_parse_hdr(&hdr, (void *)buf->data, (size_t) (buf->length));
                     hdlc_pkt_release(buf);
                     sender_mailbox->free(msg);
-                    PRINTF("antenna_thread: received pkt %d\n", recv_data_local[0]);
-                    if (recv_data_local[PACKET_DATA] == reply)
+                    PRINTF("hdlc_send_command: received pkt\n");
+                    if (hdr.pkt_type == reply)
                         return 1;
                     else
                         return 0;

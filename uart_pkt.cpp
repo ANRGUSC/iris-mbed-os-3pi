@@ -36,36 +36,66 @@
  */
 
 /**
- * @file        dispatcher.h
- * @brief       dispatcher thread
+ * @file        uart_pkt.c
+ * @brief       Helper library for creating packets to be over UART via hdlc.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
  * 
  */
 
-#ifndef DISPATCHER_H_
-#define DISPATCHER_H_
+#include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
+#include "uart_pkt.h"
 
-#include "yahdlc.h"
-#include "rtos.h"
-#include "mbed.h"
-#include "hdlc.h"
-#include "rssi.h"
+#define DEBUG 0
+
+#if (DEBUG) 
+    #define DEBUG(...) pc.printf(__VA_ARGS__)
+    extern Serial pc;
+#else
+    #define DEBUG(...)
+#endif /* (DEBUG) */
+
+void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
+{
+    if (buf_len < UART_PKT_HDR_LEN) {
+        DEBUG("Buffer size too small\n");
+        return NULL;
+    }
+
+    memcpy(buf, hdr, sizeof(uart_pkt_hdr_t));
+    return (buf + UART_PKT_DATA_FIELD);
+}
 
 /**
- * Linked list entry for dispatcher registry
+ * Copy data from an array into a uart packet buffer.
+ * @param  buf      destination buffer
+ * @param  buf_len  destination buffer size
+ * @param  data     buffer containing data
+ * @param  data_len size of buffer containing data
+ * @return          total size of packet on success or 0 on failure.
  */
-typedef struct dispatcher_entry {
-    struct dispatcher_entry *next;
-    uint16_t port;
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *mailbox;
-} dispatcher_entry_t;
+size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, 
+    size_t data_len)
+{
+    if (data_len + 5 > buf_len) {
+        DEBUG("Not enough space in destination buffer\n");
+        return 0;
+    }
 
-// static bool dispacher_ready; // To guarantee that the dispacher is setup properly before you send message.
-Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatcher_init();
-Mail<msg_t, HDLC_MAILBOX_SIZE> *get_dispatcher_mailbox();
-void dispatcher_register(dispatcher_entry_t *entry);
-void dispatcher_unregister(dispatcher_entry_t *entry);
+    memcpy(buf + UART_PKT_HDR_LEN, data, data_len);
+    return (UART_PKT_HDR_LEN + data_len);
+}
 
-#endif /* DISPATCHER_H_ */
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
+{
+    if(src_len < 5) {
+        DEBUG("Invalid source buffer size.\n");
+        return -1;
+    }
+
+    memcpy(dst_hdr, src, UART_PKT_HDR_LEN);
+    return 0;
+}

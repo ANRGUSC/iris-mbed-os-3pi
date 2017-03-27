@@ -55,10 +55,11 @@
 #include "yahdlc.h"
 #include "rtos.h"
 #include "mbed.h"
+#include "uart_pkt.h"
 
 #define RTRY_TIMEO_USEC         500000
 #define RETRANSMIT_TIMEO_USEC   50000
-#define HDLC_MAX_PKT_SIZE       4
+#define HDLC_MAX_PKT_SIZE       10
 #define HDLC_MAILBOX_SIZE       80
 
 typedef struct {
@@ -124,10 +125,11 @@ enum {
     PACKET_DATA         = 3
 };
 
+
 int hdlc_pkt_release(hdlc_buf_t *buf);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
 void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
-int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, riot_to_mbed_msg_t reply);
+int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, riot_to_mbed_t reply);
 
 #endif /* HDLC_H_ */

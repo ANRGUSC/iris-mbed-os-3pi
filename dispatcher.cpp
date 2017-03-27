@@ -53,8 +53,9 @@
 #include <inttypes.h>
 #include "yahdlc.h"
 #include "fcs16.h"
-#include <map>
+#include "uart_pkt.h"
 #include "dispatcher.h"
+#include "utlist.h"
 
 #define DEBUG   1
 
@@ -72,38 +73,34 @@ static unsigned char DISPACHER_STACK[DEFAULT_STACK_SIZE/2];
 Thread dispatcher(osPriorityNormal, 
     (uint32_t) DEFAULT_STACK_SIZE/2, (unsigned char *)DISPACHER_STACK); 
 
-static std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
 
-static int  registered_thr_cnt=0;
-Mutex       thread_cnt_mtx;
-static int  thread_cnt=0;
+static dispatcher_entry_t *dispatcher_reg;
 
-/**
- * @brief registers a thread with the dispatcher
- * @param  arg thread's mailbox pointer
- * @return     the thread port number 
- */
-int register_thread(Mail<msg_t, HDLC_MAILBOX_SIZE> *arg)
+
+void dispatcher_register(dispatcher_entry_t *entry)
 {
-    thread_cnt_mtx.lock();
-    thread_cnt++;
-    mailbox_list[thread_cnt] = arg;
-    thread_cnt_mtx.unlock();
-    return thread_cnt;
+    LL_PREPEND(dispatcher_reg, entry);
+}
+void dispatcher_unregister(dispatcher_entry_t *entry)
+{
+    LL_DELETE(dispatcher_reg, entry);
+
 }
 
-void process_received_data(char *data)
+void process_received_data(riot_to_mbed_t type, char *data)
 {
-    riot_to_mbed_msg_t type = (riot_to_mbed_msg_t) (*(data + 2));
-    float value = (float) (*(data + 3));
+    int value;
 
     switch (type){
         
         case RSSI_DATA_PKT:
+            value = (int) (*data);
             put_rssi(value);
             break;
 
-        case RANGE_DATA_PKT:
+        case SOUND_RANGE_DONE:
+            *(data + 4) = '\0';
+            sscanf(data,"%d",&value);
             put_range(value);
             break;
 
@@ -112,18 +109,17 @@ void process_received_data(char *data)
     }
 }
 
-void _dispatcher(void)
+static void _dispatcher(void)
 {
+    dispatcher_entry_t *entry;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     msg_t *msg, *msg2;
-    char frame_no = 0;
-    char send_data[HDLC_MAX_PKT_SIZE];
-    char recv_data[HDLC_MAX_PKT_SIZE];
-
+    char *recv_data;
     hdlc_buf_t *buf;
+    uart_pkt_hdr_t hdr;
+
     PRINTF("In dispatcher");
 
     msg = hdlc_mailbox_ptr->alloc();
@@ -150,35 +146,28 @@ void _dispatcher(void)
             {
                 case HDLC_PKT_RDY:
                     buf = (hdlc_buf_t *)msg->content.ptr;   
-                    memcpy(recv_data, buf->data, buf->length);
-                    // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                    uart_pkt_parse_hdr(&hdr, (void *)buf->data, (size_t) (buf->length));
+                    LL_SEARCH_SCALAR(dispatcher_reg, entry, port, hdr.dst_port);
+                    recv_data = buf->data + UART_PKT_DATA_FIELD; 
+                    process_received_data((riot_to_mbed_t)hdr.pkt_type, recv_data);
 
-                    if (recv_data[1] > 0)
-                    {
-                        sender_mailbox_ptr = mailbox_list[recv_data[1]];
-                        if (sender_mailbox_ptr != NULL)
-                        {
-                            msg2 = sender_mailbox_ptr->alloc();
-                            if( msg2 == NULL)
-                                break;
-                            memcpy(msg2,msg,sizeof(msg_t));
-                            sender_mailbox_ptr->put(msg2);
-                            // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
-                        }    
+                    if (entry) {
+                        msg2 = entry->mailbox->alloc();
+                        if( msg2 == NULL)
+                            break;
+                        memcpy(msg2, msg, sizeof(msg_t));
+                        entry->mailbox->put(msg2);
                         dispatcher_mailbox.free(msg);
-
-                    }
-                    else
-                    {
-                        PRINTF("dispatcher1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
-                        process_received_data(recv_data); // This puts rssi/range data in the appropriate structure.
+                        // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                    } else {
+                        PRINTF("dispatcher: received pkt; thread %d\n", hdr.dst_port);
                         dispatcher_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                     }
                     break;
                 default:
                     dispatcher_mailbox.free(msg);
-                        /* error */
+                    /* error */
                     break;
             }    
 
