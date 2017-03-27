@@ -69,9 +69,9 @@
 
 Mail<msg_t, HDLC_MAILBOX_SIZE> dispatcher_mailbox;
 
-static unsigned char DISPACHER_STACK[DEFAULT_STACK_SIZE];
+static unsigned char DISPACHER_STACK[DEFAULT_STACK_SIZE/2];
 Thread dispatcher(osPriorityNormal, 
-    (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)DISPACHER_STACK); 
+    (uint32_t) DEFAULT_STACK_SIZE/2, (unsigned char *)DISPACHER_STACK); 
 
 
 static dispatcher_entry_t *dispatcher_reg;
@@ -85,6 +85,26 @@ void dispatcher_register(dispatcher_entry_t *entry)
 void dispatcher_unregister(dispatcher_entry_t *entry)
 {
     LL_DELETE(dispatcher_reg, entry);
+}
+
+void process_received_data(char *data)
+{
+    riot_to_mbed_msg_t type = (riot_to_mbed_msg_t) (*(data + 2));
+    float value = (float) (*(data + 3));
+
+    switch (type){
+        
+        case RSSI_DATA_PKT:
+            put_rssi(value);
+            break;
+
+        case RANGE_DATA_PKT:
+            put_range(value);
+            break;
+
+        default:
+            break;
+    }
 }
 
 static void _dispatcher(void)
@@ -135,6 +155,10 @@ static void _dispatcher(void)
                         entry->mailbox->put(msg2);
                         // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
                     } else {
+
+                        // PRINTF("dispatcher1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                        // process_received_data(recv_data); // This puts rssi/range data in the appropriate structure.
+                        // dispatcher_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                     }
 

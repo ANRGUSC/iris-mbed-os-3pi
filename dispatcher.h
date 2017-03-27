@@ -51,6 +51,7 @@
 #include "rtos.h"
 #include "mbed.h"
 #include "hdlc.h"
+#include "rssi.h"
 
 /**
  * Linked list entry for dispatcher registry
