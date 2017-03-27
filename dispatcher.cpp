@@ -89,7 +89,7 @@ void dispatcher_unregister(dispatcher_entry_t *entry)
 
 void process_received_data(char *data)
 {
-    riot_to_mbed_msg_t type = (riot_to_mbed_msg_t) (*(data + 2));
+    riot_to_mbed_t type = (riot_to_mbed_t) (*(data + 2));
     float value = (float) (*(data + 3));
 
     switch (type){

@@ -55,6 +55,7 @@
 #include "yahdlc.h"
 #include "rtos.h"
 #include "mbed.h"
+#include "uart_pkt.h"
 
 #define RTRY_TIMEO_USEC         500000
 #define RETRANSMIT_TIMEO_USEC   50000
@@ -94,40 +95,12 @@ enum {
     HDLC_RESP_SND_SUCC,
     HDLC_PKT_RDY
 };
-typedef enum {
-    SOUND_RANGE_REQ,
-    SOUND_RANGE_X10_REQ,
-    RSSI_SCAN_REQ,
-    RADIO_SET_CHAN,
-    RADIO_SET_POWER
-} mbed_to_riot_msg_t;
 
-/**
- * @brief Message types from riot-os to mbed-os 
- */
-typedef enum {
-    SOUND_RANGE_DONE,
-    RSSI_SCAN_STARTED,
-    RADIO_SET_CHAN_SUCCESS,
-    RADIO_SET_CHAN_FAIL,
-    RADIO_SET_POWER_SUCCESS,
-    RADIO_SET_POWER_FAIL,
-    RADIO_FWD_UDP_PKT,
-    RSSI_DATA_PKT,
-    RANGE_DATA_PKT
-} riot_to_mbed_msg_t;
-
-enum {
-    SENDER_THREAD_ID    = 0,
-    RECEIVER_THREAD_ID  = 1,
-    PACKET_TYPE         = 2,
-    PACKET_DATA         = 3
-};
 
 int hdlc_pkt_release(hdlc_buf_t *buf);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
 void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
-int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, riot_to_mbed_msg_t reply);
+int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, riot_to_mbed_t reply);
 
 #endif /* HDLC_H_ */
