@@ -87,18 +87,20 @@ void dispatcher_unregister(dispatcher_entry_t *entry)
     LL_DELETE(dispatcher_reg, entry);
 }
 
-void process_received_data(char *data)
+void process_received_data(riot_to_mbed_t type, char *data)
 {
-    riot_to_mbed_t type = (riot_to_mbed_t) (*(data + 2));
-    float value = (float) (*(data + 3));
+    int value;
 
     switch (type){
         
         case RSSI_DATA_PKT:
+            value = (int) (*data);
             put_rssi(value);
             break;
 
-        case RANGE_DATA_PKT:
+        case SOUND_RANGE_DONE:
+            *(data + 4) = '\0';
+            sscanf(data,"%d",&value);
             put_range(value);
             break;
 
@@ -114,7 +116,7 @@ static void _dispatcher(void)
 
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     msg_t *msg, *msg2;
-    char recv_data[HDLC_MAX_PKT_SIZE];
+    char *recv_data;
     hdlc_buf_t *buf;
     uart_pkt_hdr_t hdr;
 
@@ -146,6 +148,8 @@ static void _dispatcher(void)
                     buf = (hdlc_buf_t *)msg->content.ptr;   
                     uart_pkt_parse_hdr(&hdr, (void *)buf->data, (size_t) (buf->length));
                     LL_SEARCH_SCALAR(dispatcher_reg, entry, port, hdr.dst_port);
+                    recv_data = buf->data + UART_PKT_DATA_FIELD; 
+                    process_received_data((riot_to_mbed_t)hdr.pkt_type, recv_data);
 
                     if (entry) {
                         msg2 = entry->mailbox->alloc();
@@ -153,16 +157,13 @@ static void _dispatcher(void)
                             break;
                         memcpy(msg2, msg, sizeof(msg_t));
                         entry->mailbox->put(msg2);
+                        dispatcher_mailbox.free(msg);
                         // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
                     } else {
-
-                        // PRINTF("dispatcher1: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
-                        // process_received_data(recv_data); // This puts rssi/range data in the appropriate structure.
-                        // dispatcher_mailbox.free(msg);
+                        PRINTF("dispatcher: received pkt; thread %d\n", hdr.dst_port);
+                        dispatcher_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                     }
-
-                    dispatcher_mailbox.free(msg);
                     break;
                 default:
                     dispatcher_mailbox.free(msg);

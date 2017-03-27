@@ -17,14 +17,14 @@ void clear_rssi();
  * @param  millisec wait time in milisecond
  * @return          [description]
  */
-float get_rssi(uint32_t millisec = osWaitForever);
+int get_rssi(uint32_t millisec = osWaitForever);
 
 /**
  * @brief puts the recent rssi value in the buffer
  * @param rssi          rssi_value
  * @return              [ ]
  */
-void put_rssi(float rssi);
+void put_rssi(int rssi);
 
 /**
  * @brief clears the range buffer/queue
@@ -37,13 +37,13 @@ void clear_range();
  * @return              [the current range]
  */
 
-float get_range(uint32_t millisec);
+int get_range(uint32_t millisec);
 
 /**
  * @brief puts the recent range value in the buffer
  * @param range          range
  * @return              [ ]
  */
-void put_range(float range);
+void put_range(int range);
 
 #endif
