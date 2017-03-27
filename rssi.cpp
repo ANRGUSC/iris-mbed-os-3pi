@@ -1,7 +1,7 @@
 #include "rssi.h"
 
-Mail<int, 1> rssi_mailbox;
-Mail<int, 1> range_mailbox;
+Mail<float, 1> rssi_mailbox;
+Mail<float, 1> range_mailbox;
 
 /**
  * @brief clears the rssi buffer/queue
@@ -11,7 +11,7 @@ void clear_rssi()
     osEvent evt = rssi_mailbox.get(1); // Clear the queue 
     if(evt.status != osEventMail) 
         return;
-    int *message = (int*)evt.value.p;
+    float *message = (float*)evt.value.p;
     rssi_mailbox.free(message);
 }
 
@@ -22,14 +22,14 @@ void clear_rssi()
  */
 
 
-int get_rssi(uint32_t millisec)
+float get_rssi(ufloat32_t millisec)
 { 
-    // printf("In get rssi\n");
+    // prfloatf("In get rssi\n");
     osEvent evt = rssi_mailbox.get(millisec); // Clear the queue 
     if(evt.status != osEventMail) 
         return -1;
-    int *message = (int*)evt.value.p;
-    int rssi_data= *message; 
+    float *message = (float*)evt.value.p;
+    float rssi_data= *message; 
     rssi_mailbox.free(message);
 
     return rssi_data;
@@ -40,11 +40,11 @@ int get_rssi(uint32_t millisec)
  * @param rssi          rssi_value
  * @return              [ ]
  */
-void put_rssi(int rssi)
+void put_rssi(float rssi)
 { 
     clear_rssi();
-    // printf("In put rssi\n");
-    int *message = rssi_mailbox.alloc();
+    // prfloatf("In put rssi\n");
+    float *message = rssi_mailbox.alloc();
     if(message == NULL)
         return;
     *message = rssi; 
@@ -59,7 +59,7 @@ void clear_range()
     osEvent evt = range_mailbox.get(1); // Clear the queue 
     if(evt.status != osEventMail) 
         return;
-    int *message = (int*)evt.value.p;
+    float *message = (float*)evt.value.p;
     range_mailbox.free(message);
 }
 
@@ -69,14 +69,14 @@ void clear_range()
  * @return              [the current range]
  */
 
-int get_range(uint32_t millisec)
+float get_range(ufloat32_t millisec)
 { 
     osEvent evt = range_mailbox.get(millisec); // Clear the queue 
     if(evt.status != osEventMail) 
         return 0;
 
-    int *message = (int*)evt.value.p;
-    int range_data= *message; 
+    float *message = (float*)evt.value.p;
+    float range_data= *message; 
     range_mailbox.free(message);
 
     return range_data;
@@ -87,11 +87,11 @@ int get_range(uint32_t millisec)
  * @param range          range
  * @return              [ ]
  */
-void put_range(int range)
+void put_range(float range)
 { 
     clear_range();
 
-    int *message = range_mailbox.alloc();
+    float *message = range_mailbox.alloc();
     if(message == NULL)
         return;
     *message = range; 

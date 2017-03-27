@@ -95,13 +95,13 @@ void process_received_data(riot_to_mbed_t type, char *data)
         
         case RSSI_DATA_PKT:
             value = (int) (*data);
-            put_rssi(value);
+            put_rssi((float)value);
             break;
 
         case SOUND_RANGE_DONE:
             *(data + 4) = '\0';
             sscanf(data,"%d",&value);
-            put_range(value);
+            put_range((float)value);
             break;
 
         default:
