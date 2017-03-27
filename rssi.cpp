@@ -22,7 +22,7 @@ void clear_rssi()
  */
 
 
-float get_rssi(ufloat32_t millisec)
+float get_rssi(uint32_t millisec)
 { 
     // prfloatf("In get rssi\n");
     osEvent evt = rssi_mailbox.get(millisec); // Clear the queue 
@@ -69,7 +69,7 @@ void clear_range()
  * @return              [the current range]
  */
 
-float get_range(ufloat32_t millisec)
+float get_range(uint32_t millisec)
 { 
     osEvent evt = range_mailbox.get(millisec); // Clear the queue 
     if(evt.status != osEventMail) 
