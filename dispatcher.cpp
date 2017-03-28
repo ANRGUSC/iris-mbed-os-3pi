@@ -95,7 +95,7 @@ void process_received_data(riot_to_mbed_t type, char *data)
         
         case RSSI_DATA_PKT:
             value = (int) (*data);
-            put_rssi((float)value);
+            put_rssi((float)value - 73);
             break;
 
         case SOUND_RANGE_DONE:
