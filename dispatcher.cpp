@@ -94,14 +94,17 @@ void process_received_data(riot_to_mbed_t type, char *data)
     switch (type){
         
         case RSSI_DATA_PKT:
-            value = (int) (*data);
+            value = (int8_t)(*data);
+            PRINTF("RSSI is %d\n", value);
             put_rssi((float)value - 73);
             break;
 
         case SOUND_RANGE_DONE:
             memcpy(range,data,4);
+            value = *(uint32_t *)data;
+            PRINTF("TDoA: %ld\n", value);
             range[4] = '\0';
-            sscanf(range,"%d",&value);
+            // sscanf(range,"%d",&value);
             put_range((float)value);
             break;
 
