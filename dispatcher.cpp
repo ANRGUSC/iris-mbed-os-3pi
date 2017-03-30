@@ -90,7 +90,7 @@ void dispatcher_unregister(dispatcher_entry_t *entry)
 void process_received_data(riot_to_mbed_t type, char *data)
 {
     int value;
-
+    char range[5];
     switch (type){
         
         case RSSI_DATA_PKT:
@@ -99,8 +99,9 @@ void process_received_data(riot_to_mbed_t type, char *data)
             break;
 
         case SOUND_RANGE_DONE:
-            *(data + 4) = '\0';
-            sscanf(data,"%d",&value);
+            memcpy(range,data,4);
+            range[4] = '\0';
+            sscanf(range,"%d",&value);
             put_range((float)value);
             break;
 

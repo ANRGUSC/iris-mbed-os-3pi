@@ -73,7 +73,7 @@ float get_range(uint32_t millisec)
 { 
     osEvent evt = range_mailbox.get(millisec); // Clear the queue 
     if(evt.status != osEventMail) 
-        return 0;
+        return -1;
 
     float *message = (float*)evt.value.p;
     float range_data= *message; 
