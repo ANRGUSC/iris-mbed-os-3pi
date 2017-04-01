@@ -396,7 +396,7 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
     msg->sender_pid = osThreadGetId();
     msg->source_mailbox = sender_mailbox;
     hdlc_mailbox.put(msg);
-    printf("hdlc: in hdlc send command\n");
+    PRINTF("hdlc: in hdlc send command\n");
     while(1)
     {
         osEvent evt = sender_mailbox->get();
@@ -408,7 +408,7 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
             switch (msg->type)
             {
                 case HDLC_RESP_SND_SUCC:
-                    printf("sent frame_no!\n");
+                    PRINTF("sent frame_no!\n");
                     sender_mailbox->free(msg);
                     break;
                 case HDLC_RESP_RETRY_W_TIMEO:
