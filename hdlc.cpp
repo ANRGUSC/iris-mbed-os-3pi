@@ -388,7 +388,7 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
     hdlc_buf_t *buf;
     char recv_data_local[HDLC_MAX_PKT_SIZE];
     uart_pkt_hdr_t hdr;
-
+    // Timer       command_send_time;
     /* send pkt */
     msg = hdlc_mailbox.alloc();
     msg->type = HDLC_MSG_SND;
@@ -399,8 +399,11 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
     PRINTF("hdlc: in hdlc send command\n");
     while(1)
     {
-        osEvent evt = sender_mailbox->get();
-
+        osEvent evt = sender_mailbox->get(2000);
+        if(evt.status == osEventTimeout){
+                    return 0;
+        }
+            // if(uart_ll>10*RETRANSMIT_TIMEO_USEC)
         if (evt.status == osEventMail) 
         {
             msg = (msg_t*)evt.value.p;
