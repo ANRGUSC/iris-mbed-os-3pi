@@ -180,7 +180,7 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(5000);
+        Thread::wait(500);
     }
 }
 
@@ -205,8 +205,8 @@ int main(void)
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
 
-    // Thread thr;
-    // thr.start(_thread1);
+    Thread thr;
+    thr.start(_thread1);
 
     int exit = 0;
     osEvent evt;
@@ -299,7 +299,7 @@ int main(void)
         }
 
         frame_no++;
-        Thread::wait(3600);
+        Thread::wait(360);
 
     }
     PRINTF("Reached Exit");

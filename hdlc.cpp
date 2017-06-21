@@ -57,7 +57,7 @@
 #include "uart_pkt.h"
 #include "utlist.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if (DEBUG) 
     #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -444,8 +444,6 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
     hdlc.set_priority(priority);
     hdlc.start(_hdlc);
     PRINTF("hdlc: thread  id %d\n",hdlc.gettid());
-    LPC_UART2->IER = 0; //Disable The Interrupt
-
     return &hdlc_mailbox;
 }
 
