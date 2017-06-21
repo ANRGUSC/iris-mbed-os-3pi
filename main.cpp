@@ -54,7 +54,6 @@
 #include "yahdlc.h"
 #include "fcs16.h"
 #include "uart_pkt.h"
-#include "dispatcher.h"
 #include "main-conf.h"
 
 #define DEBUG   1
@@ -91,8 +90,8 @@ void _thread1()
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     int exit = 0;
-    dispatcher_entry_t thread1 = { NULL, THREAD1_PORT, &thread1_mailbox };
-    dispatcher_register(&thread1);
+    hdlc_entry_t thread1 = { NULL, THREAD1_PORT, &thread1_mailbox };
+    hdlc_register(&thread1);
 
     osEvent evt;
 
@@ -181,7 +180,7 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(500);
+        Thread::wait(5000);
     }
 }
 
@@ -190,11 +189,8 @@ int main(void)
 {
     myled = 1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatch_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
-    dispatch_mailbox_ptr = dispatcher_init();
-
     msg_t *msg, *msg2;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
@@ -206,11 +202,11 @@ int main(void)
     uart_pkt_hdr_t recv_hdr;
     uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, NULL_PKT_TYPE };
     PRINTF("In main\n");
-    dispatcher_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
-    dispatcher_register(&main_thr);
+    hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
+    hdlc_register(&main_thr);
 
-    Thread thr;
-    thr.start(_thread1);
+    // Thread thr;
+    // thr.start(_thread1);
 
     int exit = 0;
     osEvent evt;
@@ -303,7 +299,7 @@ int main(void)
         }
 
         frame_no++;
-        Thread::wait(360);
+        Thread::wait(3600);
 
     }
     PRINTF("Reached Exit");

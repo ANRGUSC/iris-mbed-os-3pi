@@ -54,8 +54,10 @@
 #include "platform/CircularBuffer.h"
 #include "hdlc.h"
 #include "rtos.h"
+#include "uart_pkt.h"
+#include "utlist.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if (DEBUG) 
     #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -77,7 +79,22 @@ Thread hdlc(osPriorityNormal,
 
 Serial uart2(p28,p27, 115200);
 
-static Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatcher_mailbox_ptr;
+
+static hdlc_entry_t *hdlc_reg;
+
+
+
+void hdlc_register(hdlc_entry_t *entry)
+{
+    LL_PREPEND(hdlc_reg, entry);
+}
+
+void hdlc_unregister(hdlc_entry_t *entry)
+{
+    LL_DELETE(hdlc_reg, entry);
+}
+
+
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mailbox;
 Semaphore   recv_buf_mutex(1);
@@ -139,7 +156,9 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     msg_t *msg, *ack_msg;
     int ret;
     char c;
-
+    uart_pkt_hdr_t hdr;
+    hdlc_entry_t *entry;
+    
     while(1) {
         if (!circ_buf.pop(c)) {
             return;
@@ -191,21 +210,26 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 buffer_cpy(&recv_buf_cpy,&recv_buf);
                 recv_buf_mutex.release();
 
-                PRINTF("hdlc: got and expected seq_no %d\n", *recv_seq_no);
-                msg = dispatcher_mailbox_ptr->alloc();
-                if (msg == NULL)
-                    return;
-                msg->sender_pid = osThreadGetId();
-                msg->type = HDLC_PKT_RDY;
-                msg->content.ptr = &recv_buf_cpy;
-                msg->source_mailbox = &hdlc_mailbox;
+                uart_pkt_parse_hdr(&hdr, recv_buf_cpy.data, recv_buf_cpy.length);
+                LL_SEARCH_SCALAR(hdlc_reg, entry, port, hdr.dst_port);
+                PRINTF("hdlc: received packet for port %d\n", hdr.dst_port);
+
                 (*recv_seq_no)++;
-                PRINTF("hdlc: Thread seq_no %d: thr %d\n", 
-                    ((hdlc_buf_t *) msg->content.ptr)->data[0], 
-                    recv_buf.data[1]);
 
-                dispatcher_mailbox_ptr->put(msg); 
-
+                if (entry) {
+                    msg = entry->mailbox->alloc();
+                    if( msg == NULL)
+                        break;
+                    msg->sender_pid = osThreadGetId();
+                    msg->type = HDLC_PKT_RDY;
+                    msg->content.ptr = &recv_buf_cpy;
+                    msg->source_mailbox = &hdlc_mailbox;
+                    entry->mailbox->put(msg);
+                    // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
+                } else {
+                    PRINTF("hdlc: no thread subscribed to port!\n");
+                    hdlc_pkt_release(&recv_buf_cpy);
+                }
             }
 
             recv_buf.control.frame = (yahdlc_frame_t)0;
@@ -293,7 +317,7 @@ static void _hdlc()
 
             switch (msg->type) {
                 case HDLC_MSG_RECV:
-                    // PRINTF("hdlc: receiving msg...\n");
+                    PRINTF("hdlc: receiving msg...\n");
                     _hdlc_receive(&recv_seq_no, &send_seq_no);
                     hdlc_mailbox.free(msg);
                     break;
@@ -351,15 +375,6 @@ static void _hdlc()
                     // uart2.write((uint8_t *)send_buf.data, send_buf.length,0,0);
                     global_time.reset();
                     hdlc_mailbox.free(msg); 
-                    break;
-                case HDLC_MSG_REG_DISPATCHER:
-                    PRINTF("hdlc: Registering dispatcher thread.\n");
-                    hdlc_dispatcher_pid = msg->sender_pid;
-                    dispatcher_mailbox_ptr = (Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox;
-                    PRINTF("hdlc: hdlc_dispatcher_pid set to %d\n", hdlc_dispatcher_pid);
-                    hdlc_mailbox.free(msg);
-                    LPC_UART2->IER = 1; //Disable The Interrupt
-
                     break;
                 default:
                     PRINTF("INVALID HDLC MSG\n");

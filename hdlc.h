@@ -57,9 +57,9 @@
 #include "mbed.h"
 
 #define RTRY_TIMEO_USEC         500000
-#define RETRANSMIT_TIMEO_USEC   50000
+#define RETRANSMIT_TIMEO_USEC   500000
 #define HDLC_MAX_PKT_SIZE       10
-#define HDLC_MAILBOX_SIZE       80
+#define HDLC_MAILBOX_SIZE       100
 
 typedef struct {
     yahdlc_control_t control;
@@ -94,10 +94,18 @@ enum {
     HDLC_RESP_SND_SUCC,
     HDLC_PKT_RDY
 };
+typedef struct hdlc_entry {
+    struct hdlc_entry *next;
+    uint16_t port;
+    Mail<msg_t, HDLC_MAILBOX_SIZE> *mailbox;
+} hdlc_entry_t;
+
 
 int hdlc_pkt_release(hdlc_buf_t *buf);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority);
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
 void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
+void hdlc_register(hdlc_entry_t *entry);
+void hdlc_unregister(hdlc_entry_t *entry);
 
 #endif /* HDLC_H_ */
