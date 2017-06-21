@@ -70,7 +70,7 @@
 
 DigitalOut led2(LED2);
 
-static osThreadId hdlc_dispatcher_pid, sender_pid;
+static osThreadId sender_pid;
 
 static unsigned char HDLC_STACK[DEFAULT_STACK_SIZE];
 
@@ -199,9 +199,9 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             hdlc_mailbox.put(ack_msg); 
             PRINTF("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
-            /* pass on packet to dispatcher */
+            /* pass on packet to thread */
             if (recv_buf.control.seq_no == (*recv_seq_no % 8)){
-                /* lock pkt until dispatcher makes a copy and unlocks */
+                /* lock pkt until thread makes a copy and unlocks */
                 PRINTF("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
                 recv_buf_cpy_mutex.wait();
@@ -225,7 +225,6 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                     msg->content.ptr = &recv_buf_cpy;
                     msg->source_mailbox = &hdlc_mailbox;
                     entry->mailbox->put(msg);
-                    // PRINTF("dispatcher: received pkt %d; thread %d\n", recv_data[0],recv_data[1]);
                 } else {
                     PRINTF("hdlc: no thread subscribed to port!\n");
                     hdlc_pkt_release(&recv_buf_cpy);
