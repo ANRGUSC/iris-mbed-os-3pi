@@ -37,11 +37,27 @@
 
 /**
  * @file        main.cpp
- * @brief       Example using hdlc
+ * @brief       Full-duplex hdlc test using a single thread (run on both sides).
  *
- * @author      Jason A. Tran <jasontra@usc.edu>
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
  * 
+ * In this test, the main thread and thread2 thread will contend for the same
+ * UART line to communicate to another MCU also running a main and thread2 
+ * thread. It seems as though stability deteriorates if the hdlc thread is given
+ * a higher priority than the two application threads (RIOT's MAC layer priority
+ * is well below the default priority for the main thread. Note that two threads
+ * are equally contending for the UART line, one thread may starve the other to 
+ * the point where the other thread will continue to retry. Increasing the msg 
+ * queue size of hdlc's thread may also increase stability. Since this test can
+ * easily stress the system, carefully picking the transmission rates (see below)
+ * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
+ * may lead to different stability results. The following is one known stable
+ * set of values for running this test:
+ *
+ * -100ms interpacket intervals in xtimer_usleep() below
+ * -RTRY_TIMEO_USEC = 100000
+ * -RETRANSMIT_TIMEO_USEC 50000
+ *
  */
 
 #include "mbed.h"
@@ -54,7 +70,6 @@
 #include "yahdlc.h"
 #include "fcs16.h"
 #include "uart_pkt.h"
-#include "dispatcher.h"
 #include "main-conf.h"
 
 #define DEBUG   1
@@ -91,8 +106,8 @@ void _thread1()
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     int exit = 0;
-    dispatcher_entry_t thread1 = { NULL, THREAD1_PORT, &thread1_mailbox };
-    dispatcher_register(&thread1);
+    hdlc_entry_t thread1 = { NULL, THREAD1_PORT, &thread1_mailbox };
+    hdlc_register(&thread1);
 
     osEvent evt;
 
@@ -181,7 +196,7 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(500);
+        Thread::wait(100);
     }
 }
 
@@ -190,11 +205,8 @@ int main(void)
 {
     myled = 1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *dispatch_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
-    dispatch_mailbox_ptr = dispatcher_init();
-
     msg_t *msg, *msg2;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
@@ -206,8 +218,8 @@ int main(void)
     uart_pkt_hdr_t recv_hdr;
     uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, NULL_PKT_TYPE };
     PRINTF("In main\n");
-    dispatcher_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
-    dispatcher_register(&main_thr);
+    hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
+    hdlc_register(&main_thr);
 
     Thread thr;
     thr.start(_thread1);
@@ -303,7 +315,7 @@ int main(void)
         }
 
         frame_no++;
-        Thread::wait(360);
+        Thread::wait(100);
 
     }
     PRINTF("Reached Exit");
