@@ -37,11 +37,27 @@
 
 /**
  * @file        main.cpp
- * @brief       Example using hdlc
+ * @brief       Full-duplex hdlc test using a single thread (run on both sides).
  *
- * @author      Jason A. Tran <jasontra@usc.edu>
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
  * 
+ * In this test, the main thread and thread2 thread will contend for the same
+ * UART line to communicate to another MCU also running a main and thread2 
+ * thread. It seems as though stability deteriorates if the hdlc thread is given
+ * a higher priority than the two application threads (RIOT's MAC layer priority
+ * is well below the default priority for the main thread. Note that two threads
+ * are equally contending for the UART line, one thread may starve the other to 
+ * the point where the other thread will continue to retry. Increasing the msg 
+ * queue size of hdlc's thread may also increase stability. Since this test can
+ * easily stress the system, carefully picking the transmission rates (see below)
+ * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
+ * may lead to different stability results. The following is one known stable
+ * set of values for running this test:
+ *
+ * -100ms interpacket intervals in xtimer_usleep() below
+ * -RTRY_TIMEO_USEC = 100000
+ * -RETRANSMIT_TIMEO_USEC 50000
+ *
  */
 
 #include "mbed.h"
@@ -180,7 +196,7 @@ void _thread1()
         }
 
         thread1_frame_no++;
-        Thread::wait(500);
+        Thread::wait(100);
     }
 }
 
@@ -299,7 +315,7 @@ int main(void)
         }
 
         frame_no++;
-        Thread::wait(360);
+        Thread::wait(100);
 
     }
     PRINTF("Reached Exit");

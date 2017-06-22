@@ -56,9 +56,9 @@
 #include "rtos.h"
 #include "mbed.h"
 
-#define RTRY_TIMEO_USEC         500000
-#define RETRANSMIT_TIMEO_USEC   500000
-#define HDLC_MAX_PKT_SIZE       10
+#define RTRY_TIMEO_USEC         100000
+#define RETRANSMIT_TIMEO_USEC   50000
+#define HDLC_MAX_PKT_SIZE       128
 #define HDLC_MAILBOX_SIZE       100
 
 typedef struct {

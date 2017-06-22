@@ -42,8 +42,8 @@
  * This implementation leverages yahdlc, an open source library. The current 
  * implementation is stop & wait.
  *
- * @author      Jason A. Tran <jasontra@usc.edu>
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Jason A. Tran <jasontra@usc.edu>
  */
 
 #include <stdio.h>
