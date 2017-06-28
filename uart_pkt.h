@@ -66,9 +66,16 @@ typedef enum {
     SOUND_RANGE_REQ         = 2,
     SOUND_RANGE_X10_REQ     = 3,
     RSSI_DUMP_START         = 4,
-    RSSI_DUMP_STOP          = 5
+    RSSI_DUMP_STOP          = 5,
+    MQTT_SUB                = 6,
+    MQTT_PUB                = 7
 } mbed_to_riot_t;
 
+//MQTT
+typedef struct __attribute__((packed)){
+    char topic[16];
+    char data[32];
+} mqtt_pkt_t;
 /**
  * @brief Message types from riot-os to mbed-os
  */
@@ -81,7 +88,9 @@ typedef enum  {
     RSSI_SCAN_STARTED       = 5,
     RSSI_SCAN_STOPPED       = 6,
     RSSI_DATA_PKT           = 7,
-    RADIO_FWD_UDP_PKT       = 8
+    RADIO_FWD_UDP_PKT       = 8,
+    MQTT_GO                 = 9,
+    MQTT_SUBACK             = 10
 } riot_to_mbed_t;
 
 void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);

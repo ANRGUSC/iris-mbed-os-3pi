@@ -98,11 +98,14 @@ void _thread1()
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t pkt;
+    void *rcv_data;
+    mqtt_pkt_t *mqtt_recv;
     pkt.data = send_data;
+    char *test_str;
     pkt.length = 0;
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
-    uart_pkt_hdr_t send_hdr = { THREAD1_PORT, THREAD1_PORT, NULL_PKT_TYPE };
+    uart_pkt_hdr_t send_hdr = { THREAD1_PORT, RIOT_PORT, MQTT_SUB };
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     int exit = 0;
@@ -113,25 +116,11 @@ void _thread1()
 
     while (1) 
     {
+        PRINTF("In thread 1");
 
         myled3 =! myled3;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
-
-        pkt.data[UART_PKT_DATA_FIELD] = thread1_frame_no;
-        for(int i = UART_PKT_DATA_FIELD + 1; i < HDLC_MAX_PKT_SIZE; i++) {
-            pkt.data[i] = (char) ( rand() % 0x7E);
-        }
-
-        pkt.length = HDLC_MAX_PKT_SIZE;
-
-        /* send pkt */
-        msg = hdlc_mailbox_ptr->alloc();
-        msg->type = HDLC_MSG_SND;
-        msg->content.ptr = &pkt;
-        msg->sender_pid = osThreadGetId();
-        msg->source_mailbox = &thread1_mailbox;
-        hdlc_mailbox_ptr->put(msg);
-        PRINTF("thread1: sending pkt no %d \n", thread1_frame_no);
+        pkt.length = HDLC_MAX_PKT_SIZE;        
 
         while(1)
         {
@@ -175,13 +164,26 @@ void _thread1()
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                        if (recv_hdr.pkt_type == NULL_PKT_TYPE) {
-                            memcpy(recv_data, buf->data, buf->length);
-                            printf("thread1: received pkt %d ; dst_port %d\n", 
-                            recv_data[UART_PKT_DATA_FIELD], recv_hdr.dst_port);
+                        if (recv_hdr.pkt_type == MQTT_PKT_TYPE) {                           
+                            rcv_data= buf->data + UART_PKT_DATA_FIELD;
+                            mqtt_recv = (mqtt_pkt_t *)rcv_data;
+                            PRINTF("The data received is %s \n", mqtt_recv->data);
+                            PRINTF("The topic received is %s \n", mqtt_recv->topic);                            
                         }
                         thread1_mailbox.free(msg);
                         hdlc_pkt_release(buf);
+                        //sending the packet received to RIOT
+                        uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_recv, sizeof(mqtt_pkt_t));
+                        msg = hdlc_mailbox_ptr->alloc();
+                        msg->type = HDLC_MSG_SND;
+                        msg->content.ptr = &pkt;
+                        msg->sender_pid = osThreadGetId();
+                        msg->source_mailbox = &thread1_mailbox;
+                        hdlc_mailbox_ptr->put(msg);
+                        PRINTF("thread1: sending pkt no %d \n", thread1_frame_no);
+
+                        
+                        fflush(stdout);
                         break;
                     default:
                         thread1_mailbox.free(msg);
@@ -211,6 +213,8 @@ int main(void)
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
+    //mqtt recv data struct
+    mqtt_pkt_t *recv_mqtt;
     hdlc_pkt_t pkt;
     pkt.data = send_data;
     pkt.length = 0;
@@ -220,7 +224,6 @@ int main(void)
     PRINTF("In main\n");
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
-
     Thread thr;
     thr.start(_thread1);
 
@@ -228,6 +231,7 @@ int main(void)
     osEvent evt;
     while(1)
     {
+        /*
         myled=!myled;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
 
@@ -238,23 +242,23 @@ int main(void)
 
         pkt.length = HDLC_MAX_PKT_SIZE;
 
-        /* send pkt */
+        //send pkt 
         msg = hdlc_mailbox_ptr->alloc();
         msg->type = HDLC_MSG_SND;
         msg->content.ptr = &pkt;
         msg->sender_pid = osThreadGetId();
         msg->source_mailbox = &main_thr_mailbox;
         hdlc_mailbox_ptr->put(msg);
-
-        PRINTF("main_thread: sending pkt no %d \n", frame_no);
-
+        */
         while(1)
         {
+            PRINTF("In main thread");
             myled=!myled;
             evt = main_thr_mailbox.get();
 
             if (evt.status == osEventMail) 
             {
+                PRINTF("Got something");
                 msg = (msg_t*)evt.value.p;
 
                 switch (msg->type)
@@ -293,11 +297,7 @@ int main(void)
                     case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                        if (recv_hdr.pkt_type == NULL_PKT_TYPE) {
-                            memcpy(recv_data, buf->data, buf->length);
-                            printf("main_thr: received pkt %d ; dst_port %d\n", 
-                            recv_data[UART_PKT_DATA_FIELD], recv_hdr.dst_port);
-                        }
+                        
                         main_thr_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                         break;
