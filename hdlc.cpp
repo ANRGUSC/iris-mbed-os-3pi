@@ -203,13 +203,11 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             if (recv_buf.control.seq_no == (*recv_seq_no % 8)){
                 /* lock pkt until thread makes a copy and unlocks */
                 PRINTF("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
-
+                fflush(stdout);
                 recv_buf_cpy_mutex.wait();
-
                 recv_buf_mutex.wait();
                 buffer_cpy(&recv_buf_cpy,&recv_buf);
                 recv_buf_mutex.release();
-
                 uart_pkt_parse_hdr(&hdr, recv_buf_cpy.data, recv_buf_cpy.length);
                 LL_SEARCH_SCALAR(hdlc_reg, entry, port, hdr.dst_port);
                 PRINTF("hdlc: received packet for port %d\n", hdr.dst_port);
@@ -406,6 +404,7 @@ int hdlc_pkt_release(hdlc_buf_t *buf)
     }
 
 }
+
 
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox()
 {

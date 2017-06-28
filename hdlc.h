@@ -58,7 +58,7 @@
 
 #define RTRY_TIMEO_USEC         100000
 #define RETRANSMIT_TIMEO_USEC   50000
-#define HDLC_MAX_PKT_SIZE       128
+#define HDLC_MAX_PKT_SIZE       64
 #define HDLC_MAILBOX_SIZE       100
 
 typedef struct {
