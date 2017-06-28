@@ -73,6 +73,7 @@
 #include "main-conf.h"
 
 #define DEBUG   1
+#define TOPIC   ("INIT_INFO")
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -84,6 +85,7 @@
 Serial                          pc(USBTX,USBRX,115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
+int mqtt_go=0;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  thread1_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
@@ -162,27 +164,42 @@ void _thread1()
                         thread1_mailbox.free(msg);
                         break;
                     case HDLC_PKT_RDY:
+
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                        if (recv_hdr.pkt_type == MQTT_PKT_TYPE) {                           
-                            rcv_data= buf->data + UART_PKT_DATA_FIELD;
-                            mqtt_recv = (mqtt_pkt_t *)rcv_data;
-                            PRINTF("The data received is %s \n", mqtt_recv->data);
-                            PRINTF("The topic received is %s \n", mqtt_recv->topic);                            
+                        switch (recv_hdr.pkt_type)
+                        {
+                            case MQTT_GO:
+                                mqtt_go=1;
+                                PRINTF("CONNECTED \n");
+
+                                break;
+                            case MQTT_PKT_TYPE:
+                                if (mqtt_go ==1)
+                                {
+                                    rcv_data= buf->data + UART_PKT_DATA_FIELD;
+                                    mqtt_recv = (mqtt_pkt_t *)rcv_data;
+                                    PRINTF("The data received is %s \n", mqtt_recv->data);
+                                    PRINTF("The topic received is %s \n", mqtt_recv->topic); 
+                                    strcpy(mqtt_recv->topic, TOPIC);
+                                    uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_recv, sizeof(mqtt_pkt_t));
+                                    msg = hdlc_mailbox_ptr->alloc();
+                                    msg->type = HDLC_MSG_SND;
+                                    msg->content.ptr = &pkt;
+                                    msg->sender_pid = osThreadGetId();
+                                    msg->source_mailbox = &thread1_mailbox;
+                                    hdlc_mailbox_ptr->put(msg);
+                                    PRINTF("thread1: sending pkt no %d \n", thread1_frame_no); 
+                                }
+                                break;
+                            default:
+                                thread1_mailbox.free(msg);
+                                /* error */
+                                break;
+
                         }
                         thread1_mailbox.free(msg);
-                        hdlc_pkt_release(buf);
-                        //sending the packet received to RIOT
-                        uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_recv, sizeof(mqtt_pkt_t));
-                        msg = hdlc_mailbox_ptr->alloc();
-                        msg->type = HDLC_MSG_SND;
-                        msg->content.ptr = &pkt;
-                        msg->sender_pid = osThreadGetId();
-                        msg->source_mailbox = &thread1_mailbox;
-                        hdlc_mailbox_ptr->put(msg);
-                        PRINTF("thread1: sending pkt no %d \n", thread1_frame_no);
-
-                        
+                        hdlc_pkt_release(buf);     
                         fflush(stdout);
                         break;
                     default:
