@@ -73,7 +73,7 @@
 #include "main-conf.h"
 
 #define DEBUG   1
-#define TOPIC   ("INIT_INFO")
+#define TOPIC   ("test/trial")
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -105,9 +105,9 @@ void _thread1()
     pkt.data = send_data;
     char *test_str;
     pkt.length = 0;
+    uart_pkt_hdr_t send_hdr = { THREAD1_PORT, RIOT_PORT, MQTT_PUB};
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
-    uart_pkt_hdr_t send_hdr = { THREAD1_PORT, RIOT_PORT, MQTT_SUB };
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     int exit = 0;
@@ -172,25 +172,47 @@ void _thread1()
                             case MQTT_GO:
                                 mqtt_go=1;
                                 PRINTF("CONNECTED \n");
-
                                 break;
-                            case MQTT_PKT_TYPE:
-                                if (mqtt_go ==1)
+                            if (mqtt_go ==0)
                                 {
-                                    rcv_data= buf->data + UART_PKT_DATA_FIELD;
-                                    mqtt_recv = (mqtt_pkt_t *)rcv_data;
-                                    PRINTF("The data received is %s \n", mqtt_recv->data);
-                                    PRINTF("The topic received is %s \n", mqtt_recv->topic); 
-                                    strcpy(mqtt_recv->topic, TOPIC);
-                                    uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_recv, sizeof(mqtt_pkt_t));
-                                    msg = hdlc_mailbox_ptr->alloc();
-                                    msg->type = HDLC_MSG_SND;
-                                    msg->content.ptr = &pkt;
-                                    msg->sender_pid = osThreadGetId();
-                                    msg->source_mailbox = &thread1_mailbox;
-                                    hdlc_mailbox_ptr->put(msg);
-                                    PRINTF("thread1: sending pkt no %d \n", thread1_frame_no); 
+                                    break;
                                 }
+                            case MQTT_PKT_TYPE:                                
+                                rcv_data= buf->data + UART_PKT_DATA_FIELD;
+                                mqtt_recv = (mqtt_pkt_t *)rcv_data;
+                                PRINTF("The data received is %s \n", mqtt_recv->data);
+                                PRINTF("The topic received is %s \n", mqtt_recv->topic); 
+                                //Sends subscribe message 
+                                /*
+                                strcpy(mqtt_recv->topic, TOPIC);
+                                send_hdr.pkt_type = MQTT_SUB;
+                                uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_recv, sizeof(mqtt_pkt_t));
+                                msg = hdlc_mailbox_ptr->alloc();
+                                msg->type = HDLC_MSG_SND;
+                                msg->content.ptr = &pkt;
+                                msg->sender_pid = osThreadGetId();
+                                msg->source_mailbox = &thread1_mailbox;
+                                hdlc_mailbox_ptr->put(msg);
+                                */
+                                //sends a pub message
+                                strcpy(mqtt_recv->topic, TOPIC);
+                                strcpy(mqtt_recv->data, "This should be a pubbed");
+                                send_hdr.pkt_type = MQTT_PUB;
+                                uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_recv, sizeof(mqtt_pkt_t));
+                                msg = hdlc_mailbox_ptr->alloc();
+                                msg->type = HDLC_MSG_SND;
+                                msg->content.ptr = &pkt;
+                                msg->sender_pid = osThreadGetId();
+                                msg->source_mailbox = &thread1_mailbox;
+                                hdlc_mailbox_ptr->put(msg);
+
+                                PRINTF("thread1: sending pkt no %d \n", thread1_frame_no); 
+                                break;
+                            case SUB_ACK:
+                                PRINTF("Sub ACK message received\n");
+                                break;
+                            case PUB_ACK:
+                                PRINTF("PUB ACk message received\n");
                                 break;
                             default:
                                 thread1_mailbox.free(msg);
