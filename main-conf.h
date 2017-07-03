@@ -8,10 +8,7 @@ the new uint16_t port number */
 
 
 #define MAIN_THR_PORT   165
-#define MQTT_PKT_TYPE   0xFF 
-#define SUB_ACK			0xFD
-#define PUB_ACK			0xFC
-#define NULL_PKT_TYPE 	0xFE
+#define NULL_PKT_TYPE 	0xFF
 
 /* RSSI dump thread port number */
 #define RSSI_DUMP_PORT              9000

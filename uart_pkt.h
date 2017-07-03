@@ -79,6 +79,7 @@ typedef struct __attribute__((packed)){
 /**
  * @brief Message types from riot-os to mbed-os
  */
+
 typedef enum  {
     RADIO_SET_CHAN_SUCCESS  = 0,
     RADIO_SET_CHAN_FAIL     = 1,
@@ -89,7 +90,10 @@ typedef enum  {
     RSSI_SCAN_STOPPED       = 6,
     RSSI_DATA_PKT           = 7,
     RADIO_FWD_UDP_PKT       = 8,
-    MQTT_GO                 = 9
+    MQTT_GO                 = 9,
+    MQTT_PKT_TYPE           = 10,
+    SUB_ACK                 = 11,
+    PUB_ACK                 = 12
 } riot_to_mbed_t;
 
 void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);

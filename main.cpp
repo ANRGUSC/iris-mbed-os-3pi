@@ -105,7 +105,7 @@ void _thread1()
     pkt.data = send_data;
     char *test_str;
     pkt.length = 0;
-    uart_pkt_hdr_t send_hdr = { THREAD1_PORT, RIOT_PORT, MQTT_PUB};
+    uart_pkt_hdr_t send_hdr = { 0, 0, 0};
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
@@ -198,6 +198,8 @@ void _thread1()
                                 strcpy(mqtt_recv->topic, TOPIC);
                                 strcpy(mqtt_recv->data, "This should be a pubbed");
                                 send_hdr.pkt_type = MQTT_PUB;
+                                send_hdr.src_port = THREAD1_PORT;
+                                send_hdr.dst_port = RIOT_PORT;
                                 uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_recv, sizeof(mqtt_pkt_t));
                                 msg = hdlc_mailbox_ptr->alloc();
                                 msg->type = HDLC_MSG_SND;
