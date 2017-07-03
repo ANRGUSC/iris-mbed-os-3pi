@@ -85,22 +85,22 @@
 Serial                          pc(USBTX,USBRX,115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
-int mqtt_go=0;
+bool mqtt_go = 0;
 
-Mail<msg_t, HDLC_MAILBOX_SIZE>  thread1_mailbox;
+Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 
-void _thread1()
+void _mqtt_thread()
 {
 /* Initial Direction of the Antenna*/
 
-    char thread1_frame_no = 0;
+    char mqtt_thread_frame_no = 0;
     msg_t *msg, *msg2;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t pkt;
-    void *rcv_data;
+    // void *rcv_data;
     mqtt_pkt_t *mqtt_recv;
     pkt.data = send_data;
     char *test_str;
@@ -111,57 +111,83 @@ void _thread1()
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     int exit = 0;
-    hdlc_entry_t thread1 = { NULL, THREAD1_PORT, &thread1_mailbox };
-    hdlc_register(&thread1);
+    hdlc_entry_t mqtt_thread = { NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox };
+    hdlc_register(&mqtt_thread);
 
     osEvent evt;
 
+    /**
+     * Check if the MQTT coneection is established by the openmote. If not,
+     * DO NOT Proceed further
+     */
+    while(1)
+    {
+        evt = mqtt_thread_mailbox.get();
+        if (evt.status == osEventMail) 
+        {
+            msg = (msg_t*)evt.value.p;
+            if (msg->type == HDLC_PKT_RDY)
+            {
+                buf = (hdlc_buf_t *) msg->content.ptr;   
+                uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                if (recv_hdr.pkt_type == MQTT_GO){
+                    mqtt_go = 1;
+                    PRINTF("mqtt_thread: the node is conected to the broker \n");
+                    mqtt_thread_mailbox.free(msg);
+                    hdlc_pkt_release(buf);  
+                    break;
+                }
+            }
+            mqtt_thread_mailbox.free(msg);
+            hdlc_pkt_release(buf);  
+        }
+    }
+
     while (1) 
     {
-        PRINTF("In thread 1");
-
+        // PRINTF("In mqtt_thread");
         myled3 =! myled3;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
         pkt.length = HDLC_MAX_PKT_SIZE;        
 
         while(1)
         {
-            evt = thread1_mailbox.get();
+            evt = mqtt_thread_mailbox.get();
             if (evt.status == osEventMail) 
             {
                 msg = (msg_t*)evt.value.p;
                 switch (msg->type)
                 {
                     case HDLC_RESP_SND_SUCC:
-                        PRINTF("thread1: sent frame_no %d!\n", thread1_frame_no);
+                        PRINTF("mqtt_thread: sent frame_no %d!\n", mqtt_thread_frame_no);
                         exit = 1;
-                        thread1_mailbox.free(msg);
+                        mqtt_thread_mailbox.free(msg);
                         break;    
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg->content.value/1000);
-                        PRINTF("main_thr: retry frame_no %d \n", thread1_frame_no);
+                        PRINTF("mqtt_thread: retry frame_no %d \n", mqtt_thread_frame_no);
                         msg2 = hdlc_mailbox_ptr->alloc();
                         if (msg2 == NULL) {
                             Thread::wait(50);
                             while (msg2 == NULL)
                             {
-                                msg2 = thread1_mailbox.alloc();  
+                                msg2 = mqtt_thread_mailbox.alloc();  
                                 Thread::wait(10);
                             }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
                             msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
-                            msg2->source_mailbox = &thread1_mailbox;
-                            thread1_mailbox.put(msg2);
-                            thread1_mailbox.free(msg);
+                            msg2->source_mailbox = &mqtt_thread_mailbox;
+                            mqtt_thread_mailbox.put(msg2);
+                            mqtt_thread_mailbox.free(msg);
                             break;
                         }
                         msg2->type = HDLC_MSG_SND;
                         msg2->content.ptr = &pkt;
                         msg2->sender_pid = osThreadGetId();
-                        msg2->source_mailbox = &thread1_mailbox;
+                        msg2->source_mailbox = &mqtt_thread_mailbox;
                         hdlc_mailbox_ptr->put(msg2);
-                        thread1_mailbox.free(msg);
+                        mqtt_thread_mailbox.free(msg);
                         break;
                     case HDLC_PKT_RDY:
 
@@ -169,17 +195,9 @@ void _thread1()
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
                         switch (recv_hdr.pkt_type)
                         {
-                            case MQTT_GO:
-                                mqtt_go=1;
-                                PRINTF("CONNECTED \n");
-                                break;
-                            if (mqtt_go ==0)
-                                {
-                                    break;
-                                }
                             case MQTT_PKT_TYPE:                                
-                                rcv_data= buf->data + UART_PKT_DATA_FIELD;
-                                mqtt_recv = (mqtt_pkt_t *)rcv_data;
+                                // rcv_data= (mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length);
+                                mqtt_recv = (mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length);
                                 PRINTF("The data received is %s \n", mqtt_recv->data);
                                 PRINTF("The topic received is %s \n", mqtt_recv->topic); 
                                 //Sends subscribe message 
@@ -191,43 +209,45 @@ void _thread1()
                                 msg->type = HDLC_MSG_SND;
                                 msg->content.ptr = &pkt;
                                 msg->sender_pid = osThreadGetId();
-                                msg->source_mailbox = &thread1_mailbox;
+                                msg->source_mailbox = &mqtt_thread_mailbox;
                                 hdlc_mailbox_ptr->put(msg);
                                 */
-                                //sends a pub message
+                                // Mbed send a pub message to the broker
                                 strcpy(mqtt_recv->topic, TOPIC);
                                 strcpy(mqtt_recv->data, "This should be a pubbed");
                                 send_hdr.pkt_type = MQTT_PUB;
-                                send_hdr.src_port = THREAD1_PORT;
-                                send_hdr.dst_port = RIOT_PORT;
+                                send_hdr.src_port = MBED_MQTT_PORT;
+                                send_hdr.dst_port = RIOT_MQTT_PORT;
                                 uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_recv, sizeof(mqtt_pkt_t));
+                                uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
+
                                 msg = hdlc_mailbox_ptr->alloc();
                                 msg->type = HDLC_MSG_SND;
                                 msg->content.ptr = &pkt;
                                 msg->sender_pid = osThreadGetId();
-                                msg->source_mailbox = &thread1_mailbox;
+                                msg->source_mailbox = &mqtt_thread_mailbox;
                                 hdlc_mailbox_ptr->put(msg);
 
-                                PRINTF("thread1: sending pkt no %d \n", thread1_frame_no); 
+                                PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                 break;
-                            case SUB_ACK:
-                                PRINTF("Sub ACK message received\n");
+                            case MQTT_SUB_ACK:
+                                PRINTF("mqtt_thread: SUB ACK message received\n");
                                 break;
-                            case PUB_ACK:
-                                PRINTF("PUB ACk message received\n");
+                            case MQTT_PUB_ACK:
+                                PRINTF("mqtt_thread: PUB ACK message received\n");
                                 break;
                             default:
-                                thread1_mailbox.free(msg);
+                                mqtt_thread_mailbox.free(msg);
                                 /* error */
                                 break;
 
                         }
-                        thread1_mailbox.free(msg);
+                        mqtt_thread_mailbox.free(msg);
                         hdlc_pkt_release(buf);     
                         fflush(stdout);
                         break;
                     default:
-                        thread1_mailbox.free(msg);
+                        mqtt_thread_mailbox.free(msg);
                         /* error */
                         break;
                 }
@@ -238,7 +258,7 @@ void _thread1()
             }
         }
 
-        thread1_frame_no++;
+        mqtt_thread_frame_no++;
         Thread::wait(100);
     }
 }
@@ -266,7 +286,7 @@ int main(void)
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
     Thread thr;
-    thr.start(_thread1);
+    thr.start(_mqtt_thread);
 
     int exit = 0;
     osEvent evt;

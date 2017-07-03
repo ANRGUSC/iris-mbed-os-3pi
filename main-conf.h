@@ -3,8 +3,8 @@ in the application code, not inside libraries. */
 
 /* keep this port under 255 because the application code is not ready to adapt
 the new uint16_t port number */
-#define THREAD1_PORT    200
-#define RIOT_PORT		170
+#define MBED_MQTT_PORT  200
+#define RIOT_MQTT_PORT  170
 
 
 #define MAIN_THR_PORT   165

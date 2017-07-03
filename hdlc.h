@@ -55,6 +55,7 @@
 #include "yahdlc.h"
 #include "rtos.h"
 #include "mbed.h"
+#include "uart_pkt.h"
 
 #define RTRY_TIMEO_USEC         100000
 #define RETRANSMIT_TIMEO_USEC   50000
@@ -107,5 +108,6 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox();
 void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src);
 void hdlc_register(hdlc_entry_t *entry);
 void hdlc_unregister(hdlc_entry_t *entry);
+int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, riot_to_mbed_t reply);
 
 #endif /* HDLC_H_ */
