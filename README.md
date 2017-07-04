@@ -9,15 +9,41 @@ Install mbed-cli:
 
 `pip2 install mbed-cli`
 
+
+Clone:
+
+Using mbed-cli:
+
+```
+mbed import git@github.com:ANRGUSC/m3pi-mbed-os.git
+cd m3pi-mbed-os.git
+mbed toolchain GCC_ARM
+mbed target LPC1768
+python load_prog.py
+
+```
+
+Using git:
+
 Initializing mbed project after cloning this repo:
 
-`cd m3pi-mbed-os`
+```
+git clone git@github.com:ANRGUSC/m3pi-mbed-os.git
+cd m3pi-mbed-os
+mbed deploy
+mbed new .
+mbed toolchain GCC_ARM
+mbed target LPC1768
+python load_prog.py
+
+```
+<!-- `cd m3pi-mbed-os`
 
 `mbed deploy`
 
 `mbed new .` #(not too sure about this line)
 
-
+ -->
 
 
 

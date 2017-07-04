@@ -40,6 +40,7 @@
  * @brief       Full-duplex hdlc test using a single thread (run on both sides).
  *
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Daniel Dsouza <dmdsouza@usc.edu>
  * 
  * In this test, the main thread and thread2 thread will contend for the same
  * UART line to communicate to another MCU also running a main and thread2 
