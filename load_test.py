@@ -1,8 +1,20 @@
+#!/usr/bin/env python3
+import sys, os, shutil
 from pyOCD.board import MbedBoard
-import os, sys
 import logging
 import serial.tools.list_ports_linux as serial_tools
 import glob
+
+if len(sys.argv) < 2:
+    print("Please specify the test file to insert or 'remove' to remove the test code.")
+    print("Note that removing a test will not move the test file back into the "
+          "'tests/' directory. Please manually save your changes if you have made edits.")
+    print("Examples:")
+    print("python3 load_test.py tests/hdlc_test.c")
+    sys.exit()
+
+shutil.copy(sys.argv[1], "./main.cpp")
+
 
 def serial_ports(unique_id):
     ports = list(serial_tools.comports())
@@ -13,6 +25,8 @@ def serial_ports(unique_id):
 logging.basicConfig(level=logging.INFO)
 
 os.system("mbed compile -c");
+os.remove("main.cpp") 
+
 board = MbedBoard.chooseBoard()
 
 target = board.target
@@ -47,4 +61,4 @@ cmd = "./pyterm -b 115200 -p %s" % serial_ports(board.unique_id)
 
 os.system(cmd)
 
-# board.uninit()
+# board.uninit())
