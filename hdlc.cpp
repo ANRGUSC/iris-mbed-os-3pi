@@ -125,6 +125,7 @@ static hdlc_buf_t ack_buf;
 /* uart access control lock */
 static bool uart_lock = 0;
 
+
 static void rx_cb(void)//(void *arg, uint8_t data)
 {
     unsigned char data;

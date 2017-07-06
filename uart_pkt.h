@@ -49,7 +49,7 @@
 
 #define UART_PKT_HDR_LEN            5
 #define UART_PKT_TYPE_FIELD         4
-#define UART_PKT_DATA_FIELD         5
+#define UART_PKT_DATA_FIELD         UART_PKT_HDR_LEN
 
 typedef struct __attribute__((packed)) {
     uint16_t    src_port;      
