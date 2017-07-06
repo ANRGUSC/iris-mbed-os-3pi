@@ -46,7 +46,6 @@ mbed target LPC1768
 By default there is no main.cpp and thus the `mbed compile` command will NOT work.
 To run a app, use the provided script `load_app.py`.
 You can directly compile and load a particular app by using `load_app.py` e.g.,
-
 ``` python load_app.py app_files/hdlc_test/ ```
 
 Alternatively, to run a particular app manually:
