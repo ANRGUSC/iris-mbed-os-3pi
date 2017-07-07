@@ -1,13 +1,13 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Jason A. Tran
  * Pradipta Ghosh
+ * Daniel Dsouza
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -214,28 +214,19 @@ void _mqtt_thread()
 
                                     case SUB_CMD:
                                         build_mqtt_pkt_sub(mqtt_recv_data.data, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        msg = hdlc_mailbox_ptr->alloc();
-                                        msg->type = HDLC_MSG_SND;
-                                        msg->content.ptr = &pkt;
-                                        msg->sender_pid = osThreadGetId();
-                                        msg->source_mailbox = &mqtt_thread_mailbox;
-                                        hdlc_mailbox_ptr->put(msg);
-                                        PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                                        if (build_hdlc_pkt(msg, HDLC_MSG_SND, osThreadGetId(), &mqtt_thread_mailbox, (void*) &pkt))
+                                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                                        else
+                                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
                                         break;
 
                                     case PUB_CMD:
                                         build_mqtt_pkt_pub(TEST_TOPIC, test_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        msg = hdlc_mailbox_ptr->alloc();
-                                        msg->type = HDLC_MSG_SND;
-                                        msg->content.ptr = &pkt;
-                                        msg->sender_pid = osThreadGetId();
-                                        msg->source_mailbox = &mqtt_thread_mailbox;
-                                        hdlc_mailbox_ptr->put(msg);
-                                        PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                                        if (build_hdlc_pkt(msg, HDLC_MSG_SND, osThreadGetId(), &mqtt_thread_mailbox, (void*) &pkt))
+                                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                                        else
+                                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
                                         break;
-
-                                    default:
-                                        PRINTF("MQTT: Received data doesn't match with any type\n");
                                 }
                                 // Mbed send a pub message to the broker                        
                                 break;

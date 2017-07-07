@@ -1,4 +1,47 @@
-#ifndef _MQTT_H_
+/**
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
+ * Developed by:
+ * Autonomous Networks Research Group (ANRG)
+ * University of Southern California
+ * http://anrg.usc.edu/
+ *
+ * Contributors:
+ * Pradipta Ghosh
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy 
+ * of this software and associated documentation files (the "Software"), to deal
+ * with the Software without restriction, including without limitation the 
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+ * sell copies of the Software, and to permit persons to whom the Software is 
+ * furnished to do so, subject to the following conditions:
+ * - Redistributions of source code must retain the above copyright notice, this
+ *     list of conditions and the following disclaimers.
+ * - Redistributions in binary form must reproduce the above copyright notice, 
+ *     this list of conditions and the following disclaimers in the 
+ *     documentation and/or other materials provided with the distribution.
+ * - Neither the names of Autonomous Networks Research Group, nor University of 
+ *     Southern California, nor the names of its contributors may be used to 
+ *     endorse or promote products derived from this Software without specific 
+ *     prior written permission.
+ * - A citation to the Autonomous Networks Research Group must be included in 
+ *     any publications benefiting from the use of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+ * CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH 
+ * THE SOFTWARE.
+ */
+
+/**
+ * @file        mqtt.h
+ * @brief       MQTT data processing related functions
+ *
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ */
+
+ #ifndef _MQTT_H_
 #define _MQTT_H_
 
 
@@ -14,24 +57,52 @@
 #include "uart_pkt.h"
 #include "main-conf.h"   
 
+/**
+ * Structure used by the mqtt to communicate data/commands
+ */
 typedef struct __attribute__((packed)){
     uint8_t data_type;
     char data[31];
 } mqtt_data_t;
 
-
+/**
+ * Types of MQTT data packets
+ */
 typedef enum {
     NORM_DATA             = 0,
     SUB_CMD               = 1,
     PUB_CMD               = 2
 } type_mqtt_data_t;
 
-
+/**
+ * @brief constructs a mqtt pub packet
+ * @details this function generates a hdlc mqtt pub packet
+ * 
+ * @param topic             mqtt topic name
+ * @param data              the data to be published    
+ * @param src_port          hdlc source port
+ * @param mqtt_send_pkt     pointer to the mqtt packet
+ * @param pkt               pointer to the hdlc packet
+ */
 void build_mqtt_pkt_pub(char topic[], char data[], uint16_t src_port,
-                                    mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
+
+/**
+ * @brief constructs a mqtt sub packet
+ * @details this function generates a hdlc mqtt sub packet
+ * 
+ * @param topic             mqtt topic name
+ * @param src_port          hdlc source port
+ * @param mqtt_send_pkt     pointer to the mqtt packet
+ * @param pkt               pointer to the hdlc packet
+ */                                    mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
 void build_mqtt_pkt_sub(char topic[], uint16_t src_port,
                                     mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
-
+/**
+ * @brief      Process the received mqtt data
+ *
+ * @param      pkt       The received packet
+ * @param      data_pkt  The perocessed data
+ */
 void process_mqtt_pkt(mqtt_pkt_t *pkt, mqtt_data_t *data_pkt);
 
 #endif

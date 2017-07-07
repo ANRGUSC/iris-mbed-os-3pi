@@ -71,15 +71,17 @@ typedef enum {
     MQTT_PUB                = 7
 } mbed_to_riot_t;
 
-//MQTT
+/**
+ * MQTT packet structure
+ */
 typedef struct __attribute__((packed)){
     char topic[16];
     char data[32];
 } mqtt_pkt_t;
+
 /**
  * @brief Message types from riot-os to mbed-os
  */
-
 typedef enum  {
     RADIO_SET_CHAN_SUCCESS  = 0,
     RADIO_SET_CHAN_FAIL     = 1,
@@ -96,9 +98,45 @@ typedef enum  {
     MQTT_PUB_ACK            = 12
 } riot_to_mbed_t;
 
+/**
+ * @brief      Inserts the oacket header in the packetbuffer
+ *
+ * @param      buf      The packet buffer
+ * @param[in]  buf_len  The available buffer length
+ * @param[in]  hdr      The packet header
+ *
+ * @return              pointer to the data section of the packet
+ */
 void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);
+/**
+ * @brief  Copy data from an array into a uart packet buffer.
+ * 
+ * @param  buf      destination buffer
+ * @param  buf_len  destination buffer size
+ * @param  data     buffer containing data
+ * @param  data_len size of buffer containing data
+ * 
+ * @return          total size of packet on success or 0 on failure.
+ */
 size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, size_t data_len);
+/**
+ * @brief      parse the received packet for validity and returns the header
+ *
+ * @param      dst_hdr  The destination header
+ * @param[in]  src      The received packet
+ * @param[in]  src_len  The received packet length
+ *
+ * @return     Status
+ */
 int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr,  const void *src,  size_t src_len);
+/**
+ * @brief      returns pointer to the data section of the received packet
+ *
+ * @param      src      received packet
+ * @param[in]  src_len  received packet length/size
+ *
+ * @return              description_of_the_return_value
+ */
 void *uart_pkt_get_data(void *src, size_t src_len);
 
 #endif /* UART_PKT_H_ */

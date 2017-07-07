@@ -58,6 +58,15 @@
     #define DEBUG(...)
 #endif /* (DEBUG) */
 
+/**
+ * @brief      Inserts the oacket header in the packetbuffer
+ *
+ * @param      buf      The packet buffer
+ * @param[in]  buf_len  The available buffer length
+ * @param[in]  hdr      The packet header
+ *
+ * @return              pointer to the data section of the packet
+ */
 void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
 {
     if (buf_len < UART_PKT_HDR_LEN) {
@@ -70,11 +79,13 @@ void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
 }
 
 /**
- * Copy data from an array into a uart packet buffer.
+ * @brief  Copy data from an array into a uart packet buffer.
+ * 
  * @param  buf      destination buffer
  * @param  buf_len  destination buffer size
  * @param  data     buffer containing data
  * @param  data_len size of buffer containing data
+ * 
  * @return          total size of packet on success or 0 on failure.
  */
 size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, 
@@ -89,6 +100,15 @@ size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data,
     return (UART_PKT_HDR_LEN + data_len);
 }
 
+/**
+ * @brief      parse the received packet for validity and returns the header
+ *
+ * @param      dst_hdr  The destination header
+ * @param[in]  src      The received packet
+ * @param[in]  src_len  The received packet length
+ *
+ * @return     Status
+ */
 int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
 {
     if (src_len < UART_PKT_HDR_LEN) {
@@ -100,6 +120,14 @@ int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
     return 0;
 }
 
+/**
+ * @brief      returns pointer to the data section of the received packet
+ *
+ * @param      src      received packet
+ * @param[in]  src_len  received packet length/size
+ *
+ * @return              description_of_the_return_value
+ */
 void *uart_pkt_get_data(void *src, size_t src_len)
 {
     if (src_len < UART_PKT_HDR_LEN) {

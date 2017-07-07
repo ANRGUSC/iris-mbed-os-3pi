@@ -83,12 +83,19 @@ Serial uart2(p28,p27, 115200);
 static hdlc_entry_t *hdlc_reg;
 
 
-
+/**
+ * @brief      adds a thread to port mapping
+ * @param      entry  The entry
+ */
 void hdlc_register(hdlc_entry_t *entry)
 {
     LL_PREPEND(hdlc_reg, entry);
 }
 
+/**
+ * @brief      deletes a thread to port mapping
+ * @param      entry  The entry
+ */
 void hdlc_unregister(hdlc_entry_t *entry)
 {
     LL_DELETE(hdlc_reg, entry);
@@ -125,7 +132,9 @@ static hdlc_buf_t ack_buf;
 /* uart access control lock */
 static bool uart_lock = 0;
 
-
+/**
+ * @brief      Interrupt handler to processing incoming hdlc bytes
+ */
 static void rx_cb(void)//(void *arg, uint8_t data)
 {
     unsigned char data;
@@ -151,6 +160,14 @@ static void rx_cb(void)//(void *arg, uint8_t data)
     }
 
 }
+
+
+/**
+ * @brief      This function is used by hdlc thread to check the validity of the incoming packets
+ *
+ * @param      recv_seq_no  The receive sequence no
+ * @param      send_seq_no  The send sequence no
+ */
 
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 {
@@ -261,6 +278,9 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     }
 }
 
+/**
+ * @brief      This is the hdlc thread
+ */
 static void _hdlc()
 {
     msg_t *msg, *reply;
@@ -472,6 +492,13 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
     }
 }
 
+
+/**
+ * @brief      Releases the buffer mutex so that the next hdlc packet can be processed
+ * @param      buf   The buffer pointer
+ * @return     status
+ * 
+ */
 int hdlc_pkt_release(hdlc_buf_t *buf) 
 {
     if(recv_buf_cpy_mutex.wait(0))
@@ -492,11 +519,24 @@ int hdlc_pkt_release(hdlc_buf_t *buf)
 
 }
 
+/**
+ * @brief      Returns a pointer to the hdlc mailbox.
+ *
+ * @return     The hdlc mailbox.
+ */
 
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_hdlc_mailbox()
 {
     return &hdlc_mailbox;
 }
+
+
+/**
+ * @brief      Writes the data to uart
+ *
+ * @param      ptr   The pointer to the hdlc packet
+ * @param[in]  len   The length
+ */
 
 void write_hdlc(uint8_t *ptr,int len)
 {
@@ -509,6 +549,13 @@ void write_hdlc(uint8_t *ptr,int len)
         }
     }
 }
+
+/**
+ * @brief      replicates the entire hdlc_buf_t
+ *
+ * @param      dst   The destination
+ * @param      src   The source
+ */
 void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src)
 {
     memcpy(dst->data,src->data,HDLC_MAX_PKT_SIZE);
@@ -516,6 +563,14 @@ void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src)
     dst->length=src->length;
 }
 
+
+/**
+ * @brief      Intialized the HDLC Thread
+ *
+ * @param[in]  priority  The priority of the hdlc thread
+ *
+ * @return     pointer to the hdlc mailbox
+ */
 Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority) 
 {
     led2 = 1;
@@ -532,3 +587,28 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
     return &hdlc_mailbox;
 }
 
+/**
+ * @brief      Builds a hdlc packet.
+ *
+ * @param      pkt             The return packet
+ * @param[in]  type            The hdlc msg type
+ * @param[in]  sender_pid      The sender pid
+ * @param      sender_mailbox  The sender mailbox
+ * @param      ptr             The pointer to the actual data
+ * 
+ * @return     status
+ */
+
+int build_hdlc_pkt(msg_t *msg, uint8_t type, osThreadId sender_pid,
+                        Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, void *ptr)
+{
+    msg = hdlc_mailbox.alloc();
+    if (msg == NULL) 
+        return -1;
+    msg->type = type;
+    msg->content.ptr = ptr;
+    msg->sender_pid = sender_pid;
+    msg->source_mailbox = sender_mailbox;
+    hdlc_mailbox.put(msg);
+    return 1;
+}
