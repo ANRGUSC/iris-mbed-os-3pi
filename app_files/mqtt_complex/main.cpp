@@ -96,7 +96,9 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 void _mqtt_thread()
 {
 /* Initial Direction of the Antenna*/
-
+    int pub_length;
+    int i=0;
+    int c=0;
     char mqtt_thread_frame_no = 0;
     msg_t *msg, *msg2;
     char send_data[HDLC_MAX_PKT_SIZE];
@@ -118,7 +120,9 @@ void _mqtt_thread()
     int exit = 0;
     hdlc_entry_t mqtt_thread = { NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox };
     hdlc_register(&mqtt_thread);
-    char test_pub[] = "This should be a pubbed";
+    char test_pub[] = "Hello world";
+    char topic_pub[16];
+    char data_pub[32];
 
     osEvent evt;
 
@@ -221,7 +225,27 @@ void _mqtt_thread()
                                         break;
 
                                     case PUB_CMD:
-                                        build_mqtt_pkt_pub(TEST_TOPIC, test_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
+                                        //second byte is the length of the topic 
+                                        pub_length = mqtt_recv_data.data[0] - '0';
+                                        while (mqtt_recv_data.data[i+1]!='\0')
+                                        {
+                                            if(i<pub_length){
+                                                topic_pub[i]=mqtt_recv_data.data[i+1];                                               
+                                                i++;
+                                            }
+                                            else{                        
+                                                data_pub[c]=mqtt_recv_data.data[i+1];
+                                                c++;
+                                                i++;
+                                            }                                            
+                                        }                                        
+                                        topic_pub[pub_length]='\0';
+                                        data_pub[c+1]='\0';
+                                        PRINTF("The the topic_pub %s\n", topic_pub);
+                                        PRINTF("The data_pub %s\n", data_pub);
+                                        i=0;
+                                        c=0;                                        
+                                        build_mqtt_pkt_pub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
                                         if (build_hdlc_pkt(msg, HDLC_MSG_SND, osThreadGetId(), &mqtt_thread_mailbox, (void*) &pkt))
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         else
