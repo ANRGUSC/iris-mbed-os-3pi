@@ -104,10 +104,11 @@ int main(void)
     myled = 1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
-   
+    int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(uint32_t);
+
     msg_t *msg, *msg2;
     char frame_no = 0;
-    char send_data[HDLC_MAX_PKT_SIZE];
+    char send_data[pkt_size];
     char recv_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t pkt;
     pkt.data = send_data;
@@ -129,11 +130,11 @@ int main(void)
     while(1)
     {
         
-        ranging_type = XOR_SENSOR_MODE;
+        ranging_type = TWO_SENSOR_MODE;
 
         myled=!myled;
 
-        pkt.length = HDLC_MAX_PKT_SIZE;        
+        pkt.length = pkt_size;        
 
         uart_pkt_insert_hdr(pkt.data, pkt.length, &send_hdr); 
         uart_pkt_cpy_data(pkt.data, pkt.length, &ranging_type, sizeof(uint32_t));
@@ -240,7 +241,7 @@ int main(void)
 
         frame_no++;
         PRINTF("Reached end of loop\n");
-        //Thread::wait(100);
+        //Thread::wait(1000);
     }
     PRINTF("Reached Exit");
     /* should be never reached */
