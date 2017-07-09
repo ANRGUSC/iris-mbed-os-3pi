@@ -240,7 +240,7 @@ void _mqtt_thread()
                                             }                                            
                                         }                                        
                                         topic_pub[pub_length]='\0';
-                                        data_pub[c+1]='\0';
+                                        data_pub[c]='\0';
                                         PRINTF("The the topic_pub %s\n", topic_pub);
                                         PRINTF("The data_pub %s\n", data_pub);
                                         i=0;
