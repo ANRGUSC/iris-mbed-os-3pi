@@ -88,7 +88,6 @@ DigitalOut                      myled(LED1);
 Mail<msg_t, HDLC_MAILBOX_SIZE>  thread2_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
-
 #define MAIN_THR_PORT   5678    
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
@@ -101,13 +100,15 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 int main(void)
 {
+    /* mbed setup */
     myled = 1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
     int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(uint32_t);
 
+    /* openmote setup */
     msg_t *msg, *msg2;
-    char frame_no = 0;
+    char frame_no = 0; // set to int???
     char send_data[pkt_size];
     char recv_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t pkt;
@@ -120,7 +121,7 @@ int main(void)
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
 
-
+    /* misc */
     int exit = 0;
     osEvent evt;
     const char* input;
@@ -129,10 +130,17 @@ int main(void)
 
     while(1)
     {
-        
+        /** 
+         * Change this as needed.
+         * Options:
+         *      ONE_SENSOR_MODE for one sensor.
+         *      TWO_SENSOR_MODE for two sensors.
+         *      XOR_SENSOR_MODE for two sensors XOR'd together.
+         */
         ranging_type = TWO_SENSOR_MODE;
 
-        myled=!myled;
+        /* Blinks the led. */
+        myled = !myled;
 
         pkt.length = pkt_size;        
 
@@ -151,11 +159,13 @@ int main(void)
 
         while(1)
         {
-            myled=!myled;
+            /* Blinks the led. */
+            myled = !myled;
+
             PRINTF("Waiting for response\n");
             evt = main_thr_mailbox.get();
             
-            if (evt.status == osEventMail) 
+            if(evt.status == osEventMail)
             {
                 PRINTF("Got a response\n");
                 msg = (msg_t*)evt.value.p;
@@ -169,10 +179,13 @@ int main(void)
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg->content.value/1000);
                         PRINTF("main_thr: retry frame_no %d \n", frame_no);
+                        
+                        /* Tries to allocate memory for msg2. */
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        if (msg2 == NULL) {
+                        if(msg2 == NULL) {
+                            /* Blocking call until the memory has been allocated. */
                             // Thread::wait(50);
-                            while(msg2==NULL)
+                            while(msg2 == NULL)
                             {
                                 msg2 = main_thr_mailbox.alloc();  
                                 Thread::wait(10);
@@ -192,53 +205,89 @@ int main(void)
                         hdlc_mailbox_ptr->put(msg2);
                         main_thr_mailbox.free(msg);
                         break;
+
+                        // Proposed changes???
+                        /* Tries to allocate memory for msg2. */
+                        // msg2 = hdlc_mailbox_ptr->alloc();
+                        // if(msg2 == NULL) 
+                        // {
+                        //     /* Blocking call until the memory has been allocated. */
+                        //     // Thread::wait(50);
+                        //     while(msg2 == NULL)
+                        //     {
+                        //         msg2 = main_thr_mailbox.alloc();  
+                        //         Thread::wait(10);
+                        //     }
+                        //     msg2->type = HDLC_RESP_RETRY_W_TIMEO;
+                        //     msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                        //     msg2->sender_pid = osThreadGetId();
+                        //     msg2->source_mailbox = &main_thr_mailbox;
+                        //     main_thr_mailbox.put(msg2);
+                        // }
+                        // else
+                        // {
+                        //     msg2->type = HDLC_MSG_SND;
+                        //     msg2->content.ptr = &pkt;
+                        //     msg2->sender_pid = osThreadGetId();
+                        //     msg2->source_mailbox = &main_thr_mailbox;
+                        //     hdlc_mailbox_ptr->put(msg2);
+                        // }
+                        // main_thr_mailbox.free(msg);
+                        // break;
                     case HDLC_PKT_RDY:
+                        /* Setting up buf, making it easier to access data from the msg. */ 
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                        if (recv_hdr.pkt_type == RANGE_PKT) {
+
+                        if(recv_hdr.pkt_type == RANGE_PKT) 
+                        {
                             memcpy(recv_data, buf->data, buf->length);
                             PRINTF("main_thr: received range pkt\n");
-                            time_diffs= (uint32_t *) uart_pkt_get_data(buf->data, buf->length);
+                            time_diffs = (uint32_t *)uart_pkt_get_data(buf->data, buf->length);
 
+                            /* Displaying results. */
                             printf("TDoA = %lu\n", time_diffs[0]);
-                            switch (ranging_type){
+                            switch (ranging_type)
+                            {
                                 case ONE_SENSOR_MODE:
                                     break;
-
                                 case TWO_SENSOR_MODE:
-                                    if(time_diffs[2]!=0){
+                                    if(time_diffs[2] != 0)
+                                    {
                                         printf("Missed pin %lu\n", time_diffs[2]);
-                                    } else{
+                                    } 
+                                    else
+                                    {
                                         printf("OD = %lu\n", time_diffs[1]);
                                     }
                                     break;
-
                                 case XOR_SENSOR_MODE:
                                     printf("OD = %lu\n", time_diffs[1]);
                                     break;
                             }
                         }
-                        else{
+                        else
+                        {
                             printf("main_thr: recieved non-range pkt\n");
                         }
-                        main_thr_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                         exit = 1;
+                        main_thr_mailbox.free(msg);
                         break;
                     default:
                         PRINTF("Reached default case\n");
-                        main_thr_mailbox.free(msg);
                         /* error */
                         //LED3_ON;
+                        main_thr_mailbox.free(msg);
                         break;
                 }
             }    
-            if(exit) {
+            if(exit) 
+            {
                 exit = 0;
                 break;
             }
         }
-
         frame_no++;
         PRINTF("Reached end of loop\n");
         //Thread::wait(1000);
