@@ -92,12 +92,9 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define MAIN_THR_PORT   5678    
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
-#define RANGE_PKT           1
-#define RANGE_REQ           100
 
-#define ONE_SENSOR_MODE       0x60 // 96
-#define TWO_SENSOR_MODE       0x61 // 97
-#define XOR_SENSOR_MODE       0x62 // 98
+#define LOOP_DELAY            0
+#define SAMPS_PER_MODE        20
 
 int main(void)
 {
@@ -120,17 +117,39 @@ int main(void)
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
 
-
     int exit = 0;
     osEvent evt;
     const char* input;
     uint32_t ranging_type;
     uint32_t* time_diffs;
 
+    int i = 0;
+    int j = 0;
+
     while(1)
     {
-        
-        ranging_type = TWO_SENSOR_MODE;
+        j = i/SAMPS_PER_MODE;
+
+        if(j == 3){
+            i = 0;
+            j = 0;
+        }
+        if (i % SAMPS_PER_MODE == 0){
+            if(j == 0){                
+                printf("******************ONE SENSOR MODE*******************\n");
+                ranging_type = ONE_SENSOR_MODE;                
+            } 
+            else if(j == 1){                
+                printf("******************TWO SENSOR MODE*******************\n");
+                ranging_type = TWO_SENSOR_MODE;            
+            } 
+            else if(j == 2){                
+                printf("******************XOR SENSOR MODE*******************\n");
+                ranging_type = XOR_SENSOR_MODE;                
+            }
+        }
+
+        i++;
 
         myled=!myled;
 
@@ -241,7 +260,10 @@ int main(void)
 
         frame_no++;
         PRINTF("Reached end of loop\n");
-        //Thread::wait(1000);
+        if(LOOP_DELAY != 0){
+            Thread::wait(LOOP_DELAY);
+        }
+        
     }
     PRINTF("Reached Exit");
     /* should be never reached */
