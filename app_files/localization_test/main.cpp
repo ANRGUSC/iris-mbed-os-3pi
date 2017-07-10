@@ -39,26 +39,18 @@
  * @file        main.cpp
  * @brief       Full-duplex hdlc test using a single thread (run on both sides).
  *
- * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Yutong Gu <yutonggu@usc.edu>
  * 
- * In this test, the main thread and thread2 thread will contend for the same
- * UART line to communicate to another MCU also running a main and thread2 
- * thread. It seems as though stability deteriorates if the hdlc thread is given
- * a higher priority than the two application threads (RIOT's MAC layer priority
- * is well below the default priority for the main thread. Note that two threads
- * are equally contending for the UART line, one thread may starve the other to 
- * the point where the other thread will continue to retry. Increasing the msg 
- * queue size of hdlc's thread may also increase stability. Since this test can
- * easily stress the system, carefully picking the transmission rates (see below)
- * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
- * may lead to different stability results. The following is one known stable
- * set of values for running this test:
+ * In this test, the mbed will repeated send packets to a dedicated thread for 
+ * ranging on the openmote requesting range data. The packets sent will contain 
+ * information on the mode to range with. Available options are ONE_SENSOR_MODE, 
+ * TWO_SENSOR_MODE, and XOR_SENSOR_MODE. The loop will alternate through all 
+ * three options, taking a specified sample number, SAMPS_PER_MODE, at a delay 
+ * of LOOP_DELAY. The fastest this system can range at is 100 ms and this is due 
+ * to the hardware limitations of the ultrasound sensors.
+ * 
  *
- * -100ms interpacket intervals in xtimer_usleep() below
- * -RTRY_TIMEO_USEC = 100000
- * -RETRANSMIT_TIMEO_USEC 50000
- *
- */
+ **/
 
 #include "mbed.h"
 #include "rtos.h"
@@ -91,12 +83,9 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define MAIN_THR_PORT   5678    
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
-#define RANGE_PKT           1
-#define RANGE_REQ           100
 
-#define ONE_SENSOR_MODE       0x60 // 96
-#define TWO_SENSOR_MODE       0x61 // 97
-#define XOR_SENSOR_MODE       0x62 // 98
+#define LOOP_DELAY            500
+#define SAMPS_PER_MODE        20
 
 int main(void)
 {
@@ -128,6 +117,9 @@ int main(void)
     uint32_t ranging_type;
     uint32_t* time_diffs;
 
+    int i = 0;
+    int j = 0;
+
     while(1)
     {
         /** 
@@ -137,7 +129,29 @@ int main(void)
          *      TWO_SENSOR_MODE for two sensors.
          *      XOR_SENSOR_MODE for two sensors XOR'd together.
          */
-        ranging_type = TWO_SENSOR_MODE;
+        // ranging_type = TWO_SENSOR_MODE;
+        j = i/SAMPS_PER_MODE;
+
+        if(j == 3){
+            i = 0;
+            j = 0;
+        }
+        if (i % SAMPS_PER_MODE == 0){
+            if(j == 0){                
+                printf("******************ONE SENSOR MODE*******************\n");
+                ranging_type = ONE_SENSOR_MODE;                
+            } 
+            else if(j == 1){                
+                printf("******************TWO SENSOR MODE*******************\n");
+                ranging_type = TWO_SENSOR_MODE;            
+            } 
+            else if(j == 2){                
+                printf("******************XOR SENSOR MODE*******************\n");
+                ranging_type = XOR_SENSOR_MODE;                
+            }
+        }
+
+        i++;
 
         /* Blinks the led. */
         myled = !myled;
@@ -290,7 +304,10 @@ int main(void)
         }
         frame_no++;
         PRINTF("Reached end of loop\n");
-        //Thread::wait(1000);
+        if(LOOP_DELAY != 0){
+            Thread::wait(LOOP_DELAY);
+        }
+        
     }
     PRINTF("Reached Exit");
     /* should be never reached */
