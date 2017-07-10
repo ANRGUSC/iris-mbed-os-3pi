@@ -39,26 +39,18 @@
  * @file        main.cpp
  * @brief       Full-duplex hdlc test using a single thread (run on both sides).
  *
- * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Yutong Gu <yutonggu@usc.edu>
  * 
- * In this test, the main thread and thread2 thread will contend for the same
- * UART line to communicate to another MCU also running a main and thread2 
- * thread. It seems as though stability deteriorates if the hdlc thread is given
- * a higher priority than the two application threads (RIOT's MAC layer priority
- * is well below the default priority for the main thread. Note that two threads
- * are equally contending for the UART line, one thread may starve the other to 
- * the point where the other thread will continue to retry. Increasing the msg 
- * queue size of hdlc's thread may also increase stability. Since this test can
- * easily stress the system, carefully picking the transmission rates (see below)
- * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
- * may lead to different stability results. The following is one known stable
- * set of values for running this test:
+ * In this test, the mbed will repeated send packets to a dedicated thread for 
+ * ranging on the openmote requesting range data. The packets sent will contain 
+ * information on the mode to range with. Available options are ONE_SENSOR_MODE, 
+ * TWO_SENSOR_MODE, and XOR_SENSOR_MODE. The loop will alternate through all 
+ * three options, taking a specified sample number, SAMPS_PER_MODE, at a delay 
+ * of LOOP_DELAY. The fastest this system can range at is 100 ms and this is due 
+ * to the hardware limitations of the ultrasound sensors.
+ * 
  *
- * -100ms interpacket intervals in xtimer_usleep() below
- * -RTRY_TIMEO_USEC = 100000
- * -RETRANSMIT_TIMEO_USEC 50000
- *
- */
+ **/
 
 #include "mbed.h"
 #include "rtos.h"
@@ -93,7 +85,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
 
-#define LOOP_DELAY            0
+#define LOOP_DELAY            500
 #define SAMPS_PER_MODE        20
 
 int main(void)
