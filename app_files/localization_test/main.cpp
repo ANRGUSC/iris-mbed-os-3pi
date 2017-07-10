@@ -97,7 +97,7 @@ int main(void)
 
     /* openmote setup */
     msg_t *msg, *msg2;
-    char frame_no = 0; // set to int???
+    char frame_no = 0;
     char send_data[pkt_size];
     char recv_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t pkt;
@@ -193,10 +193,11 @@ int main(void)
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg->content.value/1000);
                         PRINTF("main_thr: retry frame_no %d \n", frame_no);
-                        
+
                         /* Tries to allocate memory for msg2. */
                         msg2 = hdlc_mailbox_ptr->alloc();
-                        if(msg2 == NULL) {
+                        if(msg2 == NULL) 
+                        {
                             /* Blocking call until the memory has been allocated. */
                             // Thread::wait(50);
                             while(msg2 == NULL)
@@ -209,45 +210,18 @@ int main(void)
                             msg2->sender_pid = osThreadGetId();
                             msg2->source_mailbox = &main_thr_mailbox;
                             main_thr_mailbox.put(msg2);
-                            main_thr_mailbox.free(msg);
-                            break;
                         }
-                        msg2->type = HDLC_MSG_SND;
-                        msg2->content.ptr = &pkt;
-                        msg2->sender_pid = osThreadGetId();
-                        msg2->source_mailbox = &main_thr_mailbox;
-                        hdlc_mailbox_ptr->put(msg2);
+                        else
+                        {
+                            msg2->type = HDLC_MSG_SND;
+                            msg2->content.ptr = &pkt;
+                            msg2->sender_pid = osThreadGetId();
+                            msg2->source_mailbox = &main_thr_mailbox;
+                            hdlc_mailbox_ptr->put(msg2);
+                        }
                         main_thr_mailbox.free(msg);
                         break;
 
-                        // Proposed changes???
-                        /* Tries to allocate memory for msg2. */
-                        // msg2 = hdlc_mailbox_ptr->alloc();
-                        // if(msg2 == NULL) 
-                        // {
-                        //     /* Blocking call until the memory has been allocated. */
-                        //     // Thread::wait(50);
-                        //     while(msg2 == NULL)
-                        //     {
-                        //         msg2 = main_thr_mailbox.alloc();  
-                        //         Thread::wait(10);
-                        //     }
-                        //     msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                        //     msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
-                        //     msg2->sender_pid = osThreadGetId();
-                        //     msg2->source_mailbox = &main_thr_mailbox;
-                        //     main_thr_mailbox.put(msg2);
-                        // }
-                        // else
-                        // {
-                        //     msg2->type = HDLC_MSG_SND;
-                        //     msg2->content.ptr = &pkt;
-                        //     msg2->sender_pid = osThreadGetId();
-                        //     msg2->source_mailbox = &main_thr_mailbox;
-                        //     hdlc_mailbox_ptr->put(msg2);
-                        // }
-                        // main_thr_mailbox.free(msg);
-                        // break;
                     case HDLC_PKT_RDY:
                         /* Setting up buf, making it easier to access data from the msg. */ 
                         buf = (hdlc_buf_t *)msg->content.ptr;   
