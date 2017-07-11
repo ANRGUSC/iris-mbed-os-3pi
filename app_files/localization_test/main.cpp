@@ -84,7 +84,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
 
-#define LOOP_DELAY            0
+#define LOOP_DELAY            1000
 #define SAMPS_PER_MODE        20
 
 // ???
