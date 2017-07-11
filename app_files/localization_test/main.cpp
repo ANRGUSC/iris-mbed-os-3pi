@@ -87,19 +87,29 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define LOOP_DELAY            0
 #define SAMPS_PER_MODE        20
 
+// ???
+// // mbed will pass an instance of this to the openmote.
+// typedef struct range_params
+// {
+//     uint16_t runs = 10;
+//     uint32_t ranging_type_data;
+//     // add more options in the future?
+// };
+
 int main(void)
 {
     /* mbed setup */
     myled = 1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
-    int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(uint32_t);
+    int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(range_params_t);
+    int end_of_series = 0;
+    // int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(range_params); ???
 
     /* openmote setup */
     msg_t *msg, *msg2;
     char frame_no = 0;
     char send_data[pkt_size];
-    char recv_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t pkt;
     pkt.data = send_data;
     pkt.length = 0;
@@ -114,8 +124,9 @@ int main(void)
     int exit = 0;
     osEvent evt;
     const char* input;
-    uint32_t ranging_type;
-    uint32_t* time_diffs;
+    range_params_t params;
+    range_data_t* time_diffs;
+    // struct range_params rparams; ???
 
     int i = 0;
     int j = 0;
@@ -130,46 +141,43 @@ int main(void)
          *      XOR_SENSOR_MODE for two sensors XOR'd together.
          */
         // ranging_type = TWO_SENSOR_MODE;
-        j = i/SAMPS_PER_MODE;
-
-        if(j == 3){
-            i = 0;
-            j = 0;
+        i%=3;
+        
+        if(i == 0){                
+            printf("******************ONE SENSOR MODE*******************\n");
+            params.ranging_mode = ONE_SENSOR_MODE;                
+        } 
+        else if(i == 1){                
+            printf("******************TWO SENSOR MODE*******************\n");
+            params.ranging_mode = TWO_SENSOR_MODE;            
+        } 
+        else if(i == 2){                
+            printf("******************XOR SENSOR MODE*******************\n");
+            params.ranging_mode = XOR_SENSOR_MODE;                
         }
-        if (i % SAMPS_PER_MODE == 0){
-            if(j == 0){                
-                printf("******************ONE SENSOR MODE*******************\n");
-                ranging_type = ONE_SENSOR_MODE;                
-            } 
-            else if(j == 1){                
-                printf("******************TWO SENSOR MODE*******************\n");
-                ranging_type = TWO_SENSOR_MODE;            
-            } 
-            else if(j == 2){                
-                printf("******************XOR SENSOR MODE*******************\n");
-                ranging_type = XOR_SENSOR_MODE;                
-            }
-        }
-
+    
         i++;
+
+        params.num_samples = SAMPS_PER_MODE;
 
         /* Blinks the led. */
         myled = !myled;
 
+        // rparams.ranging_type_data = ranging_type; ???
         pkt.length = pkt_size;        
 
         uart_pkt_insert_hdr(pkt.data, pkt.length, &send_hdr); 
-        uart_pkt_cpy_data(pkt.data, pkt.length, &ranging_type, sizeof(uint32_t));
+        uart_pkt_cpy_data(pkt.data, pkt.length, &params, sizeof(range_params_t));
+        // uart_pkt_cpy_data(pkt.data, pkt.length, &rparams, sizeof(rparams)); ???
 
         /* send pkt */
+        PRINTF("main_thread: sending pkt \n");
         msg = hdlc_mailbox_ptr->alloc();
         msg->type = HDLC_MSG_SND;
         msg->content.ptr = &pkt;
         msg->sender_pid = osThreadGetId();
         msg->source_mailbox = &main_thr_mailbox;
         hdlc_mailbox_ptr->put(msg);
-
-        PRINTF("main_thread: sending pkt \n");
 
         while(1)
         {
@@ -229,37 +237,47 @@ int main(void)
 
                         if(recv_hdr.pkt_type == RANGE_PKT) 
                         {
-                            memcpy(recv_data, buf->data, buf->length);
                             PRINTF("main_thr: received range pkt\n");
-                            time_diffs = (uint32_t *)uart_pkt_get_data(buf->data, buf->length);
-
-                            /* Displaying results. */
-                            printf("TDoA = %lu\n", time_diffs[0]);
-                            switch (ranging_type)
-                            {
-                                case ONE_SENSOR_MODE:
-                                    break;
-                                case TWO_SENSOR_MODE:
-                                    if(time_diffs[2] != 0)
-                                    {
-                                        printf("Missed pin %lu\n", time_diffs[2]);
-                                    } 
-                                    else
-                                    {
-                                        printf("OD = %lu\n", time_diffs[1]);
-                                    }
-                                    break;
-                                case XOR_SENSOR_MODE:
-                                    printf("OD = %lu\n", time_diffs[1]);
-                                    break;
+                            time_diffs = (range_data_t *)uart_pkt_get_data(buf->data, buf->length);
+                            while(!end_of_series){
+                                if(time_diffs->error > 2){
+                                    time_diffs->error-=10;
+                                    end_of_series = 1;
+                                }
+                                /* Displaying results. */
+                                printf("TDoA = %lu\n", time_diffs->TDoA);
+                                switch (params.ranging_mode)
+                                {
+                                    case ONE_SENSOR_MODE:
+                                        break;
+                                    case TWO_SENSOR_MODE:
+                                        if(time_diffs->error != 0)
+                                        {
+                                            printf("Missed pin %lu\n", time_diffs->error);
+                                        } 
+                                        else
+                                        {
+                                            printf("OD = %lu\n", time_diffs->OD);
+                                        }
+                                        break;
+                                    case XOR_SENSOR_MODE:
+                                        printf("OD = %lu\n", time_diffs->OD);
+                                        break;
+                                }
+                                time_diffs++;
                             }
+                            end_of_series = 0;
+                        }
+                        else if(recv_hdr.pkt_type == RANGE_PKT_DONE){
+                            printf("All data recieved\n");
+                            exit = 1;
                         }
                         else
                         {
                             printf("main_thr: recieved non-range pkt\n");
+                            exit = 1;
                         }
                         hdlc_pkt_release(buf);
-                        exit = 1;
                         main_thr_mailbox.free(msg);
                         break;
                     default:
