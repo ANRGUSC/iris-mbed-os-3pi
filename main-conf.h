@@ -30,9 +30,7 @@ the new uint16_t port number */
 
 #define DEFAULT_ULTRASOUND_THRESH   25
 
-#define RANGE_PKT           1
 #define RANGE_PKT_DONE      10
-#define RANGE_REQ           100
 
 #define ONE_SENSOR_MODE       0x60 // 96
 #define TWO_SENSOR_MODE       0x61 // 97
@@ -40,8 +38,8 @@ the new uint16_t port number */
 
 typedef struct range_data
 {
-    uint16_t TDoA;
-    uint16_t OD;
+    uint16_t tdoa;
+    uint16_t orient_diff;
     uint8_t error;
     // add more options in the future?
 } range_data_t;

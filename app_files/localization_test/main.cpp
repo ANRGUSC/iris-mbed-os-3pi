@@ -84,7 +84,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
 
-#define LOOP_DELAY            1000
+#define LOOP_DELAY            0
 #define SAMPS_PER_MODE        20
 
 // ???
@@ -115,7 +115,7 @@ int main(void)
     pkt.length = 0;
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
-    uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, RANGE_REQ };
+    uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, SOUND_RANGE_REQ };
     PRINTF("In main\n");
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
@@ -123,13 +123,11 @@ int main(void)
     /* misc */
     int exit = 0;
     osEvent evt;
-    const char* input;
     range_params_t params;
     range_data_t* time_diffs;
     // struct range_params rparams; ???
 
     int i = 0;
-    int j = 0;
 
     while(1)
     {
@@ -235,7 +233,7 @@ int main(void)
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
 
-                        if(recv_hdr.pkt_type == RANGE_PKT) 
+                        if(recv_hdr.pkt_type == SOUND_RANGE_DONE) 
                         {
                             PRINTF("main_thr: received range pkt\n");
                             time_diffs = (range_data_t *)uart_pkt_get_data(buf->data, buf->length);
@@ -245,7 +243,7 @@ int main(void)
                                     end_of_series = 1;
                                 }
                                 /* Displaying results. */
-                                printf("TDoA = %lu\n", time_diffs->TDoA);
+                                printf("TDoA = %lu\n", time_diffs->tdoa);
                                 switch (params.ranging_mode)
                                 {
                                     case ONE_SENSOR_MODE:
@@ -257,20 +255,20 @@ int main(void)
                                         } 
                                         else
                                         {
-                                            printf("OD = %lu\n", time_diffs->OD);
+                                            printf("OD = %lu\n", time_diffs->orient_diff);
                                         }
                                         break;
                                     case XOR_SENSOR_MODE:
-                                        printf("OD = %lu\n", time_diffs->OD);
+                                        printf("OD = %lu\n", time_diffs->orient_diff);
                                         break;
                                 }
                                 time_diffs++;
                             }
                             end_of_series = 0;
-                        }
-                        else if(recv_hdr.pkt_type == RANGE_PKT_DONE){
-                            printf("All data recieved\n");
-                            exit = 1;
+                            if(recv_hdr.msg_complete == 1){
+                                printf("All data recieved\n");
+                                exit = 1;
+                            }
                         }
                         else
                         {
