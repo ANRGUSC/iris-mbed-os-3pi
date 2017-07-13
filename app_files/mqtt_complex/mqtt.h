@@ -57,6 +57,36 @@
 #include "uart_pkt.h"
 #include "main-conf.h"   
 
+
+/**
+ * In our structure the mqtt data section is used to controlling one node's operation from another.
+ * Towards this goal, we have subdivided the data section into two main subblocks
+ *              ||================||===========================||
+ *              || MQTT Data Type ||     MQTT Data value       ||
+ *              ||================||===========================||
+ * Now, if the data type is NORM_DATA, the data value is the actual DATA
+ *                  ||===========||========================||
+ *                  || NORM_DATA || Actual Data to publish ||
+ *                  ||===========||========================||
+ *                  
+ * If, the data type is SUB_CMD, then the data value is the TOPIC to subscibe to.
+ *                  ||===========||========================||
+ *                  || SUB_CMD   || Topic to Subscribe to  ||
+ *                  ||===========||========================||
+ *                  
+ * Lastly, if the data type is PUB_CMD, the data value is actually a bit complex.
+ * In this formulation the dthe structure of the PUB_CMD is as follows.
+ *        ||=========||==================|================|=================||
+ *        || PUB_CMD || PUB Topic Length | PUB Topic name | Data to publish ||
+ *        ||=========||==================|================|=================||
+ *        
+ * Here, the PUB Topic Length is represents the number of bytes used to repersent the TOPIC to use for publishing.
+ * PUB Topic name represents tge TOPIC to puslish to.
+ * Data to publish is actually the type of data to be published. For example say temperature_sensor data.
+ * 
+ */
+
+
 /**
  * Structure used by the mqtt to communicate data/commands
  */
