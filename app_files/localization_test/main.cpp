@@ -95,6 +95,8 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 //     uint32_t ranging_type_data;
 //     // add more options in the future?
 // };
+// 
+
 
 int main(void)
 {
@@ -243,24 +245,28 @@ int main(void)
                                     end_of_series = 1;
                                 }
                                 /* Displaying results. */
-                                printf("TDoA = %lu\n", time_diffs->tdoa);
-                                switch (params.ranging_mode)
-                                {
-                                    case ONE_SENSOR_MODE:
-                                        break;
-                                    case TWO_SENSOR_MODE:
-                                        if(time_diffs->error != 0)
-                                        {
-                                            printf("Missed pin %lu\n", time_diffs->error);
-                                        } 
-                                        else
-                                        {
+                                if(time_diff->tdoa > 0){
+                                    printf("TDoA = %lu\n", time_diffs->tdoa);
+                                    switch (params.ranging_mode)
+                                    {
+                                        case ONE_SENSOR_MODE:
+                                            break;
+                                        case TWO_SENSOR_MODE:
+                                            if(time_diffs->error != 0)
+                                            {
+                                                printf("Missed pin %lu\n", time_diffs->error);
+                                            } 
+                                            else
+                                            {
+                                                printf("OD = %lu\n", time_diffs->orient_diff);
+                                            }
+                                            break;
+                                        case XOR_SENSOR_MODE:
                                             printf("OD = %lu\n", time_diffs->orient_diff);
-                                        }
-                                        break;
-                                    case XOR_SENSOR_MODE:
-                                        printf("OD = %lu\n", time_diffs->orient_diff);
-                                        break;
+                                            break;
+                                    }
+                                } else{
+                                `    printf("Ultrsnd Ping missed #1\n");
                                 }
                                 time_diffs++;
                             }
