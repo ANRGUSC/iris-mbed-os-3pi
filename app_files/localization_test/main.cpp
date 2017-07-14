@@ -63,6 +63,7 @@
 #include "fcs16.h"
 #include "uart_pkt.h"
 #include "main-conf.h"
+#include "data_conv.h"
 
 #define DEBUG   0
 
@@ -85,7 +86,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define PKT_FROM_MAIN_THR   0
 
 #define LOOP_DELAY            0
-#define SAMPS_PER_MODE        20
+#define SAMPS_PER_MODE        1
 
 // ???
 // // mbed will pass an instance of this to the openmote.
@@ -95,7 +96,6 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 //     uint32_t ranging_type_data;
 //     // add more options in the future?
 // };
-// 
 
 
 int main(void)
@@ -127,34 +127,44 @@ int main(void)
     osEvent evt;
     range_params_t params;
     range_data_t* time_diffs;
+
+    int tdoa_a;
+    int tdoa_b;
+    float dist_a;
+    float dist_b;
+    float dist;
+    float angle;
+
     // struct range_params rparams; ???
 
     int i = 0;
 
     while(1)
     {
-        /** 
+       
+        i%=3;
+        
+        // if(i == 0){                
+        //     printf("******************ONE SENSOR MODE*******************\n");
+        //     params.ranging_mode = ONE_SENSOR_MODE;                
+        // } 
+        // else if(i == 1){                
+        //     printf("******************TWO SENSOR MODE*******************\n");
+        //     params.ranging_mode = TWO_SENSOR_MODE;            
+        // } 
+        // else if(i == 2){                
+        //     printf("******************XOR SENSOR MODE*******************\n");
+        //     params.ranging_mode = XOR_SENSOR_MODE;                
+        // }
+
+         /** 
          * Change this as needed.
          * Options:
          *      ONE_SENSOR_MODE for one sensor.
          *      TWO_SENSOR_MODE for two sensors.
          *      XOR_SENSOR_MODE for two sensors XOR'd together.
          */
-        // ranging_type = TWO_SENSOR_MODE;
-        i%=3;
-        
-        if(i == 0){                
-            printf("******************ONE SENSOR MODE*******************\n");
-            params.ranging_mode = ONE_SENSOR_MODE;                
-        } 
-        else if(i == 1){                
-            printf("******************TWO SENSOR MODE*******************\n");
-            params.ranging_mode = TWO_SENSOR_MODE;            
-        } 
-        else if(i == 2){                
-            printf("******************XOR SENSOR MODE*******************\n");
-            params.ranging_mode = XOR_SENSOR_MODE;                
-        }
+         params.ranging_mode = TWO_SENSOR_MODE;  
     
         i++;
 
@@ -240,16 +250,22 @@ int main(void)
                             PRINTF("main_thr: received range pkt\n");
                             time_diffs = (range_data_t *)uart_pkt_get_data(buf->data, buf->length);
                             while(!end_of_series){
+                                tdoa_a = 0;
+                                tdoa_b = 0;
                                 if(time_diffs->error > 2){
                                     time_diffs->error-=10;
                                     end_of_series = 1;
                                 }
                                 /* Displaying results. */
-                                if(time_diff->tdoa > 0){
-                                    printf("TDoA = %lu\n", time_diffs->tdoa);
+                                if(time_diffs->tdoa > 0){
+                                    tdoa_a = time_diffs->tdoa;
+                                    dist_a = tdoa_to_dist(tdoa_a);
+                                    //printf("TDoA = %lu\n", tdoa_a);
+
                                     switch (params.ranging_mode)
                                     {
                                         case ONE_SENSOR_MODE:
+                                            dist = dist_a;
                                             break;
                                         case TWO_SENSOR_MODE:
                                             if(time_diffs->error != 0)
@@ -258,15 +274,32 @@ int main(void)
                                             } 
                                             else
                                             {
-                                                printf("OD = %lu\n", time_diffs->orient_diff);
+                                                tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
+                                                dist_b = tdoa_to_dist(tdoa_b);
+                                                //printf("OD = %lu\n", tdoa_b);
                                             }
                                             break;
                                         case XOR_SENSOR_MODE:
-                                            printf("OD = %lu\n", time_diffs->orient_diff);
+                                            tdoa_b = tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
+                                            dist_b = tdoa_to_dist(tdoa_b);
+                                            //printf("OD = %lu\n", tdoa_b);
                                             break;
                                     }
+
+                                    //printf("\n******************************\n", dist);
+                                    if(tdoa_b != 0){
+                                        dist = calc_x(dist_a, dist_b);
+                                        angle = od_to_angle(dist_a, dist_b);
+                                        printf("Distance: %.2f\n", dist);
+                                        printf("Angle : %.2f\n", angle);
+                                    }
+                                    else{
+                                        printf("Distance: %.2f\n", dist);
+                                    }
+                                     printf("******************************\n", dist);
+
                                 } else{
-                                `    printf("Ultrsnd Ping missed #1\n");
+                                    printf("Ultrsnd Ping missed\n");
                                 }
                                 time_diffs++;
                             }
