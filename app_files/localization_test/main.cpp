@@ -6,8 +6,8 @@
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Jason A. Tran
- * Pradipta Ghosh
+ * Yutong Gu
+ * Richard Kim
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,18 +37,26 @@
 
 /**
  * @file        main.cpp
- * @brief       Full-duplex hdlc test using a single thread (run on both sides).
+ * @brief       Ultrasound ranging test using packets passed over hdlc
+ * 
+ * In this test, the mbed will repeated send request packets to a dedicated 
+ * thread for ranging on the openmote requesting range data. Therequest packets
+ * sent will contain information on the mode to range with and number of 
+ * samples to take at once. Available modes are ONE_SENSOR_MODE, 
+ * TWO_SENSOR_MODE, and XOR_SENSOR_MODE. The ranging thread will automatically 
+ * split the data into packets to send to the openmote. The mbed will alternate 
+ * through all three options or repeatedly use one, taking a specified sample 
+ * number SAMPS_PER_MODE, at a delay of LOOP_DELAY. The fastest this system can
+ * range at is 100 ms and this is due to the hardware limitations of the 
+ * ultrasound sensors.
+ * 
+ * Corresponding openmote program can be found in the 
+ * examples/mbed_riot/tests/localization_test.c folder in anrg-riot repository 
+ * on the localization branch.
  *
  * @author      Yutong Gu <yutonggu@usc.edu>
  * 
- * In this test, the mbed will repeated send packets to a dedicated thread for 
- * ranging on the openmote requesting range data. The packets sent will contain 
- * information on the mode to range with. Available options are ONE_SENSOR_MODE, 
- * TWO_SENSOR_MODE, and XOR_SENSOR_MODE. The loop will alternate through all 
- * three options, taking a specified sample number, SAMPS_PER_MODE, at a delay 
- * of LOOP_DELAY. The fastest this system can range at is 100 ms and this is due 
- * to the hardware limitations of the ultrasound sensors.
- * 
+
  *
  **/
 
@@ -85,18 +93,15 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
 
+#define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
+
 #define LOOP_DELAY            0
-#define SAMPS_PER_MODE        1
+#define SAMPS_PER_MODE        11
 
-// ???
-// // mbed will pass an instance of this to the openmote.
-// typedef struct range_params
-// {
-//     uint16_t runs = 10;
-//     uint32_t ranging_type_data;
-//     // add more options in the future?
-// };
-
+typedef struct __attribute__((packed)) {
+    uint8_t         last_pkt;      
+    range_data_t    data[DATA_PER_PKT];                  
+} range_hdr_t;
 
 int main(void)
 {
@@ -127,6 +132,7 @@ int main(void)
     osEvent evt;
     range_params_t params;
     range_data_t* time_diffs;
+    range_hdr_t* range_hdr;
 
     int tdoa_a;
     int tdoa_b;
@@ -138,6 +144,8 @@ int main(void)
     // struct range_params rparams; ???
 
     int i = 0;
+    int j = 0;
+    int data_per_pkt;
 
     while(1)
     {
@@ -164,7 +172,7 @@ int main(void)
          *      TWO_SENSOR_MODE for two sensors.
          *      XOR_SENSOR_MODE for two sensors XOR'd together.
          */
-         params.ranging_mode = TWO_SENSOR_MODE;  
+        params.ranging_mode = TWO_SENSOR_MODE;  
     
         i++;
 
@@ -248,19 +256,22 @@ int main(void)
                         if(recv_hdr.pkt_type == SOUND_RANGE_DONE) 
                         {
                             PRINTF("main_thr: received range pkt\n");
-                            time_diffs = (range_data_t *)uart_pkt_get_data(buf->data, buf->length);
-                            while(!end_of_series){
+                            range_hdr = (range_hdr_t *)uart_pkt_get_data(buf->data, buf->length);
+                            time_diffs = (range_data_t *)range_hdr->data;
+                            
+                            data_per_pkt = (buf->length - sizeof(uart_pkt_hdr_t) - sizeof(uint8_t))/sizeof(range_data_t);
+                            PRINTF("There should be %d ranges in this pkt\n",data_per_pkt);
+
+                            for(j = 0; j < data_per_pkt; j++){
+                                PRINTF ("%d\n:", j);
                                 tdoa_a = 0;
                                 tdoa_b = 0;
-                                if(time_diffs->error > 2){
-                                    time_diffs->error-=10;
-                                    end_of_series = 1;
-                                }
                                 /* Displaying results. */
+
                                 if(time_diffs->tdoa > 0){
                                     tdoa_a = time_diffs->tdoa;
                                     dist_a = tdoa_to_dist(tdoa_a);
-                                    //printf("TDoA = %lu\n", tdoa_a);
+                                    printf("TDoA = %lu\n", tdoa_a);
 
                                     switch (params.ranging_mode)
                                     {
@@ -276,13 +287,13 @@ int main(void)
                                             {
                                                 tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
                                                 dist_b = tdoa_to_dist(tdoa_b);
-                                                //printf("OD = %lu\n", tdoa_b);
+                                                printf("OD = %lu\n", tdoa_b);
                                             }
                                             break;
                                         case XOR_SENSOR_MODE:
                                             tdoa_b = tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
                                             dist_b = tdoa_to_dist(tdoa_b);
-                                            //printf("OD = %lu\n", tdoa_b);
+                                            printf("OD = %lu\n", tdoa_b);
                                             break;
                                     }
 
@@ -304,7 +315,7 @@ int main(void)
                                 time_diffs++;
                             }
                             end_of_series = 0;
-                            if(recv_hdr.msg_complete == 1){
+                            if(range_hdr->last_pkt == 1){
                                 printf("All data recieved\n");
                                 exit = 1;
                             }
