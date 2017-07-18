@@ -171,16 +171,25 @@ void hdlc_unregister(hdlc_entry_t *entry);
  */
 int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, riot_to_mbed_t reply);
 /**
- * @brief      Builds a hdlc packet.
+ * @brief      Sends a hdlc packet.
  *
- * @param      pkt             The return packet
+ * @param      msg             The return packet
  * @param[in]  type            The hdlc msg type
- * @param[in]  sender_pid      The sender pid
  * @param      sender_mailbox  The sender mailbox
  * @param      ptr             The pointer to the actual data
  * 
  * @return     status
  */
-int build_hdlc_pkt(msg_t *msg, uint8_t type, osThreadId sender_pid,
+int send_hdlc_mail(msg_t *msg, uint8_t type,
                         Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, void *ptr);
+/**
+ * @brief      Sends a hdlc retry message.
+ *
+ * @param      msg             The hdlc message
+ * @param      sender_mailbox  The sender mailbox
+ *
+ * @return     status
+ */
+int send_hdlc_retry_mail(msg_t *msg, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox);
+
 #endif /* HDLC_H_ */

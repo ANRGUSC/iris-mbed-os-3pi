@@ -59,7 +59,7 @@
  * @param mqtt_send_pkt     pointer to the mqtt packet
  * @param pkt               pointer to the hdlc packet
  */
-void build_mqtt_pkt_pub(char topic[], char data[], uint16_t src_port,
+void build_mqtt_pkt_pub(char* topic, char* data, uint16_t src_port,
                                     mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt)
 {
     uart_pkt_hdr_t send_hdr = {0, 0, 0};

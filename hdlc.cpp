@@ -588,18 +588,17 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_init(osPriority priority)
 }
 
 /**
- * @brief      Builds a hdlc packet.
+ * @brief      Sends a hdlc packet.
  *
  * @param      pkt             The return packet
  * @param[in]  type            The hdlc msg type
- * @param[in]  sender_pid      The sender pid
  * @param      sender_mailbox  The sender mailbox
  * @param      ptr             The pointer to the actual data
  * 
  * @return     status
  */
 
-int build_hdlc_pkt(msg_t *msg, uint8_t type, osThreadId sender_pid,
+int send_hdlc_mail(msg_t *msg, uint8_t type,
                         Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, void *ptr)
 {
     msg = hdlc_mailbox.alloc();
@@ -607,8 +606,28 @@ int build_hdlc_pkt(msg_t *msg, uint8_t type, osThreadId sender_pid,
         return -1;
     msg->type = type;
     msg->content.ptr = ptr;
-    msg->sender_pid = sender_pid;
+    msg->sender_pid = osThreadGetId();
     msg->source_mailbox = sender_mailbox;
     hdlc_mailbox.put(msg);
+    return 1;
+}
+/**
+ * @brief      Sends a hdlc retry message.
+ *
+ * @param      msg             The hdlc message
+ * @param      sender_mailbox  The sender mailbox
+ *
+ * @return     status
+ */
+int send_hdlc_retry_mail(msg_t *msg, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox)
+{
+    msg = sender_mailbox->alloc();
+    if (msg == NULL) 
+        return -1;
+    msg->type = HDLC_RESP_RETRY_W_TIMEO;
+    msg->content.value = (uint32_t) RTRY_TIMEO_USEC;
+    msg->sender_pid = osThreadGetId();
+    msg->source_mailbox = sender_mailbox;
+    sender_mailbox->put(msg);
     return 1;
 }

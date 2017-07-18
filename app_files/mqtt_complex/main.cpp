@@ -92,40 +92,46 @@ bool mqtt_go = 0;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
-
+/**
+ * @brief      This is the MQTT thread on MBED
+ */
 void _mqtt_thread()
 {
-/* Initial Direction of the Antenna*/
+    int             pub_length;
+    char            mqtt_thread_frame_no = 0;
+    msg_t           *msg, *msg2;
+    char            send_data[HDLC_MAX_PKT_SIZE];
+    char            recv_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t      pkt;
+    pkt.data        = send_data;  
+    pkt.length      = 0;
 
-    char mqtt_thread_frame_no = 0;
-    msg_t *msg, *msg2;
-    char send_data[HDLC_MAX_PKT_SIZE];
-    char recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t pkt;
-    // void *rcv_data;
-    mqtt_pkt_t *mqtt_recv;
-    mqtt_pkt_t  mqtt_send;
-    mqtt_data_t mqtt_recv_data;
-
-    pkt.data = send_data;
-    char *test_str;
-    pkt.length = 0;
-    uart_pkt_hdr_t send_hdr = { 0, 0, 0};
-    hdlc_buf_t *buf;
-    uart_pkt_hdr_t recv_hdr;
+    mqtt_pkt_t      *mqtt_recv;
+    mqtt_pkt_t      mqtt_send;
+    mqtt_data_t     mqtt_recv_data;
+    char            *test_str;
+    
+    uart_pkt_hdr_t  send_hdr = { 0, 0, 0};
+    hdlc_buf_t      *buf;
+    uart_pkt_hdr_t  recv_hdr;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
-    int exit = 0;
-    hdlc_entry_t mqtt_thread = { NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox };
+    
+    int             exit = 0;
+    hdlc_entry_t    mqtt_thread = { NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox };
     hdlc_register(&mqtt_thread);
-    char test_pub[] = "This should be a pubbed";
+    
+    char            test_pub[] = "Hello world";
+    char            topic_pub[16];
+    char            data_pub[32];
 
-    osEvent evt;
+    osEvent         evt;
 
     /**
      * Check if the MQTT coneection is established by the openmote. If not,
-     * DO NOT Proceed further
+     * DO NOT Proceed further. The openmote sends a MQTT_GO msg once the mqtt connection is properly setup.
      */
+
     while(1)
     {
         evt = mqtt_thread_mailbox.get();
@@ -148,6 +154,7 @@ void _mqtt_thread()
             hdlc_pkt_release(buf);  
         }
     }
+
 
     while (1) 
     {
@@ -172,27 +179,11 @@ void _mqtt_thread()
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg->content.value/1000);
                         PRINTF("mqtt_thread: retry frame_no %d \n", mqtt_thread_frame_no);
-                        msg2 = hdlc_mailbox_ptr->alloc();
-                        if (msg2 == NULL) {
-                            Thread::wait(50);
-                            while (msg2 == NULL)
-                            {
-                                msg2 = mqtt_thread_mailbox.alloc();  
+                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt) < 0)
+                        {
+                            while (send_hdlc_retry_mail (msg2, &mqtt_thread_mailbox) < 0)
                                 Thread::wait(10);
-                            }
-                            msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
-                            msg2->sender_pid = osThreadGetId();
-                            msg2->source_mailbox = &mqtt_thread_mailbox;
-                            mqtt_thread_mailbox.put(msg2);
-                            mqtt_thread_mailbox.free(msg);
-                            break;
                         }
-                        msg2->type = HDLC_MSG_SND;
-                        msg2->content.ptr = &pkt;
-                        msg2->sender_pid = osThreadGetId();
-                        msg2->source_mailbox = &mqtt_thread_mailbox;
-                        hdlc_mailbox_ptr->put(msg2);
                         mqtt_thread_mailbox.free(msg);
                         break;
                     case HDLC_PKT_RDY:
@@ -214,15 +205,22 @@ void _mqtt_thread()
 
                                     case SUB_CMD:
                                         build_mqtt_pkt_sub(mqtt_recv_data.data, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        if (build_hdlc_pkt(msg, HDLC_MSG_SND, osThreadGetId(), &mqtt_thread_mailbox, (void*) &pkt))
+                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         else
                                             PRINTF("mqtt_thread: failed to send pkt no\n"); 
                                         break;
 
                                     case PUB_CMD:
-                                        build_mqtt_pkt_pub(TEST_TOPIC, test_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        if (build_hdlc_pkt(msg, HDLC_MSG_SND, osThreadGetId(), &mqtt_thread_mailbox, (void*) &pkt))
+                                        //second byte is the length of the topic 
+                                        pub_length = mqtt_recv_data.data[0] - '0';
+                                        memcpy(topic_pub, (mqtt_recv_data.data + 1), pub_length);
+                                        strcpy(data_pub, mqtt_recv_data.data + pub_length + 1);                             
+                                        topic_pub[pub_length]='\0';
+                                        PRINTF("The the topic_pub %s\n", topic_pub);
+                                        PRINTF("The data_pub %s\n", data_pub);                                 
+                                        build_mqtt_pkt_pub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
+                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         else
                                             PRINTF("mqtt_thread: failed to send pkt no\n"); 
@@ -267,119 +265,19 @@ void _mqtt_thread()
 
 int main(void)
 {
-    myled = 1;
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
-    msg_t *msg, *msg2;
-    char frame_no = 0;
-    char send_data[HDLC_MAX_PKT_SIZE];
-    char recv_data[HDLC_MAX_PKT_SIZE];
-    //mqtt recv data struct
-    mqtt_pkt_t *recv_mqtt;
-    hdlc_pkt_t pkt;
-    pkt.data = send_data;
-    pkt.length = 0;
-    hdlc_buf_t *buf;
-    uart_pkt_hdr_t recv_hdr;
-    uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, NULL_PKT_TYPE };
-    PRINTF("In main\n");
-    hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, &main_thr_mailbox };
-    hdlc_register(&main_thr);
-    Thread thr;
-    thr.start(_mqtt_thread);
-
-    int exit = 0;
-    osEvent evt;
+    Thread mqtt_thr;
+    mqtt_thr.start(_mqtt_thread);
+    
+    myled = 1;
     while(1)
     {
-        /*
-        myled=!myled;
-        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
-
-        pkt.data[UART_PKT_DATA_FIELD] = frame_no;
-        for(int i = UART_PKT_DATA_FIELD + 1; i < HDLC_MAX_PKT_SIZE; i++) {
-            pkt.data[i] = (char) ( rand() % 0x7E);
-        }
-
-        pkt.length = HDLC_MAX_PKT_SIZE;
-
-        //send pkt 
-        msg = hdlc_mailbox_ptr->alloc();
-        msg->type = HDLC_MSG_SND;
-        msg->content.ptr = &pkt;
-        msg->sender_pid = osThreadGetId();
-        msg->source_mailbox = &main_thr_mailbox;
-        hdlc_mailbox_ptr->put(msg);
-        */
-        while(1)
-        {
-            PRINTF("In main thread");
-            myled=!myled;
-            evt = main_thr_mailbox.get();
-
-            if (evt.status == osEventMail) 
-            {
-                PRINTF("Got something");
-                msg = (msg_t*)evt.value.p;
-
-                switch (msg->type)
-                {
-                    case HDLC_RESP_SND_SUCC:
-                        PRINTF("main_thread: sent frame_no %d!\n", frame_no);
-                        exit = 1;
-                        main_thr_mailbox.free(msg);
-                        break;
-                    case HDLC_RESP_RETRY_W_TIMEO:
-                        Thread::wait(msg->content.value/1000);
-                        PRINTF("main_thr: retry frame_no %d \n", frame_no);
-                        msg2 = hdlc_mailbox_ptr->alloc();
-                        if (msg2 == NULL) {
-                            // Thread::wait(50);
-                            while(msg2==NULL)
-                            {
-                                msg2 = main_thr_mailbox.alloc();  
-                                Thread::wait(10);
-                            }
-                            msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
-                            msg2->sender_pid = osThreadGetId();
-                            msg2->source_mailbox = &main_thr_mailbox;
-                            main_thr_mailbox.put(msg2);
-                            main_thr_mailbox.free(msg);
-                            break;
-                        }
-                        msg2->type = HDLC_MSG_SND;
-                        msg2->content.ptr = &pkt;
-                        msg2->sender_pid = osThreadGetId();
-                        msg2->source_mailbox = &main_thr_mailbox;
-                        hdlc_mailbox_ptr->put(msg2);
-                        main_thr_mailbox.free(msg);
-                        break;
-                    case HDLC_PKT_RDY:
-                        buf = (hdlc_buf_t *)msg->content.ptr;   
-                        uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                        
-                        main_thr_mailbox.free(msg);
-                        hdlc_pkt_release(buf);
-                        break;
-                    default:
-                        main_thr_mailbox.free(msg);
-                        /* error */
-                        //LED3_ON;
-                        break;
-                }
-            }    
-            if(exit) {
-                exit = 0;
-                break;
-            }
-        }
-
-        frame_no++;
-        Thread::wait(100);
-
+        myled =! myled;
+        Thread::wait(9000);
     }
+
     PRINTF("Reached Exit");
     /* should be never reached */
     return 0;
