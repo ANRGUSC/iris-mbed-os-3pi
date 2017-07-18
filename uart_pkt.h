@@ -47,8 +47,19 @@
 #ifndef UART_PKT_H_
 #define UART_PKT_H_
 
-#define UART_PKT_HDR_LEN            5
-#define UART_PKT_TYPE_FIELD         4
+/**
+ * To include app specific parameter values
+ */
+#include "main-conf.h"
+
+#ifndef UART_PKT_HDR_LEN
+    #define UART_PKT_HDR_LEN            5
+#endif
+
+#ifndef UART_PKT_TYPE_FIELD
+    #define UART_PKT_TYPE_FIELD         4
+#endif
+
 #define UART_PKT_DATA_FIELD         UART_PKT_HDR_LEN
 
 typedef struct __attribute__((packed)) {
