@@ -212,7 +212,6 @@ void _mqtt_thread()
                                         break;
 
                                     case PUB_CMD:
-                                        //second byte is the length of the topic 
                                         pub_length = mqtt_recv_data.data[0] - '0';
                                         memcpy(topic_pub, (mqtt_recv_data.data + 1), pub_length);
                                         strcpy(data_pub, mqtt_recv_data.data + pub_length + 1);                             
