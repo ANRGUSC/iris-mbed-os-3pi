@@ -225,7 +225,6 @@ void _mqtt_thread()
                                         break;
 
                                     case PUB_CMD:
-                                        //second byte is the length of the topic 
                                         pub_length = mqtt_recv_data.data[0] - '0';
                                         while (mqtt_recv_data.data[i+1]!='\0')
                                         {
