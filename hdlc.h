@@ -60,12 +60,30 @@
 
 
 /**
+ * Define your custom parameter values under "hdlc_custom.h" header file
+ */
+#include "main-conf.h"
+
+
+/**
  * The follwing macros define the speed of operation. 
  */
-#define RTRY_TIMEO_USEC         100000
-#define RETRANSMIT_TIMEO_USEC   50000
-#define HDLC_MAX_PKT_SIZE       64
-#define HDLC_MAILBOX_SIZE       100 
+
+#ifndef RTRY_TIMEO_USEC
+    #define RTRY_TIMEO_USEC         100000
+#endif
+
+#ifndef RETRANSMIT_TIMEO_USEC
+    #define RETRANSMIT_TIMEO_USEC   50000
+#endif
+
+#ifndef HDLC_MAX_PKT_SIZE
+    #define HDLC_MAX_PKT_SIZE       64
+#endif
+
+#ifndef HDLC_MAILBOX_SIZE
+    #define HDLC_MAILBOX_SIZE       100 
+#endif
 
 /**
  *  This structure is used for the hdlc packets
