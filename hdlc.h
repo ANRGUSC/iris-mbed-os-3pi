@@ -62,9 +62,8 @@
 /**
  * Define your custom parameter values under "hdlc_custom.h" header file
  */
-#ifdef HDLC_CUSTOM_H_
-    #include "hdlc_custom.h"
-#endif
+#include "main-conf.h"
+
 
 /**
  * The follwing macros define the speed of operation. 
