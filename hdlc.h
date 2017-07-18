@@ -58,14 +58,37 @@
 #include "mbed.h"
 #include "uart_pkt.h"
 
+#ifdef HDLC_CUSTOM_H_
+    #include "hdlc_custom.h"
+#endif
 
 /**
  * The follwing macros define the speed of operation. 
  */
-#define RTRY_TIMEO_USEC         100000
-#define RETRANSMIT_TIMEO_USEC   50000
-#define HDLC_MAX_PKT_SIZE       64
-#define HDLC_MAILBOX_SIZE       100 
+
+#ifdef RTRY_TIMEO_USEC_CUSTOM
+    #define RTRY_TIMEO_USEC         RTRY_TIMEO_USEC_CUSTOM
+#else
+    #define RTRY_TIMEO_USEC         100000
+#endif
+
+#ifdef RETRANSMIT_TIMEO_USEC_CUSTOM
+    #define RETRANSMIT_TIMEO_USEC   RETRANSMIT_TIMEO_USEC_CUSTOM
+#else
+    #define RETRANSMIT_TIMEO_USEC   50000
+#endif
+
+#ifdef HDLC_MAX_PKT_SIZE_CUSTOM
+    #define HDLC_MAX_PKT_SIZE       HDLC_MAX_PKT_SIZE_CUSTOM
+#else
+    #define HDLC_MAX_PKT_SIZE       64
+#endif
+
+#ifdef HDLC_MAILBOX_SIZE_CUSTOM
+    #define HDLC_MAILBOX_SIZE       HDLC_MAILBOX_SIZE_CUSTOM 
+#else
+    #define HDLC_MAILBOX_SIZE       100 
+#endif
 
 /**
  *  This structure is used for the hdlc packets
