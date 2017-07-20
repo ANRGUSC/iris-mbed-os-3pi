@@ -39,7 +39,6 @@
 
 #include <math.h>
 
-
 /**
  * @brief      This function converts the raw TDoA value to a distance
  *
