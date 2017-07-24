@@ -69,4 +69,3 @@ typedef struct __attribute__((packed)){
 } range_params_t;
 
 #endif
-
