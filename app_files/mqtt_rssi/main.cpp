@@ -37,12 +37,11 @@
 
 /**
  * @file        main.cpp
- * @brief       Full-duplex hdlc with mqtt.
+ * @brief       Full-duplex hdlc test using a single thread (run on both sides).
  *
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
  * @author      Daniel Dsouza <dmdsouza@usc.edu>
  * 
- *
  */
 
 #include "mbed.h"
@@ -252,14 +251,93 @@ int main(void)
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
+    msg_t *msg, *msg2;
+    char frame_no = 0;
+    char send_data[HDLC_MAX_PKT_SIZE];
+    char recv_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t pkt;
+    pkt.data = send_data;
+    pkt.length = 0;
+    int8_t rssi_value;
+    hdlc_buf_t *buf;
+    uart_pkt_hdr_t recv_hdr;
+    uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, RSSI_SCAN_STOPPED };
+    
+    hdlc_entry_t main_thr = { NULL, RSSI_HDLC_DUMP_PORT, &main_thr_mailbox };
+    hdlc_register(&main_thr);
+
     Thread mqtt_thr;
     mqtt_thr.start(_mqtt_thread);
     
+    int             exit = 0;
+
+    osEvent         evt;
     myled = 1;
-    while(1)
+
+    while (1) 
     {
+        // PRINTF("In mqtt_thread");
         myled =! myled;
-        Thread::wait(9000);
+        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
+        pkt.length = HDLC_MAX_PKT_SIZE;        
+
+        while(1)
+        {
+            evt = main_thr_mailbox.get();
+            if (evt.status == osEventMail) 
+            {
+                msg = (msg_t*)evt.value.p;
+                switch (msg->type)
+                {
+                    case HDLC_RESP_SND_SUCC:
+                        PRINTF("main_thread: sent frame_no %d!\n", frame_no);
+                        exit = 1;
+                        main_thr_mailbox.free(msg);
+                        break;    
+                    case HDLC_RESP_RETRY_W_TIMEO:
+                        Thread::wait(msg->content.value/1000);
+                        PRINTF("main_thread: retry frame_no %d \n", frame_no);
+                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt) < 0)
+                        {
+                            while (send_hdlc_retry_mail (msg2, &main_thr_mailbox) < 0)
+                                Thread::wait(10);
+                        }
+                        main_thr_mailbox.free(msg);
+                        break;
+                    case HDLC_PKT_RDY:
+
+                        buf = (hdlc_buf_t *)msg->content.ptr;   
+                        uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                        switch (recv_hdr.pkt_type)
+                        {
+                            case RSSI_DATA_PKT:   
+                                rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
+                                PRINTF("RSSI is %d\n", rssi_value);
+                                // put_rssi((float)value - 73);                             
+                                // printf("%s\n", );
+                            default:
+                                main_thr_mailbox.free(msg);
+                                /* error */
+                                break;
+
+                        }
+                        main_thr_mailbox.free(msg);
+                        hdlc_pkt_release(buf);     
+                        break;
+                    default:
+                        main_thr_mailbox.free(msg);
+                        /* error */
+                        break;
+                }
+            }    
+            if(exit) {
+                exit = 0;
+                break;
+            }
+        }
+
+        frame_no++;
+        Thread::wait(100);
     }
 
     PRINTF("Reached Exit");
