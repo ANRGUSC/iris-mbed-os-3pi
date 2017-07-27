@@ -107,6 +107,10 @@ void _mqtt_thread()
     char            test_pub[] = "Hello world";
     char            topic_pub[16];
     char            data_pub[32];
+    int             len_clients=0;
+    char            clients[3][8];
+    int             count=0;
+
 
     osEvent         evt;
 
@@ -208,6 +212,23 @@ void _mqtt_thread()
                                         else
                                             PRINTF("mqtt_thread: failed to send pkt no\n"); 
                                         break;
+                                    case LEN_CLIENTS_LIST:
+                                        len_clients=mqtt_recv_data.data[0] - '0';
+                                        PRINTF("The length of the clients list is %d \n",len_clients);
+                                        break;
+                                    case GET_CLIENTS:
+                                        if (len_clients!=0){
+                                            strcpy(clients[count], mqtt_recv_data.data);  
+                                            PRINTF("The value of the client is %s\n", clients[count]);
+                                            count++; 
+                                            len_clients=len_clients-1;                                           
+                                        }
+                                        if (len_clients==0){
+                                            count=0;
+                                        }
+                                        
+
+
                                 }
                                 // Mbed send a pub message to the broker                        
                                 break;
@@ -258,12 +279,13 @@ int main(void)
     hdlc_pkt_t pkt;
     pkt.data = send_data;
     pkt.length = 0;
-    int8_t rssi_value;
+    uint8_t rssi_value;
+    char rssi_str_value;
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
     uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, RSSI_SCAN_STOPPED };
     
-    hdlc_entry_t main_thr = { NULL, RSSI_HDLC_DUMP_PORT, &main_thr_mailbox };
+    hdlc_entry_t main_thr = { NULL, RSSI_MBED_DUMP_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
 
     Thread mqtt_thr;
@@ -310,9 +332,12 @@ int main(void)
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
                         switch (recv_hdr.pkt_type)
                         {
-                            case RSSI_DATA_PKT:   
+                            case RSSI_DATA_PKT:                                 
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 PRINTF("RSSI is %d\n", rssi_value);
+
+
+                                                               
                                 // put_rssi((float)value - 73);                             
                                 // printf("%s\n", );
                             default:

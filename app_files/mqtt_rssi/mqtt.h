@@ -101,7 +101,9 @@ typedef struct __attribute__((packed)){
 typedef enum {
     NORM_DATA             = 0,
     SUB_CMD               = 1,
-    PUB_CMD               = 2
+    PUB_CMD               = 2, 
+    LEN_CLIENTS_LIST	  = 3,
+    GET_CLIENTS			  = 4		
 } type_mqtt_data_t;
 
 /**
