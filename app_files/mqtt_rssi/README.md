@@ -11,9 +11,8 @@ If it is SET, then it is okay to use mqtt communication.
 
 [border router link](https://github.com/ANRGUSC/anrg-riot/tree/develop/examples/emcute_border_router_3pi)
 
-##Setup mqtt_complex on the Openmote
-
-The example mqtt_complex should be running on the riot side for its proper functioning.
+##Setup MQTT_HDLC on the Openmote
+The example MQTT_HDLC should be running on the riot side for its proper functioning.
 
 ##Set up the MQTT_SN broker
 
