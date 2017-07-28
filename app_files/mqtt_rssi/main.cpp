@@ -108,9 +108,9 @@ void _mqtt_thread()
     char            topic_pub[16];
     char            data_pub[32];
     int             len_clients=0;
-    char            clients[3][8];
+    char            clients[2][8];    
     int             count=0;
-
+    char *node_ID;
 
     osEvent         evt;
 
@@ -224,11 +224,12 @@ void _mqtt_thread()
                                             len_clients=len_clients-1;                                           
                                         }
                                         if (len_clients==0){
+                                            for(int i=0;i<count;i++){
+                                                printf("The clients list %s\n",clients[i]);                                                
+                                            }
                                             count=0;
                                         }
-                                        
-
-
+                                        break;
                                 }
                                 // Mbed send a pub message to the broker                        
                                 break;
@@ -239,6 +240,15 @@ void _mqtt_thread()
                             case MQTT_PUB_ACK:
                                 PRINTF("mqtt_thread: PUB ACK message received\n");
                                 break;
+                            case HWADDR_GET:
+                                PRINTF("mqtt_thread: HWADDR received\n");
+                                node_ID = (char *)uart_pkt_get_data(buf->data,buf->length);
+                                PRINTF("mqtt_thread: %s\n",node_ID);    
+                                break;                   
+
+                                
+
+
                             default:
                                 mqtt_thread_mailbox.free(msg);
                                 /* error */
@@ -279,7 +289,7 @@ int main(void)
     hdlc_pkt_t pkt;
     pkt.data = send_data;
     pkt.length = 0;
-    uint8_t rssi_value;
+    int8_t rssi_value;
     char rssi_str_value;
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
@@ -334,10 +344,8 @@ int main(void)
                         {
                             case RSSI_DATA_PKT:                                 
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
-                                PRINTF("RSSI is %d\n", rssi_value);
-
-
-                                                               
+                                rssi_value =rssi_value-73;
+                                PRINTF("RSSI is %d\n", rssi_value);                                                               
                                 // put_rssi((float)value - 73);                             
                                 // printf("%s\n", );
                             default:
