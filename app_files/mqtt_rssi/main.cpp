@@ -217,18 +217,15 @@ void _mqtt_thread()
                                         PRINTF("The length of the clients list is %d \n",len_clients);
                                         break;
                                     case GET_CLIENTS:
-                                        if (len_clients!=0){
+                                        if (len_clients != 0){
                                             strcpy(clients[count], mqtt_recv_data.data);  
                                             PRINTF("The value of the client is %s\n", clients[count]);
-                                            count++; 
-                                            len_clients=len_clients-1;                                           
+                                            count ++; 
+                                            len_clients --;                                           
                                         }
-                                        if (len_clients==0){
+                                        if (len_clients == 0){
                                             count=0;
                                         }
-                                        
-
-
                                 }
                                 // Mbed send a pub message to the broker                        
                                 break;
@@ -272,23 +269,23 @@ int main(void)
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
-    msg_t *msg, *msg2;
-    char frame_no = 0;
-    char send_data[HDLC_MAX_PKT_SIZE];
-    char recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t pkt;
-    pkt.data = send_data;
-    pkt.length = 0;
-    uint8_t rssi_value;
-    char rssi_str_value;
-    hdlc_buf_t *buf;
-    uart_pkt_hdr_t recv_hdr;
-    uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, RSSI_SCAN_STOPPED };
+    msg_t           *msg, *msg2;
+    char            frame_no = 0;
+    char            send_data[HDLC_MAX_PKT_SIZE];
+    char            recv_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t      pkt;
+    pkt.data        = send_data;
+    pkt.length      = 0;
+    uint8_t         rssi_value;
+    char            rssi_str_value;
+    hdlc_buf_t      *buf;
+    uart_pkt_hdr_t  recv_hdr;
+    uart_pkt_hdr_t  send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, RSSI_SCAN_STOPPED };
     
-    hdlc_entry_t main_thr = { NULL, RSSI_MBED_DUMP_PORT, &main_thr_mailbox };
+    hdlc_entry_t    main_thr = { NULL, RSSI_MBED_DUMP_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
 
-    Thread mqtt_thr;
+    Thread          mqtt_thr;
     mqtt_thr.start(_mqtt_thread);
     
     int             exit = 0;
@@ -316,6 +313,7 @@ int main(void)
                         exit = 1;
                         main_thr_mailbox.free(msg);
                         break;    
+
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg->content.value/1000);
                         PRINTF("main_thread: retry frame_no %d \n", frame_no);
@@ -326,8 +324,8 @@ int main(void)
                         }
                         main_thr_mailbox.free(msg);
                         break;
-                    case HDLC_PKT_RDY:
 
+                    case HDLC_PKT_RDY:
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
                         switch (recv_hdr.pkt_type)
@@ -335,16 +333,12 @@ int main(void)
                             case RSSI_DATA_PKT:                                 
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 PRINTF("RSSI is %d\n", rssi_value);
-
-
-                                                               
+                                break;                                                             
                                 // put_rssi((float)value - 73);                             
                                 // printf("%s\n", );
                             default:
-                                main_thr_mailbox.free(msg);
                                 /* error */
                                 break;
-
                         }
                         main_thr_mailbox.free(msg);
                         hdlc_pkt_release(buf);     
