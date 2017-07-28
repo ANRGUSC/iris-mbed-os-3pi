@@ -106,7 +106,8 @@ typedef enum  {
     MQTT_GO                 = 9,
     MQTT_PKT_TYPE           = 10,
     MQTT_SUB_ACK            = 11,
-    MQTT_PUB_ACK            = 12
+    MQTT_PUB_ACK            = 12,
+    HWADDR_GET              = 13
 } riot_to_mbed_t;
 
 /**
