@@ -75,11 +75,13 @@ DigitalOut                      myled(LED1);
 volatile bool                   mqtt_go = 0;
 m3pi                            m3pi;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
-Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_thr_mailbox;
 // volatile bool  go_flag = 0;
 /**
  * @brief      This is the MQTT thread on MBED
  */
+Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_thr_mailbox;
+
+
 void _mqtt_thread()
 {
     int             pub_length;
@@ -301,9 +303,9 @@ void _cont_thread()
                         cont_thr_mailbox.free(msg);
                         break;
                     case INTER_THREAD:
-                        sprintf(data_pub, "%f", sense_position_of_line);                                                         
+                        sprintf(data_pub, "%f", msg->content.line);                                                         
                         build_mqtt_pkt_pub(topic_pub, data_pub, CONT_THR_PORT, &mqtt_send, &pkt);
-                        PRINTF("_cont_thread: in the loop %s\n", mqtt_send.data);
+                        PRINTF("_cont_thread: sending update %s\n", mqtt_send.data);
                         if (send_hdlc_mail(msg, HDLC_MSG_SND, &cont_thr_mailbox, (void*) &pkt))
                             PRINTF("_cont_thread: sending pkt no %d \n", frame_no); 
                         else
@@ -333,6 +335,7 @@ int main(void)
    
     Thread mqtt_thr;
     mqtt_thr.start(_mqtt_thread);
+    msg_t *msg;
 
     Thread contr_thr;
     contr_thr.start(_cont_thread);
@@ -350,6 +353,7 @@ int main(void)
     
     m3pi.sensor_auto_calibrate();
     int countt = 0;
+    int countt1 = 0;
 
     while(!mqtt_go)
     {
@@ -367,22 +371,50 @@ int main(void)
         // Line is more than the threshold to the right, slow the left motor
         if (position_of_line > threshold) {
             countt = 0;
+            countt1 ++;
+
             m3pi.right_motor(speed);
             m3pi.left_motor(speed-correction);
+            PRINTF("main_thr: case 1\n");
+            if( countt1 == 1 ){
+                msg = cont_thr_mailbox.alloc(); 
+                msg->type = INTER_THREAD;
+                msg->content.line = position_of_line;
+                cont_thr_mailbox.put(msg);
+            }
             
         }
  
         // Line is more than 50% to the left, slow the right motor
         else if (position_of_line < -threshold) {
             countt = 0;
+            countt1 ++;
+
             m3pi.left_motor(speed);
             m3pi.right_motor(speed-correction);
+            PRINTF("main_thr: case 2\n");
+
+            if( countt1 == 1 ){
+                msg = cont_thr_mailbox.alloc(); 
+                msg->type = INTER_THREAD;
+                msg->content.line = position_of_line;
+                cont_thr_mailbox.put(msg);
+            }
         }
  
         // Line is in the middle
         else {
             m3pi.forward(speed);
             countt ++;
+            countt1 = 0;
+            if( countt == 1 ){
+                PRINTF("main_thr: case 3\n");
+
+                msg = cont_thr_mailbox.alloc(); 
+                msg->type = INTER_THREAD;
+                msg->content.line = position_of_line;
+                cont_thr_mailbox.put(msg);
+            }
         }
         // Thread::wait(10);    
     }

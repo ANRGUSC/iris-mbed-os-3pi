@@ -104,6 +104,7 @@ typedef struct {
     union {
         void *ptr;              /**< Pointer content field. */
         uint32_t value;         /**< Value content field. */
+        float line;
     } content;                  /**< Content of the message. */
 } msg_t;
 
