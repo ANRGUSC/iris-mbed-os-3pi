@@ -75,7 +75,7 @@
 #include "data_conv.h"
 #include "SerialRPCInterface.h"
 
-#define DEBUG   0   
+#define DEBUG   0 
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -281,50 +281,63 @@ void range_thread(){
                                 tdoa_b = 0;
                                 /* Displaying results. */
 
-                                if(time_diffs->tdoa > 0){
-                                    tdoa_a = time_diffs->tdoa;
-                                    dist_a = tdoa_to_dist(tdoa_a);
-                                    printf("TDoA = %lu\n", tdoa_a);
+                                if(time_diffs->status == RF_MISSED){
+                                    printf("RF Ping missed\n");
+                                    time_diffs++;
+                                    continue;
+                                }
+                                else if(time_diffs->status == ULTRSND_MISSED){
+                                    printf("Ultrsnd Ping missed\n");
+                                    time_diffs++;
+                                    continue;
+                                }
 
-                                    switch (params.ranging_mode)
-                                    {
-                                        case ONE_SENSOR_MODE:
-                                            dist = dist_a;
-                                            break;
-                                        case TWO_SENSOR_MODE:
-                                            if(time_diffs->error != 0)
-                                            {
-                                                printf("Missed pin %lu\n", time_diffs->error);
-                                            } 
-                                            else
-                                            {
-                                                tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                                                dist_b = tdoa_to_dist(tdoa_b);
-                                                printf("OD = %lu\n", tdoa_b);
-                                            }
-                                            break;
-                                        case XOR_SENSOR_MODE:
-                                            tdoa_b = tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
+                                tdoa_a = time_diffs->tdoa;
+                                dist_a = tdoa_to_dist(tdoa_a);
+                                printf("TDoA = %lu\n", tdoa_a);
+
+                                switch (params.ranging_mode)
+                                {
+                                    case ONE_SENSOR_MODE:
+                                        dist = dist_a;
+                                        break;
+                                    case TWO_SENSOR_MODE:
+                                        if(time_diffs->status > 2)
+                                        {
+                                            printf("Missed pin %lu\n", MISSED_PIN_UNMASK - time_diffs-> status); 
+                                        } 
+                                        else
+                                        {
+                                            tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
                                             dist_b = tdoa_to_dist(tdoa_b);
-                                            printf("OD = %lu\n", tdoa_b);
-                                            break;
-                                    }
+                                            printf("OD = %lu\n", time_diffs-> orient_diff);
+                                        }
+                                        break;
+                                    case XOR_SENSOR_MODE:
+                                        tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
+                                        dist_b = tdoa_to_dist(tdoa_b);
+                                        printf("OD = %lu\n", time_diffs-> orient_diff);
+                                        break;
+                                }
 
-                                    //printf("\n******************************\n", dist);
-                                    if(tdoa_b != 0){
-                                        dist = calc_x(dist_a, dist_b);
-                                        angle = od_to_angle(dist_a, dist_b);
-                                        printf("Distance: %.2f\n", dist);
-                                        printf("Angle : %.2f\n", angle);
+                                //printf("\n******************************\n", dist);
+                                if(tdoa_b != 0){
+                                    dist = calc_x(dist_a, dist_b);
+                                    if(time_diffs->status == 2){
+                                        angle = od_to_angle(dist_b, dist_a);
                                     }
                                     else{
-                                        printf("Distance: %.2f\n", dist);
+                                        angle = od_to_angle(dist_a, dist_b);
                                     }
-                                     printf("******************************\n");
-
-                                } else{
-                                    printf("Ultrsnd Ping missed\n");
+                                    printf("Distance: %.2f\n", dist);
+                                    printf("Angle : %.2f\n", angle);
                                 }
+                                else{
+                                    printf("Distance: %.2f\n", dist);
+                                }
+                                 printf("******************************\n");
+
+                                
                                 time_diffs++;
                             }
                             if(range_hdr->last_pkt == 1){
@@ -334,7 +347,7 @@ void range_thread(){
                         }
                         else
                         {
-                            printf("Range: recieved non-range pkt\n");
+                            printf("Range: recieved non-range pkt %d\n",recv_hdr.pkt_type);
                             exit = 1;
                         }
                         hdlc_pkt_release(buf);

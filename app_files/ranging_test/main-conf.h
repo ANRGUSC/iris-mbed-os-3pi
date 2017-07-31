@@ -39,6 +39,12 @@ the new uint16_t port number */
 
 #define RANGE_DATA_LEN    5
 
+#define MISSED_PIN_MASK     10
+#define MISSED_PIN_UNMASK   13
+
+#define RF_MISSED         20
+#define ULTRSND_MISSED    21
+
 /**
  * @brief Structure holding metrics measured by ultrasound ranging
  *
@@ -69,3 +75,4 @@ typedef struct __attribute__((packed)){
 } range_params_t;
 
 #endif
+

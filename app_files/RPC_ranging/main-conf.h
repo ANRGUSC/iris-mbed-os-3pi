@@ -39,19 +39,23 @@ the new uint16_t port number */
 
 #define RANGE_DATA_LEN    5
 
+#define MISSED_PIN_UNMASK   13
+#define RF_MISSED         20
+#define ULTRSND_MISSED    21
+
 /**
  * @brief Structure holding metrics measured by ultrasound ranging
  *
  * This structure is supposed to hold the Time Difference of Arrival
  * (TDoA), Orientation Differential (OD) between the TDoA of two sensors,
- * and any an error flag to indicate if a pin had missed a ping.
+ * and any an pin flag to indicate which pin came first and if a pin had missed a ping.
  *
  * It can be extended
  */
 typedef struct __attribute__((packed)){
     uint16_t tdoa; //time difference of arrival
     uint16_t orient_diff; //orientation differential
-    uint8_t error; //error message for if one sensor misses pings
+    uint8_t status; //pin flag to indicate which pin came first and if a pin had missed a ping
 } range_data_t;
 
 /**
@@ -69,4 +73,3 @@ typedef struct __attribute__((packed)){
 } range_params_t;
 
 #endif
-
