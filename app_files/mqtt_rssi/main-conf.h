@@ -6,8 +6,10 @@ the new uint16_t port number */
 
 
 /* RSSI dump thread port number */
-#define RSSI_DUMP_PORT              9000
+#define RSSI_RIOT_PORT              220
 #define RSSI_MBED_DUMP_PORT         9111
+#define PRIORITY_NODE				"0433ed4e"
+#define INTER_THREAD				0xaa
 
 
 #define GET_SET_RANGING_THR_PORT    9100
