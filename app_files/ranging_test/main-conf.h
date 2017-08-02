@@ -33,6 +33,7 @@ the new uint16_t port number */
 #define ONE_SENSOR_MODE       0x60 // 96
 #define TWO_SENSOR_MODE       0x61 // 97
 #define XOR_SENSOR_MODE       0x62 // 98
+#define OMNI_SENSOR_MODE      0x63 // 99
 
 #define RANGE_THR_START			0x63
 #define RANGE_THR_COMPLETE		0x64
