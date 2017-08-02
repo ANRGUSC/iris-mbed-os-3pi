@@ -319,7 +319,7 @@ void range_thread(){
                                         printf("OD = %lu\n", time_diffs-> orient_diff);
                                         break;
                                     case OMNI_SENSOR_MODE:
-                                        dist = dist_a;`
+                                        dist = dist_a;
                                         break;
                                 }
 
@@ -420,7 +420,7 @@ void range_RPC(Arguments* input, Reply* output){
             break;
         case 3:
             mode = OMNI_SENSOR_MODE;
-            printf("XOR_SENSOR_MODE:\n");
+            printf("OMNI_SENSOR_MODE:\n");
             break;
         default:
             printf("Invalid ranging mode entry\nValid entries are:\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\n");

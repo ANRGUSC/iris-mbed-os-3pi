@@ -170,8 +170,9 @@ int main(void)
          *      ONE_SENSOR_MODE for one sensor.
          *      TWO_SENSOR_MODE for two sensors.
          *      XOR_SENSOR_MODE for two sensors XOR'd together.
+          *     OMNI_SENSOR_MODE for omni_directional sensor system.
          */
-        params.ranging_mode = TWO_SENSOR_MODE;  
+        params.ranging_mode = OMNI_SENSOR_MODE;  
     
         i++;
 
@@ -304,6 +305,9 @@ int main(void)
                                         tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
                                         dist_b = tdoa_to_dist(tdoa_b);
                                         printf("OD = %lu\n", time_diffs-> orient_diff);
+                                        break;
+                                    case OMNI_SENSOR_MODE:
+                                        dist = dist_a;
                                         break;
                                 }
 

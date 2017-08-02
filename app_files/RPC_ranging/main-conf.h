@@ -24,10 +24,6 @@ the new uint16_t port number */
 
 #define ARREST_FOLLOWER_RANGE_THR_PORT  9300
 
-#define RANGE_REQ_FLAG      0x12
-#define RANGE_RDY_FLAG      0x34
-#define RANGE_GO_FLAG       0x56
-
 #define DEFAULT_ULTRASOUND_THRESH   25
 
 #define ONE_SENSOR_MODE       0x60 // 96
