@@ -72,7 +72,8 @@ Serial                          pc(USBTX,USBRX,115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
 bool mqtt_go = 0;
-int turn = 0;
+volatile int turn = 0;
+volatile int priochk = 0;
 m3pi m3pi;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
@@ -111,11 +112,13 @@ void _mqtt_thread()
     char            test_pub[] = "Hello world";
     char            topic_pub[16];
     char            data_pub[32];
+    char            data_rssi_pub[32];
     int             len_clients=0;
     //length is set to 9 because of the null terminator 
     char            clients[2][9];       
     int             count=0;
     char            *node_ID; 
+    char            node_new_ID[9];
     char            node_send_ID[9];      
                                 
 
@@ -182,12 +185,15 @@ void _mqtt_thread()
                         mqtt_thread_mailbox.free(msg);
                         break;
                     case INTER_THREAD:  
+                        turn=1;
                         PRINTF("******************\n"); 
                         PRINTF("4\n");  
                         PRINTF("******************\n");                      
-                        PRINTF("Pub message received\n");
+                        PRINTF("Pub message received\n");                        
+                        PRINTF("The node_new_ID is %s\n", node_new_ID);
                         strcpy(data_pub,"2");
-                        strcat(data_pub,node_ID);
+                        strcat(data_pub,node_new_ID);                       
+                        //error in the strcat                        
                         PRINTF("The data to be pubbed is %s\n", data_pub);
                         PRINTF("The topic is %s\n",TEST_TOPIC);
                         build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
@@ -196,9 +202,9 @@ void _mqtt_thread()
                         }
                         else{
                             PRINTF("mqtt_thread: failed to send pkt no\n");
-                        }                  
+                        }
                         
-
+                        
                         break;
 
                     case HDLC_PKT_RDY:
@@ -263,7 +269,7 @@ void _mqtt_thread()
                                             }
                                             if (strcmp(node_ID,PRIORITY_NODE)==0){
                                                 PRINTF("STARTING THE RSSI PING PONG\n");
-                                                turn =1;
+                                                priochk =1;
                                             }
                                             //send rssi_go message to the rssi thread
                                             msg2 = hdlc_mailbox_ptr->alloc();
@@ -285,7 +291,9 @@ void _mqtt_thread()
                                             count=0;
                                         }
                                         break;
-                                    case RSSI_SEND:
+                                    case RSSI_SEND: 
+                                        turn =1; 
+                                        priochk =1;                                      
                                         PRINTF("******************\n"); 
                                         PRINTF("6\n");  
                                         PRINTF("******************\n");
@@ -319,8 +327,8 @@ void _mqtt_thread()
                                         else{
                                             PRINTF("mqtt_thread: failed to send pkt no\n");
                                         }
-                                        PRINTF("REACHED the end of it\n");
-                                        
+                                        count=0;
+                                        PRINTF("REACHED the end of it\n");                                                                               
                                         //send rssi_send to the rssi thread in RIOT
                                         break;
                                 }                                                       
@@ -338,20 +346,24 @@ void _mqtt_thread()
                             case HWADDR_GET:
                                 PRINTF("mqtt_thread: HWADDR received\n");
                                 node_ID = (char *)uart_pkt_get_data(buf->data,buf->length);
-                                PRINTF("mqtt_thread: %s\n",node_ID); 
+                                memcpy(node_new_ID,node_ID,sizeof(node_new_ID));
+                                node_new_ID[8]='\0';
+                                
+                                PRINTF("the new node ID is %s\n", node_new_ID);
+                                PRINTF("mqtt_thread: %s\n",node_new_ID); 
                                 PRINTF("******************\n"); 
                                 PRINTF("1\n");  
                                 PRINTF("******************\n");
                                 break;  
-                            case RSSI_PUB:
+                            case RSSI_PUB:                                 
                                 PRINTF("******************\n"); 
                                 PRINTF("8\n");  
                                 PRINTF("******************\n");;
                                 PRINTF("Pub message received\n");
                                 strcpy(data_pub,"2");
-                                strcat(data_pub,node_ID);
+                                strcat(data_pub,node_new_ID);                                                                           
                                 PRINTF("The data to be pubbed is %s\n", data_pub);
-                                PRINTF("The topic is %s\n",TEST_TOPIC);
+                                PRINTF("The topic is %s\n",TEST_TOPIC);                               
                                 build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
                                 if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
                                     PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
@@ -359,6 +371,7 @@ void _mqtt_thread()
                                 else{
                                     PRINTF("mqtt_thread: failed to send pkt no\n");
                                 }
+                                break;
 
 
                             default:
@@ -405,6 +418,7 @@ int main(void)
     char rssi_str_value;
     char speed = 40;
     int delta_t = 100;
+    float time_value;
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
     uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, RSSI_SCAN_STOPPED };
@@ -417,6 +431,7 @@ int main(void)
     
     int             exit = 0;
 
+    Timer           t;
     osEvent         evt;
     myled = 1;
 
@@ -429,7 +444,7 @@ int main(void)
 
         while(1)
         {
-            evt = main_thr_mailbox.get();
+            evt = main_thr_mailbox.get(5000);
             if (evt.status == osEventMail) 
             {
                 msg = (msg_t*)evt.value.p;
@@ -438,8 +453,8 @@ int main(void)
                     
                     case INTER_THREAD:
                         //communicates with the mbed_mqtt thread
-                        if (turn==1){
-                            //starting the rssi send messages
+                        if (priochk==1){
+                            //starting the rssi send messages                            
                             PRINTF("******************\n"); 
                             PRINTF("3\n");  
                             PRINTF("******************\n");
@@ -451,15 +466,14 @@ int main(void)
                                 msg2 = main_thr_mailbox.alloc();  
                                 Thread::wait(10);
                             }  
-                            //delay so the node receives all the addresses
+                            //delay so all the node receives all the addresses
                             Thread::wait(2000);                                          
                             msg2->type = INTER_THREAD;                                   
                             msg2->sender_pid = osThreadGetId();
                             msg2->source_mailbox = &main_thr_mailbox;
                             mqtt_thread_mailbox.put(msg2);
                             PRINTF("rssi_thread: RSSI_PUB message sent\n");
-                            main_thr_mailbox.free(msg);                      
-                                                               
+                            main_thr_mailbox.free(msg);                                                                                                                                   
                         }
                         break;
                     case HDLC_RESP_SND_SUCC:
@@ -479,12 +493,12 @@ int main(void)
                         break;
                     case HDLC_PKT_RDY:
                         PRINTF("RSSI packet received\n");
-
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
                         switch (recv_hdr.pkt_type)
                         {
-                            case RSSI_DATA_PKT: 
+                            case RSSI_DATA_PKT:                              
+                                
                                 PRINTF("******************\n"); 
                                 PRINTF("7\n");  
                                 PRINTF("******************\n");
@@ -494,6 +508,7 @@ int main(void)
                                 //displaying for now 
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
                                 //conditions to satisfy depending on the value of the RSSI
+                                
                                 if (rssi_value<(-38))
                                 {
                                     PRINTF("The value is less than forty, move cautiously\n");
@@ -510,9 +525,8 @@ int main(void)
                                     m3pi.forward(speed);
                                     Thread::wait(delta_t);
                                     m3pi.stop();
-                                }
-                                //waits for x second to complete the movement and send the pub message to broker
-                                Thread::wait(5000);                               
+                                }                                                      
+                                                               
                                 break;
 
 
@@ -530,7 +544,33 @@ int main(void)
                         /* error */
                         break;
                 }
-            }    
+            }
+
+            if (evt.status == osEventTimeout){
+                if (turn==1 && priochk==1)
+                {
+                    PRINTF("******************\n"); 
+                    PRINTF("8\n");  
+                    PRINTF("******************\n");                                       
+                    msg2 = hdlc_mailbox_ptr->alloc();
+                    while (msg2 == NULL)
+                    {
+                        PRINTF("error\n");
+                        msg2 = main_thr_mailbox.alloc();  
+                        Thread::wait(10);
+                    }  
+                    //delay so all the node receives all the addresses                                                             
+                    msg2->type = INTER_THREAD;                                   
+                    msg2->sender_pid = osThreadGetId();
+                    msg2->source_mailbox = &main_thr_mailbox;
+                    mqtt_thread_mailbox.put(msg2);
+                    PRINTF("rssi_thread: RSSI_PUB message sent\n");
+                    main_thr_mailbox.free(msg);                    
+                }
+                
+                
+            }
+
             if(exit) {
                 exit = 0;
                 break;
