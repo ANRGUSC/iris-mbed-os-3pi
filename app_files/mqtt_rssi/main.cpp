@@ -73,6 +73,8 @@ extern "C" void mbed_reset();
 Serial                          pc(USBTX,USBRX,115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
+DigitalOut                      reset_riot(p20,1);
+
 bool mqtt_go = 0;
 volatile int turn = 0;
 volatile int priochk = 0;
@@ -130,7 +132,6 @@ void _mqtt_thread()
      * Check if the MQTT coneection is established by the openmote. If not,
      * DO NOT Proceed further. The openmote sends a MQTT_GO msg once the mqtt connection is properly setup.
      */
-
     while(1)
     {
         evt = mqtt_thread_mailbox.get(60000);
@@ -176,15 +177,17 @@ void _mqtt_thread()
                         PRINTF("mqtt_thread: sent frame_no %d!\n", mqtt_thread_frame_no);
                         exit = 1;
                         
-                        if (mqtt_thread_frame_no==55){                            
-                            PRINTF("SENDING the reset message\n");
-                            send_hdr.pkt_type = RESET_RIOT;
-                            send_hdr.dst_port = RSSI_RIOT_PORT;
-                            send_hdr.src_port = MBED_MQTT_PORT;
-                            uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
-                            if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
-                                    PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
-                                }                                                                                               
+                        if (mqtt_thread_frame_no==30){
+                            //resetting the mbed and riot after 30 iterations
+                            printf("RESETTING the mbed\n");
+                            reset_riot=0;                            
+                            Thread::wait(400);
+                            reset_riot=1;
+                            Thread::wait(400);
+                            reset_riot=0;
+                            Thread::wait(400);
+                            reset_riot=1;
+                            mbed_reset();
                         }
                        
                         mqtt_thread_mailbox.free(msg);
@@ -202,10 +205,6 @@ void _mqtt_thread()
                         break;
                     case INTER_THREAD:  
                         turn=1;
-                        if (mqtt_thread_frame_no==56){
-                            printf("RESETTING the mbed\n");
-                            mbed_reset();
-                        }
                         Thread::wait(200);
                         PRINTF("******************\n"); 
                         PRINTF("4\n");  
@@ -223,8 +222,7 @@ void _mqtt_thread()
                         }
                         else{
                             PRINTF("mqtt_thread: failed to send pkt no\n");
-                        }
-                        
+                        }                        
                         
                         break;
 
@@ -232,10 +230,6 @@ void _mqtt_thread()
 
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                        if (mqtt_thread_frame_no==56){
-                            printf("RESETTING the mbed\n");
-                            mbed_reset();
-                        }
                         switch (recv_hdr.pkt_type)
                         {
                             case MQTT_PKT_TYPE:                                
@@ -431,7 +425,6 @@ int main(void)
 {
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
-   
     msg_t *msg, *msg2;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
