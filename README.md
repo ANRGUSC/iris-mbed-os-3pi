@@ -56,5 +56,3 @@ Alternatively, to run a particular app manually:
 - Now you can use traditional `mbed compile -c` to compile the code
 
 - After you are done, you can put back `.mbedignore` available from `app_files/ignore_file/`
-
-
