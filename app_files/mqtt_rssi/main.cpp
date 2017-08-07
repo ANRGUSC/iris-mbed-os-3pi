@@ -57,6 +57,8 @@
 #include "uart_pkt.h"
 #include "main-conf.h"
 #include "mqtt.h"
+//to reset the mbed
+extern "C" void mbed_reset();
 
 #define DEBUG   1
 #define TEST_TOPIC   ("init_info")
@@ -121,8 +123,8 @@ void _mqtt_thread()
     char            node_new_ID[9];
     char            node_send_ID[9];      
                                 
-
     osEvent         evt;
+
 
     /**
      * Check if the MQTT coneection is established by the openmote. If not,
@@ -131,7 +133,7 @@ void _mqtt_thread()
 
     while(1)
     {
-        evt = mqtt_thread_mailbox.get();
+        evt = mqtt_thread_mailbox.get(60000);
         if (evt.status == osEventMail) 
         {
             msg = (msg_t*)evt.value.p;
@@ -150,6 +152,8 @@ void _mqtt_thread()
             mqtt_thread_mailbox.free(msg);
             hdlc_pkt_release(buf);  
         }
+        PRINTF("resetting the mbed\n");
+        mbed_reset();
     }
 
 
@@ -171,6 +175,18 @@ void _mqtt_thread()
                     case HDLC_RESP_SND_SUCC:
                         PRINTF("mqtt_thread: sent frame_no %d!\n", mqtt_thread_frame_no);
                         exit = 1;
+                        
+                        if (mqtt_thread_frame_no==55){                            
+                            PRINTF("SENDING the reset message\n");
+                            send_hdr.pkt_type = RESET_RIOT;
+                            send_hdr.dst_port = RSSI_RIOT_PORT;
+                            send_hdr.src_port = MBED_MQTT_PORT;
+                            uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
+                            if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                                    PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                                }                                                                                               
+                        }
+                       
                         mqtt_thread_mailbox.free(msg);
                         break;    
                     case HDLC_RESP_RETRY_W_TIMEO:
@@ -186,6 +202,11 @@ void _mqtt_thread()
                         break;
                     case INTER_THREAD:  
                         turn=1;
+                        if (mqtt_thread_frame_no==56){
+                            printf("RESETTING the mbed\n");
+                            mbed_reset();
+                        }
+                        Thread::wait(200);
                         PRINTF("******************\n"); 
                         PRINTF("4\n");  
                         PRINTF("******************\n");                      
@@ -211,6 +232,10 @@ void _mqtt_thread()
 
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                        if (mqtt_thread_frame_no==56){
+                            printf("RESETTING the mbed\n");
+                            mbed_reset();
+                        }
                         switch (recv_hdr.pkt_type)
                         {
                             case MQTT_PKT_TYPE:                                
@@ -431,7 +456,6 @@ int main(void)
     
     int             exit = 0;
 
-    Timer           t;
     osEvent         evt;
     myled = 1;
 
@@ -444,7 +468,7 @@ int main(void)
 
         while(1)
         {
-            evt = main_thr_mailbox.get(5000);
+            evt = main_thr_mailbox.get(3000);
             if (evt.status == osEventMail) 
             {
                 msg = (msg_t*)evt.value.p;
@@ -497,8 +521,7 @@ int main(void)
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
                         switch (recv_hdr.pkt_type)
                         {
-                            case RSSI_DATA_PKT:                              
-                                
+                            case RSSI_DATA_PKT:                                
                                 PRINTF("******************\n"); 
                                 PRINTF("7\n");  
                                 PRINTF("******************\n");
@@ -528,13 +551,10 @@ int main(void)
                                 }                                                      
                                                                
                                 break;
-
-
                             default:
                                 main_thr_mailbox.free(msg);
                                 /* error */
                                 break;
-
                         }
                         main_thr_mailbox.free(msg);
                         hdlc_pkt_release(buf);     
@@ -558,14 +578,12 @@ int main(void)
                         PRINTF("error\n");
                         msg2 = main_thr_mailbox.alloc();  
                         Thread::wait(10);
-                    }  
-                    //delay so all the node receives all the addresses                                                             
+                    }                                                                                  
                     msg2->type = INTER_THREAD;                                   
                     msg2->sender_pid = osThreadGetId();
                     msg2->source_mailbox = &main_thr_mailbox;
                     mqtt_thread_mailbox.put(msg2);
-                    PRINTF("rssi_thread: RSSI_PUB message sent\n");
-                    main_thr_mailbox.free(msg);                    
+                    PRINTF("rssi_thread: RSSI_PUB message sent\n");                  
                 }
                 
                 
