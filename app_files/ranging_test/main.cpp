@@ -86,7 +86,6 @@ Serial                          pc(USBTX,USBRX,115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
 
-Mail<msg_t, HDLC_MAILBOX_SIZE>  thread2_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 #define MAIN_THR_PORT   5678    
@@ -110,7 +109,7 @@ int main(void)
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
     int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(range_params_t);
-    int end_of_series = 0;
+
     // int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(range_params); ???
 
     /* openmote setup */
@@ -263,58 +262,72 @@ int main(void)
                             PRINTF("There should be %d ranges in this pkt\n",data_per_pkt);
 
                             for(j = 0; j < data_per_pkt; j++){
-                                PRINTF ("%d\n:", j);
+                                PRINTF ("%d:\n", j);
                                 tdoa_a = 0;
                                 tdoa_b = 0;
                                 /* Displaying results. */
 
-                                if(time_diffs->tdoa > 0){
-                                    tdoa_a = time_diffs->tdoa;
-                                    dist_a = tdoa_to_dist(tdoa_a);
-                                    printf("TDoA = %lu\n", tdoa_a);
+                                if(time_diffs->status == RF_MISSED){
+                                    printf("RF Ping missed\n");
+                                    time_diffs++;
+                                    continue;
+                                }
+                                else if(time_diffs->status == ULTRSND_MISSED){
+                                    printf("Ultrsnd Ping missed\n");
+                                    time_diffs++;
+                                    continue;
+                                }
+                                
+                                
+                                tdoa_a = time_diffs->tdoa;
+                                dist_a = tdoa_to_dist(tdoa_a);
+                                printf("TDoA = %lu\n", tdoa_a);
 
-                                    switch (params.ranging_mode)
-                                    {
-                                        case ONE_SENSOR_MODE:
-                                            dist = dist_a;
-                                            break;
-                                        case TWO_SENSOR_MODE:
-                                            if(time_diffs->error != 0)
-                                            {
-                                                printf("Missed pin %lu\n", time_diffs->error);
-                                            } 
-                                            else
-                                            {
-                                                tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                                                dist_b = tdoa_to_dist(tdoa_b);
-                                                printf("OD = %lu\n", tdoa_b);
-                                            }
-                                            break;
-                                        case XOR_SENSOR_MODE:
-                                            tdoa_b = tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
+                                switch (params.ranging_mode)
+                                {
+                                    case ONE_SENSOR_MODE:
+                                        dist = dist_a;
+                                        break;
+                                    case TWO_SENSOR_MODE:
+                                        if(time_diffs->status > 2)
+                                        {
+                                            printf("Missed pin %lu\n", MISSED_PIN_UNMASK - time_diffs-> status); 
+                                        } 
+                                        else
+                                        {
+                                            tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
                                             dist_b = tdoa_to_dist(tdoa_b);
-                                            printf("OD = %lu\n", tdoa_b);
-                                            break;
-                                    }
+                                            printf("OD = %lu\n", time_diffs-> orient_diff);
+                                        }
+                                        break;
+                                    case XOR_SENSOR_MODE:
+                                        tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
+                                        dist_b = tdoa_to_dist(tdoa_b);
+                                        printf("OD = %lu\n", time_diffs-> orient_diff);
+                                        break;
+                                }
 
-                                    //printf("\n******************************\n", dist);
-                                    if(tdoa_b != 0){
-                                        dist = calc_x(dist_a, dist_b);
-                                        angle = od_to_angle(dist_a, dist_b);
-                                        printf("Distance: %.2f\n", dist);
-                                        printf("Angle : %.2f\n", angle);
+                                //printf("\n******************************\n", dist);
+                               if(tdoa_b != 0){
+                                    dist = calc_x(dist_a, dist_b);
+                                    if(time_diffs->status == 2){
+                                        angle = od_to_angle(dist_b, dist_a);
                                     }
                                     else{
-                                        printf("Distance: %.2f\n", dist);
+                                        angle = od_to_angle(dist_a, dist_b);
                                     }
-                                     printf("******************************\n", dist);
-
-                                } else{
-                                    printf("Ultrsnd Ping missed\n");
+                                    printf("Distance: %.2f\n", dist);
+                                    printf("Angle : %.2f\n", angle);
                                 }
+                                else{
+                                    printf("Distance: %.2f\n", dist);
+                                }
+                                 printf("******************************\n");
+
+                            
                                 time_diffs++;
                             }
-                            end_of_series = 0;
+
                             if(range_hdr->last_pkt == 1){
                                 printf("All data recieved\n");
                                 exit = 1;
@@ -335,7 +348,10 @@ int main(void)
                         main_thr_mailbox.free(msg);
                         break;
                 }
-            }    
+            } 
+            else{
+                printf("Range: Didn't get mail: %02x\n",evt.status);
+            }   
             if(exit) 
             {
                 exit = 0;
