@@ -24,15 +24,12 @@ the new uint16_t port number */
 
 #define ARREST_FOLLOWER_RANGE_THR_PORT  9300
 
-#define RANGE_REQ_FLAG      0x12
-#define RANGE_RDY_FLAG      0x34
-#define RANGE_GO_FLAG       0x56
-
 #define DEFAULT_ULTRASOUND_THRESH   25
 
 #define ONE_SENSOR_MODE       0x60 // 96
 #define TWO_SENSOR_MODE       0x61 // 97
 #define XOR_SENSOR_MODE       0x62 // 98
+#define OMNI_SENSOR_MODE      0x63 // 99
 
 #define RANGE_THR_START			0x63
 #define RANGE_THR_COMPLETE		0x64
@@ -50,14 +47,14 @@ the new uint16_t port number */
  *
  * This structure is supposed to hold the Time Difference of Arrival
  * (TDoA), Orientation Differential (OD) between the TDoA of two sensors,
- * and any an error flag to indicate if a pin had missed a ping.
+ * and any an pin flag to indicate which pin came first and if a pin had missed a ping.
  *
  * It can be extended
  */
 typedef struct __attribute__((packed)){
     uint16_t tdoa; //time difference of arrival
     uint16_t orient_diff; //orientation differential
-    uint8_t error; //error message for if one sensor misses pings
+    uint8_t status; //pin flag to indicate which pin came first and if a pin had missed a ping
 } range_data_t;
 
 /**
