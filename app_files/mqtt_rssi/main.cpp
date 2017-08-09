@@ -366,8 +366,7 @@ void _mqtt_thread()
                                 PRINTF("mqtt_thread: HWADDR received\n");
                                 node_ID = (char *)uart_pkt_get_data(buf->data,buf->length);
                                 memcpy(node_new_ID,node_ID,sizeof(node_new_ID));
-                                node_new_ID[8]='\0';
-                                
+                                node_new_ID[8]='\0';                               
                                 PRINTF("the new node ID is %s\n", node_new_ID);
                                 PRINTF("mqtt_thread: %s\n",node_new_ID); 
                                 PRINTF("******************\n"); 
