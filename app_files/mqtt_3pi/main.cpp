@@ -102,7 +102,7 @@ void _mqtt_thread()
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     
     int             exit = 0;
-    hdlc_entry_t    mqtt_thread = { NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox };
+    hdlc_entry_t    mqtt_thread = {NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox};
     hdlc_register(&mqtt_thread);
     
     char            test_pub[] = "Hello world";
@@ -156,16 +156,20 @@ void _mqtt_thread()
                 switch (msg->type)
                 {
                     case HDLC_RESP_SND_SUCC:
-                        PRINTF("mqtt_thread: sent frame_no %d!\n", mqtt_thread_frame_no);
+                        PRINTF("mqtt_thread: sent frame_no %d!\n",
+                            mqtt_thread_frame_no);
                         exit = 1;
                         mqtt_thread_mailbox.free(msg);
                         break;    
                     case HDLC_RESP_RETRY_W_TIMEO:
                         Thread::wait(msg->content.value/1000);
-                        PRINTF("mqtt_thread: retry frame_no %d \n", mqtt_thread_frame_no);
-                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt) < 0)
+                        PRINTF("mqtt_thread: retry frame_no %d \n",
+                            mqtt_thread_frame_no);
+                        if (send_hdlc_mail(msg2, HDLC_MSG_SND,
+                            &mqtt_thread_mailbox, (void*) &pkt) < 0)
                         {
-                            while (send_hdlc_retry_mail (msg2, &mqtt_thread_mailbox) < 0)
+                            while (send_hdlc_retry_mail (msg2,
+                                &mqtt_thread_mailbox) < 0)
                                 Thread::wait(10);
                         }
                         mqtt_thread_mailbox.free(msg);
@@ -178,36 +182,61 @@ void _mqtt_thread()
                         {
                             case MQTT_PKT_TYPE:                                
                                 // rcv_data= (mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length);
-                                mqtt_recv = (mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length);
-                                PRINTF("The data received is %s \n", mqtt_recv->data);
-                                PRINTF("The topic received is %s \n", mqtt_recv->topic); 
+                                mqtt_recv = (mqtt_pkt_t *) uart_pkt_get_data(
+                                    buf->data, buf->length);
+                                PRINTF("The data received is %s \n",
+                                    mqtt_recv->data);
+                                PRINTF("The topic received is %s \n",
+                                    mqtt_recv->topic); 
                                 process_mqtt_pkt(mqtt_recv, &mqtt_recv_data);
                                 switch (mqtt_recv_data.data_type){
                                     case NORM_DATA:
-                                        PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
+                                        PRINTF("MQTT: Normal Data Received %s \n",
+                                            mqtt_recv_data.data);
                                         break;
 
                                     case SUB_CMD:
-                                        build_mqtt_pkt_sub(mqtt_recv_data.data, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
-                                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                                        build_mqtt_pkt_sub(mqtt_recv_data.data,
+                                            MBED_MQTT_PORT, &mqtt_send, &pkt);
+                                        if (send_hdlc_mail(msg, HDLC_MSG_SND,
+                                            &mqtt_thread_mailbox, (void*) &pkt))
+                                        {
+                                            PRINTF("mqtt_thread: sending pkt ");
+                                            PRINTF("no %d \n", mqtt_thread_frame_no);
+                                        } 
                                         else
-                                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                                        {
+                                            PRINTF("mqtt_thread: failed to ");
+                                            PRINTF("send pkt no\n");
+                                        } 
                                         break;
 
                                     case PUB_CMD:
                                         //second byte is the length of the topic 
-                                        pub_length = mqtt_recv_data.data[0] - '0';
-                                        memcpy(topic_pub, (mqtt_recv_data.data + 1), pub_length);
-                                        strcpy(data_pub, mqtt_recv_data.data + pub_length + 1);                             
+                                        pub_length = mqtt_recv_data.data[0]
+                                            - '0';
+                                        memcpy(topic_pub,
+                                            (mqtt_recv_data.data + 1),
+                                            pub_length);
+                                        strcpy(data_pub,
+                                            mqtt_recv_data.data + pub_length + 1);                             
                                         topic_pub[pub_length]='\0';
-                                        PRINTF("The the topic_pub %s\n", topic_pub);
+                                        PRINTF("The the topic_pub %s\n",
+                                            topic_pub);
                                         PRINTF("The data_pub %s\n", data_pub);                                 
-                                        build_mqtt_pkt_pub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
-                                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                                        build_mqtt_pkt_pub(topic_pub, data_pub,
+                                            MBED_MQTT_PORT, &mqtt_send, &pkt);
+                                        if (send_hdlc_mail(msg, HDLC_MSG_SND,
+                                            &mqtt_thread_mailbox, (void*) &pkt))
+                                        {
+                                            PRINTF("mqtt_thread: sending pkt ");
+                                            PRINTF("no %d \n", mqtt_thread_frame_no); 
+                                        }
                                         else
-                                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                                        {
+                                            PRINTF("mqtt_thread: failed to ");
+                                            PRINTF("send pkt no\n");
+                                        } 
                                         break;
                                 }
                                 // Mbed send a pub message to the broker                        
