@@ -103,8 +103,15 @@ typedef enum {
     SUB_CMD               = 1,
     PUB_CMD               = 2, 
     LEN_CLIENTS_LIST	  = 3,
-    GET_CLIENTS			  = 4		
+    GET_CLIENTS			  = 4,
+    RSSI_SEND			  = 5		
 } type_mqtt_data_t;
+
+typedef enum {
+    SERVER_ACK            = 0,
+    SERVER_REQUEST        = 1,
+    SERVER_SEND_RSSI      = 2,    
+} type_server_msg_type;
 
 /**
  * @brief constructs a mqtt pub packet
