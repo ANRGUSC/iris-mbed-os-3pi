@@ -107,6 +107,12 @@ typedef enum {
     RSSI_SEND			  = 5		
 } type_mqtt_data_t;
 
+typedef enum {
+    SERVER_ACK            = 0,
+    SERVER_REQUEST        = 1,
+    SERVER_SEND_RSSI      = 2,    
+} type_server_msg_type;
+
 /**
  * @brief constructs a mqtt pub packet
  * @details this function generates a hdlc mqtt pub packet

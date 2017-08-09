@@ -75,10 +75,11 @@ DigitalOut                      myled3(LED3); //to notify when a character was r
 DigitalOut                      myled(LED1);
 DigitalOut                      reset_riot(p26,1);
 
-bool mqtt_go = 0;
-volatile int turn = 0;
-volatile int priochk = 0;
-m3pi m3pi;
+bool                            mqtt_go = 0;
+volatile int                    turn    = 0;
+volatile int                    priochk = 0;
+
+m3pi                            m3pi;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
@@ -120,7 +121,7 @@ void _mqtt_thread()
     int             len_clients = 0;
     //length is set to 9 because of the null terminator 
     char            clients[2][9];       
-    int             count = 0;
+    int             rcvd_node_id_count = 0;
     char            *node_ID; 
     char            node_new_ID[9];
     char            node_send_ID[9];      
@@ -181,6 +182,10 @@ void _mqtt_thread()
                             //resetting the mbed and riot after 30 iterations
                             printf("mqtt_thread: resetting the mbed\n");
                             // reset twice for redundancy
+                            reset_riot = 0;  
+                            Thread::wait(10);                          
+                            reset_riot = 1;
+                            Thread::wait(10); 
                             reset_riot = 0;  
                             Thread::wait(10);                          
                             reset_riot = 1;
@@ -275,17 +280,18 @@ void _mqtt_thread()
                                         //handles the storing the clients and initiating the 
                                         //RSSI PING PONG
                                         if (len_clients != 0){                                            
-                                            strcpy(clients[count], mqtt_recv_data.data);  
-                                            PRINTF("The IP of the client is %s\n", clients[count]);
-                                            count++; 
+                                            strcpy(clients[rcvd_node_id_count], mqtt_recv_data.data);  
+                                            PRINTF("The IP of the client is %s\n", clients[rcvd_node_id_count]);
+                                            rcvd_node_id_count++; 
                                             len_clients--;                                           
                                         }
                                         if (len_clients == 0)
                                         {
                                             PRINTF("mqtt_thread: The clients list: ");
-                                            for(int i = 0 ; i < count ; i++)
-                                                 PRINTF("%s,\t",clients);                                                
-                                        
+                                            for(int i = 0 ; i < rcvd_node_id_count ; i++)
+                                                 PRINTF("%s; ",clients[i]);                                                
+                                            PRINTF("\n");
+
                                             if (strcmp(node_ID, PRIORITY_NODE) == 0){
                                                 PRINTF("mqtt_thread: STARTING THE RSSI PING PONG\n");
                                                 priochk = 1;
@@ -305,7 +311,7 @@ void _mqtt_thread()
                                             msg2->source_mailbox = &mqtt_thread_mailbox;
                                             main_thr_mailbox.put(msg2);
                                             PRINTF("mqtt_thread: RSSI_GO message sent\n");
-                                            count = 0;
+                                            rcvd_node_id_count = 0;
                                         }
                                         break;
 
@@ -337,7 +343,7 @@ void _mqtt_thread()
                                         else{
                                             PRINTF("mqtt_thread: failed to send pkt no\n");
                                         }
-                                        count=0;
+                                        rcvd_node_id_count=0;
                                         PRINTF("REACHED the end of it\n");                                                                               
                                         //send rssi_send to the rssi thread in RIOT
                                         break;
@@ -370,8 +376,10 @@ void _mqtt_thread()
                                 PRINTF("8\n");  
                                 PRINTF("******************\n");
                                 PRINTF("mqtt_thread: pub message received\n");
-                                strcpy(data_pub, "2");
-                                strcat(data_pub, node_new_ID);                                                                           
+                                
+                                data_pub[0] = SERVER_SEND_RSSI;
+                                strcpy(data_pub + 1, node_new_ID);                                                                           
+                                
                                 PRINTF("mqtt_thread: The data to be pub is %s\n", data_pub);
                                 PRINTF("mqtt_thread: The topic is %s\n",TEST_TOPIC);                               
                                 build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
@@ -429,11 +437,6 @@ int main(void)
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
     uart_pkt_hdr_t send_hdr = { MAIN_THR_PORT, MAIN_THR_PORT, RSSI_SCAN_STOPPED };
-    
-
-    reset_riot = 0;  
-    Thread::wait(10);                          
-    reset_riot = 1;
 
     hdlc_entry_t main_thr = { NULL, RSSI_MBED_DUMP_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
@@ -472,7 +475,7 @@ int main(void)
                             PRINTF("rssi_thread: RSSI_GO received\n");
 
                             //delay so all the node receives all the addresses
-                            Thread::wait(2000);
+                            // Thread::wait(3000);
                             msg2 = mqtt_thread_mailbox.alloc();
                             while (msg2 == NULL)
                             {
@@ -515,12 +518,12 @@ int main(void)
                                 PRINTF("******************\n");
                                 //handles the movement of the robot
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
-                                rssi_value =rssi_value-73;
+                                rssi_value = rssi_value - 73;
                                 //displaying for now 
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
                                 //conditions to satisfy depending on the value of the RSSI
                                 
-                                if (rssi_value<(-38))
+                                if (rssi_value < -40)
                                 {
                                     PRINTF("The value is less than forty, move cautiously\n");
                                     m3pi.backward(speed);
@@ -563,7 +566,7 @@ int main(void)
                     msg2 = mqtt_thread_mailbox.alloc();
                     while (msg2 == NULL)
                     {
-                        PRINTF("error\n");
+                        PRINTF("rssi_thread: no space left in the mqtt mailbox\n");
                         msg2 = mqtt_thread_mailbox.alloc();  
                         Thread::wait(10);
                     }                                                                                  
