@@ -249,7 +249,6 @@ void _mqtt_thread()
     }
     PRINTF("mqtt_thread: All Initialization Done\n");
 
-
     /**
      * This is the portion of MQTT loop that run forever for Mbed based control and communication
      */
