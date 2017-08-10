@@ -139,24 +139,62 @@ void _mqtt_thread()
         if (evt.status == osEventMail) 
         {
             msg = (msg_t*)evt.value.p;
-            if (msg->type == HDLC_PKT_RDY)
+            switch (msg->type)
             {
-                buf = (hdlc_buf_t *) msg->content.ptr;   
-                uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                if (recv_hdr.pkt_type == MQTT_GO){
-                    mqtt_go = 1;
-                    PRINTF("mqtt_thread: the node is conected to the broker \n");
-                    mqtt_thread_mailbox.free(msg);
-                    hdlc_pkt_release(buf);  
+                case HDLC_PKT_RDY:
+                    buf = (hdlc_buf_t *) msg->content.ptr;   
+                    uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                    if (recv_hdr.pkt_type == MQTT_GO){
+                        PRINTF("mqtt_thread: the node is conected to the broker \n");
+                        send_hdr.pkt_type = MQTT_GO_ACK;
+                        send_hdr.dst_port = RIOT_MQTT_PORT;
+                        send_hdr.src_port = MBED_MQTT_PORT;
+                        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
+                        mqtt_thread_mailbox.free(msg);
+                        hdlc_pkt_release(buf);
+                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
+                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                        else
+                            PRINTF("mqtt_thread: failed to send pkt no\n");
+                    }
+ 
                     break;
-                }
-            }
-            mqtt_thread_mailbox.free(msg);
-            hdlc_pkt_release(buf);  
+                case HDLC_RESP_SND_SUCC:
+                        mqtt_go = 1;
+                        PRINTF("mqtt_thread: sent GO_ACK!\n");
+                        exit = 1;
+                        break;
+
+                case HDLC_RESP_RETRY_W_TIMEO:
+                    Thread::wait(msg->content.value/1000);
+                    PRINTF("mqtt_thread: retry frame_no %d \n", mqtt_thread_frame_no);
+                    if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt) < 0)
+                    {
+                        while (send_hdlc_retry_mail (msg2, &mqtt_thread_mailbox) < 0){
+                            Thread::wait(10);
+                        }
+                    }
+                    mqtt_thread_mailbox.free(msg);
+                    break;
+                default:
+                    break;
+                   /* Error */                       
+            } 
         }
-        PRINTF("mqtt_thread: resetting the mbed\n");
-        mbed_reset();
+        else{
+            PRINTF("mqtt_thread: resetting the mbed\n");
+            mbed_reset();
+        }
+        if(exit){
+            exit = 0;
+            break;
+        }
+        
     }
+
+
+
+    PRINTF("mqtt_thread: Initialization Done\n");
 
 
     while (1) 
