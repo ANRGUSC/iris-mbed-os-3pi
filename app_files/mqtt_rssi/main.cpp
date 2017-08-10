@@ -194,6 +194,7 @@ void _mqtt_thread()
                         mqtt_thread_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                         pkt.length = HDLC_MAX_PKT_SIZE;        
+
                         if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                         else
@@ -241,6 +242,7 @@ void _mqtt_thread()
         }        
     }
     PRINTF("mqtt_thread: All Initialization Done\n");
+
 
     /**
      * This is the portion of MQTT loop that run forever for Mbed based control and communication
