@@ -30,6 +30,26 @@
 #define KD		 0.5
 #define KI		 0.0
 
+//movement_t which includes the type of movement and any parameters
+//(time, degrees, speed) needed to perform the movement
+typedef struct __attribute__((packed))
+{
+	uint8_t move_type;
+	uint16_t time;
+	int16_t degrees;
+	int8_t speed;
+} movement_t;
+
+//Types of mbed movement commands
+typedef enum
+{
+	INIT_IMU			  = 0,
+	CALIBRATE			  = 1,
+	ROTATE				  = 2,
+	DRIVE_SPEED			  = 3,
+	DRIVE_PID			  = 4
+} movement_funct_t;
+
 //init_minimu()
 //Initializes the MINIMU-9 so that data from gyroscope, accelerometer,
 //and magnetometer can be read

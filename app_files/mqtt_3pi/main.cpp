@@ -57,6 +57,7 @@
 #include "uart_pkt.h"
 #include "main-conf.h"
 #include "mqtt.h"
+#include "mbed_movement.h"
 
 #define DEBUG   1
 #define TEST_TOPIC   ("test/trial")
@@ -94,6 +95,8 @@ void _mqtt_thread()
     mqtt_pkt_t      mqtt_send;
     mqtt_data_t     mqtt_recv_data;
     char            *test_str;
+
+    movement_t      movement;
     
     uart_pkt_hdr_t  send_hdr = { 0, 0, 0};
     hdlc_buf_t      *buf;
@@ -221,8 +224,7 @@ void _mqtt_thread()
                                         strcpy(data_pub,
                                             mqtt_recv_data.data + pub_length + 1);                             
                                         topic_pub[pub_length]='\0';
-                                        PRINTF("The the topic_pub %s\n",
-                                            topic_pub);
+                                        PRINTF("The topic_pub %s\n",topic_pub);
                                         PRINTF("The data_pub %s\n", data_pub);                                 
                                         build_mqtt_pkt_pub(topic_pub, data_pub,
                                             MBED_MQTT_PORT, &mqtt_send, &pkt);
@@ -237,6 +239,34 @@ void _mqtt_thread()
                                             PRINTF("mqtt_thread: failed to ");
                                             PRINTF("send pkt no\n");
                                         } 
+                                        break;
+                                    case MOVE_CMD:
+                                        //temporary case statement
+                                        PRINTF("Move command received\n");
+                                        memcpy(&movement, mqtt_recv_data.data, 6);
+                                        switch(movement.move_type)
+                                        {
+                                            case INIT_IMU:
+                                                init_minimu();
+                                                break;
+                                            case CALIBRATE:
+                                                calibrate_compass();
+                                                break;
+                                            case ROTATE:
+                                                rotate_degrees(movement.degrees,
+                                                    movement.speed);
+                                                break;
+                                            case DRIVE_SPEED:
+                                                drive_forward(movement.time,
+                                                    movement.speed);
+                                                break;
+                                            case DRIVE_PID:
+                                                drive_forward(movement.time);
+                                                break;
+                                            default:
+                                                PRINTF("Move command error\n");
+                                                break;
+                                        }
                                         break;
                                 }
                                 // Mbed send a pub message to the broker                        

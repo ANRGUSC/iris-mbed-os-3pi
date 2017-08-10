@@ -123,9 +123,12 @@ void process_mqtt_pkt(mqtt_pkt_t *pkt, mqtt_data_t *data_pkt)
         case PUB_CMD:
             PRINTF("MQTT: Pub command Received %s \n", data_pkt->data);
             break;
-
+        case MOVE_CMD:
+            PRINTF("MQTT: Movement command Received %s \n", data_pkt->data);
+            break;
         default:
             PRINTF("MQTT: Received data doesn't match with any type\n");
+            break;
 
     }
 }
