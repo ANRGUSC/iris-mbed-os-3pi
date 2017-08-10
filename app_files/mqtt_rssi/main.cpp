@@ -131,7 +131,13 @@ void _mqtt_thread()
 
     /**
      * Check if the MQTT coneection is established by the openmote. If not,
-     * DO NOT Proceed further. The openmote sends a MQTT_GO msg once the mqtt connection is properly setup.
+     * DO NOT Proceed further. 
+     * (1) The openmote sends a MQTT_GO msg once the mqtt connection is properly setup.
+     * (2) The MBED replies by sending a MQTT_GO_ACK msg to the Openmote
+     * (3) The Openmote sends the HWADDR to the mbed
+     * (4) The MBED replies by sending a HW_ADDR_ACK
+     * 
+     * After this sequece is complete, the mqtt is ready to go 
      */
     while(1)
     {
@@ -152,18 +158,46 @@ void _mqtt_thread()
                         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
                         mqtt_thread_mailbox.free(msg);
                         hdlc_pkt_release(buf);
+                        pkt.length = HDLC_MAX_PKT_SIZE;        
                         if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                         else
                             PRINTF("mqtt_thread: failed to send pkt no\n");
                     }
- 
+                    if (recv_hdr.pkt_type == HWADDR_GET){
+                        PRINTF("******************\n"); 
+                        PRINTF("1\n");  
+                        PRINTF("******************\n");
+                        node_ID = (char *)uart_pkt_get_data(buf->data,buf->length);
+                        memcpy(node_new_ID, node_ID, sizeof(node_new_ID));
+                        node_new_ID[8]='\0';                     
+                        PRINTF("mqtt_thread: HWADDR received; own node ID is %s\n", node_new_ID);
+                        
+                        send_hdr.pkt_type = HWADDR_ACK;
+                        send_hdr.dst_port = RIOT_MQTT_PORT;
+                        send_hdr.src_port = MBED_MQTT_PORT;
+                        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
+                        mqtt_thread_mailbox.free(msg);
+                        hdlc_pkt_release(buf);
+                        pkt.length = HDLC_MAX_PKT_SIZE;        
+                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
+                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                        else
+                            PRINTF("mqtt_thread: failed to send pkt no\n");
+                    }
                     break;
                 case HDLC_RESP_SND_SUCC:
+                    if (mqtt_thread_frame_no == 0){
                         mqtt_go = 1;
                         PRINTF("mqtt_thread: sent GO_ACK!\n");
+                    }
+                    else{
                         exit = 1;
-                        break;
+                        PRINTF("mqtt_thread: sent HW_ACK!\n");
+                    }
+                    mqtt_thread_mailbox.free(msg);
+                    mqtt_thread_frame_no ++;
+                    break;
 
                 case HDLC_RESP_RETRY_W_TIMEO:
                     Thread::wait(msg->content.value/1000);
@@ -176,7 +210,9 @@ void _mqtt_thread()
                     }
                     mqtt_thread_mailbox.free(msg);
                     break;
+                    
                 default:
+                    mqtt_thread_mailbox.free(msg);
                     break;
                    /* Error */                       
             } 
@@ -188,15 +224,13 @@ void _mqtt_thread()
         if(exit){
             exit = 0;
             break;
-        }
-        
+        }        
     }
+    PRINTF("mqtt_thread: All Initialization Done\n");
 
-
-
-    PRINTF("mqtt_thread: Initialization Done\n");
-
-
+    /**
+     * This is the portion of MQTT loop that run forever for Mbed based control and communication
+     */
     while (1) 
     {
         PRINTF("In mqtt_thread");
@@ -398,16 +432,6 @@ void _mqtt_thread()
                                 PRINTF("******************\n");
                                 PRINTF("mqtt_thread: PUB ACK message received\n");
                                 break;
-
-                            case HWADDR_GET:
-                                PRINTF("******************\n"); 
-                                PRINTF("1\n");  
-                                PRINTF("******************\n");
-                                node_ID = (char *)uart_pkt_get_data(buf->data,buf->length);
-                                memcpy(node_new_ID, node_ID, sizeof(node_new_ID));
-                                node_new_ID[8]='\0';                     
-                                PRINTF("mqtt_thread: HWADDR received; own node ID is %s\n", node_new_ID);                               
-                                break;  
 
                             case RSSI_PUB:                                 
                                 PRINTF("******************\n"); 
