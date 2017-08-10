@@ -60,6 +60,8 @@
 //to reset the mbed
 extern "C" void mbed_reset();
 
+
+
 #define DEBUG   1
 #define TEST_TOPIC   ("init_info")
 
@@ -83,6 +85,13 @@ m3pi                            m3pi;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
+
+void reset_system(void)
+{
+    reset_riot = 0;  
+    reset_riot = 1;
+    mbed_reset();
+}
 
 /**
  * @brief      This is the MQTT thread on MBED
@@ -130,8 +139,8 @@ void _mqtt_thread()
 
 
     /**
-     * Check if the MQTT coneection is established by the openmote. If not,
-     * DO NOT Proceed further. 
+     * Check if the MQTT connection is established by the openmote. If not,
+     * DO NOT Proceed further before the follwing steps are complete. 
      * (1) The openmote sends a MQTT_GO msg once the mqtt connection is properly setup.
      * (2) The MBED replies by sending a MQTT_GO_ACK msg to the Openmote
      * (3) The Openmote sends the HWADDR to the mbed
@@ -210,7 +219,7 @@ void _mqtt_thread()
                     }
                     mqtt_thread_mailbox.free(msg);
                     break;
-                    
+
                 default:
                     mqtt_thread_mailbox.free(msg);
                     break;
@@ -219,7 +228,7 @@ void _mqtt_thread()
         }
         else{
             PRINTF("mqtt_thread: resetting the mbed\n");
-            mbed_reset();
+            reset_system();
         }
         if(exit){
             exit = 0;
@@ -250,20 +259,12 @@ void _mqtt_thread()
                         PRINTF("mqtt_thread: sent frame_no %d!\n", mqtt_thread_frame_no);
                         exit = 1;
                         
-                        if (mqtt_thread_frame_no == 30){
-                            //resetting the mbed and riot after 30 iterations
-                            printf("mqtt_thread: resetting the mbed\n");
-                            // reset twice for redundancy
-                            reset_riot = 0;  
-                            Thread::wait(10);                          
-                            reset_riot = 1;
-                            Thread::wait(10); 
-                            reset_riot = 0;  
-                            Thread::wait(10);                          
-                            reset_riot = 1;
-                            // reset the mbed
-                            mbed_reset();
-                        }
+                        // if (mqtt_thread_frame_no == 30){
+                        //     //resetting the mbed and riot after 30 iterations
+                        //     printf("mqtt_thread: resetting the mbed\n");
+                        //     // reset twice for redundancy
+                        //     reset_system();
+                        // }
                         mqtt_thread_mailbox.free(msg);
                         break;
 
