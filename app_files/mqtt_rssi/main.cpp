@@ -88,7 +88,12 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 void reset_system(void)
 {
-    reset_riot = 0;  
+    reset_riot = 0; 
+    Thread::wait(1); 
+    reset_riot = 1;
+    Thread::wait(1); 
+    reset_riot = 0; 
+    Thread::wait(1); 
     reset_riot = 1;
     mbed_reset();
 }
@@ -292,7 +297,7 @@ void _mqtt_thread()
                         strcat(data_pub,node_new_ID);                       
                         PRINTF("The topic is %s\n",TEST_TOPIC);
                         build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
-                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                         }
                         else{
@@ -319,7 +324,7 @@ void _mqtt_thread()
                                         break;
                                     case SUB_CMD:
                                         build_mqtt_pkt_sub(mqtt_recv_data.data, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         }
                                         else {
@@ -335,7 +340,7 @@ void _mqtt_thread()
                                         PRINTF("The the topic_pub %s\n", topic_pub);
                                         PRINTF("The data_pub %s\n", data_pub);                                 
                                         build_mqtt_pkt_pub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         }
                                         else{
@@ -410,7 +415,7 @@ void _mqtt_thread()
                                         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
                                         uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, node_send_ID, sizeof(node_send_ID));
 
-                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         }
                                         else{
@@ -446,7 +451,7 @@ void _mqtt_thread()
                                 PRINTF("mqtt_thread: The data to be pub is %s\n", data_pub);
                                 PRINTF("mqtt_thread: The topic is %s\n",TEST_TOPIC);                               
                                 build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
-                                if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                                if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
                                     PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                 }
                                 else{
