@@ -303,7 +303,7 @@ void _mqtt_thread()
                         else{
                             PRINTF("mqtt_thread: failed to send pkt no\n");
                         }                        
-                        
+                        mqtt_thread_mailbox.free(msg);
                         break;
 
                     case HDLC_PKT_RDY:
@@ -421,7 +421,7 @@ void _mqtt_thread()
                                         else{
                                             PRINTF("mqtt_thread: failed to send pkt no\n");
                                         }
-                                        rcvd_node_id_count=0;
+                                        rcvd_node_id_count = 0;
                                         PRINTF("REACHED the end of it\n");                                                                               
                                         //send rssi_send to the rssi thread in RIOT
                                         break;
