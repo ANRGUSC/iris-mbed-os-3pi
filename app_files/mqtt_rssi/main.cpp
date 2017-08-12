@@ -86,6 +86,7 @@ m3pi                            m3pi;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
+Mail<msg_t, HDLC_MAILBOX_SIZE>  move_thread_mailbox;
 
 void reset_system(void)
 {
@@ -240,7 +241,7 @@ void _mqtt_thread()
             } 
         }
         else{
-            PRINTF("mqtt_thread: resetting the mbed\n");
+            PRINTF("mqtt_thread: resetting the mbed and RIOT\n");
             reset_system();
         }
         if(exit){
@@ -255,7 +256,7 @@ void _mqtt_thread()
      */
     while (1) 
     {
-        PRINTF("In mqtt_thread");
+        PRINTF("In mqtt_thread\n");
         myled3 =! myled3;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
         pkt.length = HDLC_MAX_PKT_SIZE;        
@@ -493,6 +494,76 @@ void _mqtt_thread()
     }
 }
 
+/* Movement Thread */
+
+void _move_thread()
+{
+    msg_t           *msg, *msg2;
+    char            send_data[HDLC_MAX_PKT_SIZE];
+    char            recv_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t      pkt;
+    pkt.data        = send_data;
+    pkt.length      = 0;
+    char            move_thread_frame_no = 0;
+
+    uart_pkt_hdr_t  send_hdr = {0, 0, 0};
+    hdlc_buf_t      *buf;
+    uart_pkt_hdr_t  recv_hdr;
+    Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
+    hdlc_mailbox_ptr = get_hdlc_mailbox();
+    Mail<msg_t, HDLC_MAILBOX_SIZE> *mailbox_ptr;
+
+    int             exit = 0;
+    hdlc_entry_t    move_thread = { NULL, MOVE_MBED_PORT, &move_thread_mailbox };
+    hdlc_register(&move_thread);
+
+    osEvent         evt;
+
+    while(1)
+    {
+        evt = move_thread_mailbox.get();
+        if (evt.status == osEventMail)
+        {
+            msg = (msg_t *)evt.value.p;
+            switch(msg->type)
+            {
+                case HDLC_PKT_RDY:
+                    buf = (hdlc_buf_t *) msg->content.ptr;
+                    uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                    switch (recv_hdr.pkt_type)
+                    {
+                        default:
+                            //error
+                            break;
+                    }
+                    hdlc_pkt_release(buf);
+                    move_thread_mailbox.free(msg);
+                    break;
+                case INTER_THREAD:
+                    PRINTF("move_thread: message to move received\n");
+                    move_thread_mailbox.free(msg);
+                    break;
+                case HDLC_RESP_SND_SUCC:
+                        exit = 1;
+                        PRINTF("move_thread: sent frame_no\n");                    
+                        move_thread_mailbox.free(msg);
+                        break;
+                default:
+                    move_thread_mailbox.free(msg);
+                    break;
+            }
+        }
+        if (exit)
+        {
+            exit = 0;
+            break;
+        }
+    }
+    move_thread_frame_no++;
+    Thread::wait(100);
+    
+}
+
 
 int main(void)
 {
@@ -519,6 +590,11 @@ int main(void)
 
     Thread mqtt_thr;
     mqtt_thr.start(_mqtt_thread);
+
+    //Movement thread
+    Thread move_thr;
+    move_thr.start(_move_thread);
+    
     
     int             exit = 0;
 
@@ -544,6 +620,7 @@ int main(void)
                     case INTER_THREAD:
                         //communicates with the mbed_mqtt thread
                         if (priochk == 1){
+                            Thread::wait(3000);
                             //starting the rssi send messages                            
                             PRINTF("******************\n"); 
                             PRINTF("3\n");  
@@ -595,10 +672,18 @@ int main(void)
                                 //handles the movement of the robot
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 rssi_value = rssi_value - 73;
+                                //sending the message
+                                
+                                msg2->type = INTER_THREAD;                                   
+                                msg2->sender_pid = osThreadGetId();
+                                msg2->source_mailbox = &main_thr_mailbox;
+                                move_thread_mailbox.put(msg2);
+                                PRINTF("rssi_thread: RSSI value has been sent\n");
+                                
                                 //displaying for now 
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
                                 //conditions to satisfy depending on the value of the RSSI
-                                
+                                /*
                                 if (rssi_value < -40)
                                 {
                                     PRINTF("The value is less than forty, move cautiously\n");
@@ -615,7 +700,8 @@ int main(void)
                                     m3pi.forward(speed);
                                     Thread::wait(delta_t);
                                     m3pi.stop();
-                                }                                                      
+                                } 
+                                */                                                     
                                                                
                                 break;
                             default:
