@@ -85,6 +85,7 @@ m3pi                            m3pi;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
+Mail<msg_t, HDLC_MAILBOX_SIZE>  move_thread_mailbox;
 
 void reset_system(void)
 {
@@ -239,7 +240,7 @@ void _mqtt_thread()
             } 
         }
         else{
-            PRINTF("mqtt_thread: resetting the mbed\n");
+            PRINTF("mqtt_thread: resetting the mbed and RIOT\n");
             reset_system();
         }
         if(exit){
@@ -492,6 +493,76 @@ void _mqtt_thread()
     }
 }
 
+/* Movement Thread */
+
+void _move_thread()
+{
+    msg_t           *msg, *msg2;
+    char            send_data[HDLC_MAX_PKT_SIZE];
+    char            recv_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t      pkt;
+    pkt.data        = send_data;
+    pkt.length      = 0;
+    char            move_pkt_no = 0;
+
+    uart_pkt_hdr_t  send_hdr = {0, 0, 0};
+    hdlc_buf_t      *buf;
+    uart_pkt_hdr_t  recv_hdr;
+    Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
+    hdlc_mailbox_ptr = get_hdlc_mailbox();
+    Mail<msg_t, HDLC_MAILBOX_SIZE> *mailbox_ptr;
+
+    int             exit = 0;
+    hdlc_entry_t    move_thread = { NULL, MOVE_MBED_PORT, &move_thread_mailbox };
+    hdlc_register(&move_thread_mailbox);
+
+    osEvent         evt;
+
+    while(1)
+    {
+        evt = move_thread_mailbox.get();
+        if (evt.status == osEventMail)
+        {
+            msg = (msg_t *)evt.value.p;
+            switch(msg->type)
+            {
+                case HDLC_PKT_RDY:
+                    buf = (hdlc_buf_t *) msg->content.ptr;
+                    uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                    switch (recv_hdr.pkt_type)
+                    {
+                        default:
+                            /*error*/
+                            break;
+                    }
+                    hdlc_pkt_release(buf);
+                    break;
+                case INTER_THREAD:
+                    PRINTF("move_thread: message to move received\n");
+                    break;
+                case HDLC_RESP_SND_SUCC:
+                    if (mqtt_thread_frame_no == 0){
+                        mqtt_go = 1;
+                        PRINTF("mqtt_thread: sent GO_ACK!\n");
+                    }
+                    else{
+                        exit = 1;
+                        PRINTF("mqtt_thread: sent HW_ACK!\n");
+                    }
+                    mqtt_thread_mailbox.free(msg);
+                    mqtt_thread_frame_no ++;
+                    break;
+
+                default:
+                    /*error*/
+                    break;
+            }
+
+        }
+    }
+    
+}
+
 
 int main(void)
 {
@@ -518,6 +589,10 @@ int main(void)
 
     Thread mqtt_thr;
     mqtt_thr.start(_mqtt_thread);
+
+    //Movement thread
+    Thread move_thr;
+    move_thr.start(_move_thread);
     
     int             exit = 0;
 
