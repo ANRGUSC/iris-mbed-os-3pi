@@ -594,7 +594,6 @@ int main(void)
     Thread move_thr;
     move_thr.start(_move_thread);
     
-    
     int             exit = 0;
 
     osEvent         evt;
