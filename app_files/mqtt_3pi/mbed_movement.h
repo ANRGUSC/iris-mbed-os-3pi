@@ -12,6 +12,22 @@
 #include <stdio.h>
 #include <string.h>
 
+/*	MQTT Packet Format for MBED Movement Commands
+*	(sent as string over MQTT)
+*	First character:	3	(Movement command type number)
+*	Characters 2-3:	hex representation of move_type (check movement_funct_t)
+*	Characters 4-7: hex representation of time (0000 to FFFF)
+*	Characters 8-11: hex representation of degrees (8000 to EFFF)
+*	Characters 12-13: hex representation of speed (80 to EF)
+*
+*	If certain move_type doesn't one of the above variables, use 0 for its
+*	characters in the packet
+*
+*	ex.	"3020000006428"			Tells mbed to rotate 100 degrees at speed 40
+*	     command type: 3	move_type: 02 (rotate)	time: 0000 (not used)
+		 degrees: 0064 (100 in decimal)		speed: 28 (40 in decimal)					
+*/
+
 //Use to check bits of data ready registers
 #define DATA_MASK	0x03
 //Acceleration and Gyro data ready pins
