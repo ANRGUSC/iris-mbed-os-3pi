@@ -116,7 +116,7 @@ typedef enum {
  * @param pkt               pointer to the hdlc packet
  */
 void build_mqtt_pkt_pub(char topic[], char data[], uint16_t src_port,
-
+									mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
 /**
  * @brief constructs a mqtt sub packet
  * @details this function generates a hdlc mqtt sub packet
@@ -125,7 +125,7 @@ void build_mqtt_pkt_pub(char topic[], char data[], uint16_t src_port,
  * @param src_port          hdlc source port
  * @param mqtt_send_pkt     pointer to the mqtt packet
  * @param pkt               pointer to the hdlc packet
- */                                    mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
+ */
 void build_mqtt_pkt_sub(char topic[], uint16_t src_port,
                                     mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
 /**

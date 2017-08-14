@@ -45,10 +45,11 @@
 #define DEBUG   0
 
 #if (DEBUG) 
-#define PRINTF(...) printf(__VA_ARGS__)
+#define PRINTF(...) pc.printf(__VA_ARGS__)
 #else
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
+extern Serial pc;
 /**
  * @brief constructs a mqtt pub packet
  * @details this function generates a hdlc mqtt pub packet
