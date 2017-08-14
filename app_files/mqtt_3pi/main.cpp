@@ -78,6 +78,31 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 /**
+ * @brief      parse mqtt_data_t for move command information
+ *             stored as hex values
+ *
+ * @param      movement  Pointer to store movement_t data
+ * @param      data_pkt  The parsed data
+ */
+void mqtt_data_to_movement_t(movement_t *movement, mqtt_data_t *data_pkt)
+{
+    char m_type[3] = "\0\0";
+    char time[5] = "\0\0\0\0";
+    char degrees[5] = "\0\0\0\0";
+    char speed[3] ="\0\0";
+    memcpy(m_type, data_pkt->data, 2);
+    memcpy(time, data_pkt->data + 2, 4);
+    memcpy(degrees, data_pkt->data + 6, 4);
+    memcpy(speed, data_pkt->data + 10, 2);
+    
+    movement->move_type = (uint8_t)strtol(m_type, NULL, 16);
+    movement->time = (uint16_t)strtol(time, NULL, 16);
+    movement->degrees = (int16_t)strtol(degrees, NULL, 16);
+    movement->speed = (int8_t)strtol(speed, NULL, 16);
+
+}
+
+/**
  * @brief      This is the MQTT thread on MBED
  */
 void _mqtt_thread()
@@ -187,7 +212,7 @@ void _mqtt_thread()
                                 // rcv_data= (mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length);
                                 mqtt_recv = (mqtt_pkt_t *) uart_pkt_get_data(
                                     buf->data, buf->length);
-                                PRINTF("The data received is %s \n",
+                                PRINTF("The data is %s \n",
                                     mqtt_recv->data);
                                 PRINTF("The topic received is %s \n",
                                     mqtt_recv->topic); 
@@ -243,7 +268,10 @@ void _mqtt_thread()
                                     case MOVE_CMD:
                                         //temporary case statement
                                         PRINTF("Move command received\n");
-                                        memcpy(&movement, mqtt_recv_data.data, 6);
+                                        mqtt_data_to_movement_t(&movement,
+                                            &mqtt_recv_data);
+                                        PRINTF("Move command type: %d\n",
+                                                movement.move_type);
                                         switch(movement.move_type)
                                         {
                                             case INIT_IMU:
@@ -253,10 +281,18 @@ void _mqtt_thread()
                                                 calibrate_compass();
                                                 break;
                                             case ROTATE:
+                                                PRINTF("Degrees: %d\n",
+                                                    movement.degrees);
+                                                PRINTF("Speed: %d\n",
+                                                    movement.speed);
                                                 rotate_degrees(movement.degrees,
                                                     movement.speed);
                                                 break;
                                             case DRIVE_SPEED:
+                                                PRINTF("Time: %d\n",
+                                                    movement.time);
+                                                PRINTF("Speed: %d\n",
+                                                    movement.speed);
                                                 drive_forward(movement.time,
                                                     movement.speed);
                                                 break;
@@ -267,6 +303,10 @@ void _mqtt_thread()
                                                 PRINTF("Move command error\n");
                                                 break;
                                         }
+                                        break;
+                                    default:
+                                        PRINTF("error. data type: %d\n", 
+                                            mqtt_recv_data.data_type);
                                         break;
                                 }
                                 // Mbed send a pub message to the broker                        

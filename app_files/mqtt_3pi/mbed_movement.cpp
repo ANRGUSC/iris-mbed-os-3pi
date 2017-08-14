@@ -108,7 +108,7 @@ void rotate_degrees(int16_t degrees, int8_t speed)
 		speed = abs(speed);
 		degrees *= -1;
 	}
-	else if(speed == 0)
+	if(speed < 15)	//15 is just above motor stall speed
 		return;
 	if(degrees > 0)
 		right = true;
