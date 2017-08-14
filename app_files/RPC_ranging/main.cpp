@@ -162,6 +162,7 @@ void range_thread(){
     range_params_t params;
     range_data_t* time_diffs;
     range_hdr_t* range_hdr;
+    float dist_avg = 0;
 
     int tdoa_a = 0;
     int tdoa_b = 0;
@@ -171,6 +172,7 @@ void range_thread(){
     float angle = 0;
     int data_per_pkt;
     while(1){
+        dist_avg = 0;
         PRINTF("Range: Waiting for RANGE_THR_START\n");
         evt = range_thr_mailbox.get();
         
@@ -340,7 +342,8 @@ void range_thread(){
                                 }
                                  printf("******************************\n");
 
-                                
+                                dist_avg += dist;
+
                                 time_diffs++;
                             }
                             if(range_hdr->last_pkt == 1){
@@ -373,6 +376,8 @@ void range_thread(){
                 break;
             }
         }
+        dist_avg/=samples;
+        printf("avg = %.2f\n", dist_avg);
         msg2 = RPC_mailbox.alloc();
         msg2->type = RANGE_THR_COMPLETE;
         msg2->content.ptr = NULL;

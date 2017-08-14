@@ -34,10 +34,17 @@
  * THE SOFTWARE.
  */
 
-#include "data_conv.h"
+#ifndef DATA_CONV_H
+#define DATA_CONV_H
 
-#define PI                  3.14159265
-#define SEPARATION_DIST     2.75 / 12 //This is the distance between sensors in feet
+#include <math.h>
+#include <inttypes.h>
+
+typedef struct __attribute__((packed)) {
+    float        distance;      
+    float      	 angle;
+    uint8_t		 node_id;                  
+} dist_angle_t;
 
 /**
  * @brief      This function converts the raw TDoA value to a distance
@@ -46,9 +53,7 @@
  *
  * @return     The distance corresponding to that TDoA value in feet
  */
-float tdoa_to_dist(int tdoa){
-    return ((float) tdoa - 19628.977) / 885.274; // this equation can be modified
-}
+float tdoa_to_dist(int tdoa);
 
 /**
  * @brief      This function converts the TDoA of two sensors into an angle estimate
@@ -58,17 +63,7 @@ float tdoa_to_dist(int tdoa){
  *
  * @return     The angle at which the two sensors are facing the transmitter in degrees
  */
-float od_to_angle(float a, float b){
-    float x = calc_x(a,b);
-    float ratio = (b * b - a * a) / (2 * SEPARATION_DIST * x);
-    
-    if(ratio > 1 || ratio < -1){
-        return 361;
-    } else{
-        return asin(ratio) * 180 / PI;
-    }
-    
-}
+float od_to_angle(float a, float b);
 
 /**
  * @brief      Calculates the middle distance between the sensors and transmitter.
@@ -78,6 +73,6 @@ float od_to_angle(float a, float b){
  *
  * @return     The the middle distance between the sensors and transmitter
  */
-float calc_x(float a, float b){
-    return sqrt((a * a / 2) + (b * b / 2) - (SEPARATION_DIST * SEPARATION_DIST / 4));
-}
+float calc_x(float a, float b);
+
+#endif
