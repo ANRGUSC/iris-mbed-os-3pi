@@ -173,12 +173,13 @@ void _mqtt_thread()
                         mqtt_thread_mailbox.free(msg);
                         hdlc_pkt_release(buf);
                         pkt.length = HDLC_MAX_PKT_SIZE;        
+
                         if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                         else
                             PRINTF("mqtt_thread: failed to send pkt no\n");
                     }
-                    if (recv_hdr.pkt_type == HWADDR_GET){
+                    else if (recv_hdr.pkt_type == HWADDR_GET){
                         PRINTF("******************\n"); 
                         PRINTF("1\n");  
                         PRINTF("******************\n");
@@ -200,6 +201,11 @@ void _mqtt_thread()
                         else
                             PRINTF("mqtt_thread: failed to send pkt no\n");
                     }
+                    else{
+                        /* ERROR */
+                        PRINTF("mqtt_thread: wrong syntax\n");
+                    }
+
                     break;
                 case HDLC_RESP_SND_SUCC:
                     if (mqtt_thread_frame_no == 0){
@@ -210,8 +216,8 @@ void _mqtt_thread()
                         exit = 1;
                         PRINTF("mqtt_thread: sent HW_ACK!\n");
                     }
-                    mqtt_thread_mailbox.free(msg);
                     mqtt_thread_frame_no ++;
+                    mqtt_thread_mailbox.free(msg);
                     break;
 
                 case HDLC_RESP_RETRY_W_TIMEO:
@@ -239,7 +245,7 @@ void _mqtt_thread()
         if(exit){
             exit = 0;
             break;
-        }        
+       }        
     }
     PRINTF("mqtt_thread: All Initialization Done\n");
 
@@ -266,12 +272,13 @@ void _mqtt_thread()
                         PRINTF("mqtt_thread: sent frame_no %d!\n", mqtt_thread_frame_no);
                         exit = 1;
                         
-                        // if (mqtt_thread_frame_no == 30){
-                        //     //resetting the mbed and riot after 30 iterations
-                        //     printf("mqtt_thread: resetting the mbed\n");
-                        //     // reset twice for redundancy
-                        //     reset_system();
-                        // }
+                        if (mqtt_thread_frame_no == 60){
+                            //resetting the mbed and riot after 30 iterations
+                            printf("mqtt_thread: resetting the mbed\n");
+                            // reset twice for redundancy
+                            reset_system();
+                        }
+
                         mqtt_thread_mailbox.free(msg);
                         break;
 
@@ -424,7 +431,7 @@ void _mqtt_thread()
                                             PRINTF("mqtt_thread: failed to send pkt no\n");
                                         }
                                         rcvd_node_id_count = 0;
-                                        PRINTF("REACHED the end of it\n");                                                                               
+                                        // PRINTF("REACHED the end of it\n");                                                                               
                                         //send rssi_send to the rssi thread in RIOT
                                         break;
                                 }                                                       
@@ -577,7 +584,7 @@ int main(void)
                         main_thr_mailbox.free(msg);
                         break;
                     case HDLC_PKT_RDY:
-                        PRINTF("RSSI packet received\n");
+                        PRINTF("rssi_thread: RSSI packet received\n");
                         buf = (hdlc_buf_t *)msg->content.ptr;   
                         uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
                         switch (recv_hdr.pkt_type)
@@ -599,7 +606,7 @@ int main(void)
                                     m3pi.backward(speed);
                                     Thread::wait(delta_t);
                                     m3pi.stop();
-                                    if (rssi_value<(-50)){
+                                    if (rssi_value < -50){
                                         PRINTF("The value is less than -50, move back\n");
                                     }
                                 }
@@ -613,7 +620,6 @@ int main(void)
                                                                
                                 break;
                             default:
-                                main_thr_mailbox.free(msg);
                                 /* error */
                                 break;
                         }
