@@ -503,7 +503,7 @@ void _move_thread()
     hdlc_pkt_t      pkt;
     pkt.data        = send_data;
     pkt.length      = 0;
-    char            move_pkt_no = 0;
+    char            move_thread_frame_no = 0;
 
     uart_pkt_hdr_t  send_hdr = {0, 0, 0};
     hdlc_buf_t      *buf;
@@ -514,7 +514,7 @@ void _move_thread()
 
     int             exit = 0;
     hdlc_entry_t    move_thread = { NULL, MOVE_MBED_PORT, &move_thread_mailbox };
-    hdlc_register(&move_thread_mailbox);
+    hdlc_register(&move_thread);
 
     osEvent         evt;
 
@@ -532,34 +532,34 @@ void _move_thread()
                     switch (recv_hdr.pkt_type)
                     {
                         default:
-                            /*error*/
+                            //error
                             break;
                     }
                     hdlc_pkt_release(buf);
+                    move_thread_mailbox.free(msg);
                     break;
                 case INTER_THREAD:
                     PRINTF("move_thread: message to move received\n");
+                    move_thread_mailbox.free(msg);
                     break;
                 case HDLC_RESP_SND_SUCC:
-                    if (mqtt_thread_frame_no == 0){
-                        mqtt_go = 1;
-                        PRINTF("mqtt_thread: sent GO_ACK!\n");
-                    }
-                    else{
                         exit = 1;
-                        PRINTF("mqtt_thread: sent HW_ACK!\n");
-                    }
-                    mqtt_thread_mailbox.free(msg);
-                    mqtt_thread_frame_no ++;
-                    break;
-
+                        PRINTF("move_thread: sent frame_no\n");                    
+                        move_thread_mailbox.free(msg);
+                        break;
                 default:
-                    /*error*/
+                    move_thread_mailbox.free(msg);
                     break;
             }
-
+        }
+        if (exit)
+        {
+            exit = 0;
+            break;
         }
     }
+    move_thread_frame_no++;
+    Thread::wait(100);
     
 }
 
@@ -593,6 +593,7 @@ int main(void)
     //Movement thread
     Thread move_thr;
     move_thr.start(_move_thread);
+    
     
     int             exit = 0;
 
@@ -669,10 +670,18 @@ int main(void)
                                 //handles the movement of the robot
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 rssi_value = rssi_value - 73;
+                                //sending the message
+                                /*
+                                msg2->type = INTER_THREAD;                                   
+                                msg2->sender_pid = osThreadGetId();
+                                msg2->source_mailbox = &main_thr_mailbox;
+                                move_thread_mailbox.put(msg2);
+                                PRINTF("rssi_thread: RSSI value has been sent\n");
+                                */
                                 //displaying for now 
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
                                 //conditions to satisfy depending on the value of the RSSI
-                                
+                                /*
                                 if (rssi_value < -40)
                                 {
                                     PRINTF("The value is less than forty, move cautiously\n");
@@ -689,7 +698,8 @@ int main(void)
                                     m3pi.forward(speed);
                                     Thread::wait(delta_t);
                                     m3pi.stop();
-                                }                                                      
+                                } 
+                                */                                                     
                                                                
                                 break;
                             default:
