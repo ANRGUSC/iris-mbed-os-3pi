@@ -277,7 +277,6 @@ void _mqtt_thread()
                             // reset twice for redundancy
                             reset_system();
                         }
-
                         mqtt_thread_mailbox.free(msg);
                         break;
 
