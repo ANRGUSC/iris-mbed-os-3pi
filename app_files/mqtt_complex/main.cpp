@@ -131,8 +131,6 @@ void _mqtt_thread()
      * DO NOT Proceed further before the follwing steps are complete. 
      * (1) The openmote sends a MQTT_GO msg once the mqtt connection is properly setup.
      * (2) The MBED replies by sending a MQTT_GO_ACK msg to the Openmote
-     * (3) The Openmote sends the HWADDR to the mbed
-     * (4) The MBED replies by sending a HW_ADDR_ACK
      * 
      * After this sequece is complete, the mqtt is ready to go 
      */
