@@ -45,12 +45,6 @@
 #define _MQTT_H_
 
 
-#define MBED_MQTT_PORT  200
-#define RIOT_MQTT_PORT  170
-#define MAIN_THR_PORT   165
-#define NULL_PKT_TYPE   0xFF
-
-
 #include "mbed.h"
 #include "rtos.h"
 #include "hdlc.h"
