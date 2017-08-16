@@ -51,7 +51,13 @@
 #include "uart_pkt.h"
 #include "main-conf.h"   
 
+#ifndef MBED_MQTT_PORT
+    #define MBED_MQTT_PORT  200
+#endif
 
+#ifndef RIOT_MQTT_PORT
+    #define RIOT_MQTT_PORT  170
+#endif
 /**
  * In our structure the mqtt data section is used to controlling one node's operation from another.
  * Towards this goal, we have subdivided the data section into two main subblocks

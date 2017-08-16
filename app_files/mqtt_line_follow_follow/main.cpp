@@ -7,7 +7,6 @@
  *
  * Contributors:
  * Pradipta Ghosh
- * Daniel Dsouza
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +45,7 @@
  */
 
 #include "mbed.h"
+#include "m3pi.h"
 #include "rtos.h"
 #include "hdlc.h"
 #include <stdlib.h>
@@ -57,9 +57,12 @@
 #include "uart_pkt.h"
 #include "main-conf.h"
 #include "mqtt.h"
+#include "sensor_data.h"
+
 
 #define DEBUG   1
 #define TEST_TOPIC   ("test/trial")
+#define SUB_TOPIC   ("line")
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -71,13 +74,19 @@
 Serial                          pc(USBTX,USBRX,115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
+volatile bool                   mqtt_go = 0;
+m3pi                            m3pi;
+Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
+// volatile bool  go_flag = 0;
+/**
+ * @brief      This is the MQTT thread on MBED
+ */
+Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_thr_mailbox;
+Mail<float, HDLC_MAILBOX_SIZE>  sensor_data_mailbox;
+
+
 DigitalOut                      reset_riot(p26,1);
 extern "C" void mbed_reset();
-
-bool mqtt_go = 0;
-
-Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
-Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 void reset_system(void)
 {
@@ -91,19 +100,18 @@ void reset_system(void)
     mbed_reset();
 }
 
-/**
- * @brief      This is the MQTT thread on MBED
- */
 void _mqtt_thread()
 {
     int             pub_length;
     char            mqtt_thread_frame_no = 0;
     msg_t           *msg, *msg2;
+    float           sensor_data;
     char            send_data[HDLC_MAX_PKT_SIZE];
     char            recv_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t      pkt;
     pkt.data        = send_data;  
-    pkt.length      = 0;
+    pkt.length      = HDLC_MAX_PKT_SIZE;        
+
 
     mqtt_pkt_t      *mqtt_recv;
     mqtt_pkt_t      mqtt_send;
@@ -203,12 +211,16 @@ void _mqtt_thread()
         }        
     }
 
+    build_mqtt_pkt_sub(SUB_TOPIC, MBED_MQTT_PORT, &mqtt_send, &pkt);
+    if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
+        PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+    else
+        PRINTF("mqtt_thread: failed to send pkt no\n"); 
 
     while (1) 
     {
         // PRINTF("In mqtt_thread");
         myled3 =! myled3;
-        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
         pkt.length = HDLC_MAX_PKT_SIZE;        
 
         while(1)
@@ -273,6 +285,12 @@ void _mqtt_thread()
                                         else
                                             PRINTF("mqtt_thread: failed to send pkt no\n"); 
                                         break;
+
+                                    case SENSOR_DATA:
+                                        sensor_data = atof(mqtt_recv_data.data);
+                                        PRINTF ("mqtt_thread: sensor data received %f\n", sensor_data);
+                                        put_telemetry(sensor_data);
+                                        break;
                                 }
                                 // Mbed send a pub message to the broker                        
                                 break;
@@ -311,6 +329,10 @@ void _mqtt_thread()
 }
 
 
+// Mutex       data_mutex; 
+// float       sense_position_of_line;
+
+
 int main(void)
 {
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
@@ -318,15 +340,56 @@ int main(void)
    
     Thread mqtt_thr;
     mqtt_thr.start(_mqtt_thread);
+    msg_t *msg;
+
+  
+    PRINTF("Starting the MBED\n");
+        // Parameters that affect the performance
+    float speed = 0.1;
+    float correction = 0.1;   
+    float threshold = 0.5;
+ 
     
-    myled = 1;
-    while(1)
+    m3pi.locate(0,1);
+    m3pi.printf("Line Flw");
+ 
+    wait(2.0);
+    
+    m3pi.sensor_auto_calibrate();
+    int countt = 0;
+    int countt1 = 0;
+
+    while(!mqtt_go)
     {
-        myled =! myled;
-        Thread::wait(9000);
+        // PRINTF("main_thr: waiting for go \n");
+        Thread::wait(100);
     }
 
-    PRINTF("Reached Exit");
+
+    while (1) 
+    {
+
+        // -1.0 is far left, 1.0 is far right, 0.0 in the middle
+        float position_of_line = get_telemetry();
+        PRINTF("main_thr: sensor data %f\n", position_of_line);
+        // Line is more than the threshold to the right, slow the left motor
+        if (position_of_line > threshold) {
+            m3pi.right_motor(speed);
+            m3pi.left_motor(speed - correction);
+        }
+ 
+        // Line is more than 50% to the left, slow the right motor
+        else if (position_of_line < -threshold) {
+            m3pi.left_motor(speed);
+            m3pi.right_motor(speed - correction);
+        }
+ 
+        // Line is in the middle
+        else {
+            m3pi.forward(speed);
+        } 
+        // Thread::wait(10);    
+    }
     /* should be never reached */
     return 0;
 }
