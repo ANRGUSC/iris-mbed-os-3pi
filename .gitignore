@@ -31,7 +31,6 @@ BUILD/
 *.dSYM/
 *.su
 
-m3pi/
 mbed-os/
 .tags*
 

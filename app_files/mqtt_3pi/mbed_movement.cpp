@@ -429,6 +429,85 @@ void rotate_degrees(int16_t degrees, int8_t speed)
 	robot.print(buf, length);*/
 }
 
+void rotate_parts(int16_t degrees)
+{
+	uint8_t count = 0;
+	int8_t partial_deg[20];
+	char buf[6];
+	uint8_t length;
+
+	//Change to less than one full rotation
+	degrees %= 360;
+	//Round degrees to nearest 5 or 10
+	if(degrees % 5 > 2)
+		degrees += 5 - degrees % 5;
+	else if(degrees % 5 < -2)
+		degrees += -5 - degrees % 5;
+	else
+		degrees -= degrees % 5;
+
+	if(degrees < 5 && degrees > -5)
+		return;
+	else if(degrees < 10 && degrees > -10)
+		degrees = 10;
+
+	if(degrees > 0)
+	{
+		while((degrees >= 35) || (degrees == 25))
+		{
+			degrees -= 25;
+			partial_deg[count] = 25;
+			count++;
+		}
+		if(degrees >= 20)
+		{
+			degrees -= 20;
+			partial_deg[count] = 20;
+			count++;
+		}
+		if(degrees == 15)
+		{
+			partial_deg[count] = 15;
+			count++;
+		}
+		else if(degrees == 10)
+		{
+			partial_deg[count] = 10;
+			count++;
+		}
+	}
+	else
+	{
+		while((degrees <= -35) || (degrees == -25))
+		{
+			degrees += 25;
+			partial_deg[count] = -25;
+			count++;
+		}
+		if(degrees <= -20)
+		{
+			degrees += 20;
+			partial_deg[count] = -20;
+			count++;
+		}
+		if(degrees == -15)
+		{
+			partial_deg[count] = -15;
+			count++;
+		}
+		else if(degrees == -10)
+		{
+			partial_deg[count] = -10;
+			count++;
+		}
+	}
+	for(uint8_t i = 0; i < count; i++)
+	{
+		rotate_degrees(partial_deg[i], 40);
+		Thread::wait(100);
+	}
+}
+
 void drive_forward(uint16_t time, int8_t speed)
 {
 	Timer timer;

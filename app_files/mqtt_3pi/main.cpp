@@ -288,6 +288,9 @@ void _mqtt_thread()
                                                 rotate_degrees(movement.degrees,
                                                     movement.speed);
                                                 break;
+                                            case ROTATE_PART:
+                                                rotate_parts(movement.degrees);
+                                                break;
                                             case DRIVE_SPEED:
                                                 PRINTF("Time: %d\n",
                                                     movement.time);

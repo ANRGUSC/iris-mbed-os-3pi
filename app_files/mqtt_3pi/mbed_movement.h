@@ -14,7 +14,7 @@
 
 /*	MQTT Packet Format for MBED Movement Commands
 *	(sent as string over MQTT)
-*	First character:	3	(Movement command type number)
+*	First character:	7	(Movement command type number)
 *	Characters 2-3:	hex representation of move_type (check movement_funct_t)
 *	Characters 4-7: hex representation of time (0000 to FFFF)
 *	Characters 8-11: hex representation of degrees (8000 to EFFF)
@@ -23,8 +23,8 @@
 *	If certain move_type doesn't one of the above variables, use 0 for its
 *	characters in the packet
 *
-*	ex.	"3020000006428"			Tells mbed to rotate 100 degrees at speed 40
-*	     command type: 3	move_type: 02 (rotate)	time: 0000 (not used)
+*	ex.	"7020000006428"			Tells mbed to rotate 100 degrees at speed 40
+*	     command type: 7	move_type: 02 (rotate)	time: 0000 (not used)
 		 degrees: 0064 (100 in decimal)		speed: 28 (40 in decimal)					
 */
 
@@ -62,8 +62,9 @@ typedef enum
 	INIT_IMU			  = 0,
 	CALIBRATE			  = 1,
 	ROTATE				  = 2,
-	DRIVE_SPEED			  = 3,
-	DRIVE_PID			  = 4
+	ROTATE_PART 		  = 3,
+	DRIVE_SPEED			  = 4,
+	DRIVE_PID			  = 5
 } movement_funct_t;
 
 //init_minimu()
@@ -93,6 +94,15 @@ void calibrate_compass(void);
 //			  int8_t speed: speed at which to rotate (-127 - 127)
 //Returns: none
 void rotate_degrees(int16_t degrees, int8_t speed);
+
+//rotate_parts
+//Rotates a certain number of degrees in increments, using finely tuned
+//smaller steps. Only moves in increments of 5 degrees, and rounds any degree
+//value to the nearest 5 or 10.  Accuracy +- 5 degrees between for rotation
+//between -75 and 75 degrees.  After that accuracy quickly decreases.
+//Parameters: int16_t degrees:	degrees to rotate
+//Returns: none
+void rotate_parts(int16_t degrees);
 
 //drive_forward()
 //Moves the m3pi forward, using the compass to stay on a straight heading
