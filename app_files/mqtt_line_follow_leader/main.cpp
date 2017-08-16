@@ -402,7 +402,8 @@ int main(void)
     Thread contr_thr;
     contr_thr.start(_cont_thread);
     PRINTF("Starting the MBED\n");
-        // Parameters that affect the performance
+
+    // Parameters that affect the performance
     float speed = 0.1;
     float correction = 0.1;   
     float threshold = 0.5;
