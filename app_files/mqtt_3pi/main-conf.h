@@ -5,6 +5,7 @@ in the application code, not inside libraries. */
 the new uint16_t port number */
 
 
+
 #define MBED_MQTT_PORT  200
 #define RIOT_MQTT_PORT  170
 #define MAIN_THR_PORT   165
