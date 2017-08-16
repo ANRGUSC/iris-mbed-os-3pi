@@ -88,14 +88,14 @@ DigitalOut                      myled(LED1);
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
+#define LOOP_DELAY            0
+#define SAMPS_PER_MODE        11
+
 #define MAIN_THR_PORT   5678    
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
 
 #define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
-
-#define LOOP_DELAY            0
-#define SAMPS_PER_MODE        11
 
 typedef struct __attribute__((packed)) {
     uint8_t         last_pkt;      

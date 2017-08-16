@@ -59,11 +59,12 @@ float tdoa_to_dist(int tdoa){
  * @return     The angle at which the two sensors are facing the transmitter in degrees
  */
 float od_to_angle(float a, float b){
+    float ans;
     float x = calc_x(a,b);
     float ratio = (b * b - a * a) / (2 * SEPARATION_DIST * x);
     
     if(ratio > 1 || ratio < -1){
-        return 361;
+        return -361;
     } else{
         return asin(ratio) * 180 / PI;
     }
