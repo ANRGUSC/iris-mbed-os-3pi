@@ -45,19 +45,19 @@
 #define _MQTT_H_
 
 
-#define MBED_MQTT_PORT  200
-#define RIOT_MQTT_PORT  170
-#define MAIN_THR_PORT   165
-#define NULL_PKT_TYPE   0xFF
-
-
 #include "mbed.h"
 #include "rtos.h"
 #include "hdlc.h"
 #include "uart_pkt.h"
 #include "main-conf.h"   
 
+#ifndef MBED_MQTT_PORT
+    #define MBED_MQTT_PORT  200
+#endif
 
+#ifndef RIOT_MQTT_PORT
+    #define RIOT_MQTT_PORT  170
+#endif
 /**
  * In our structure the mqtt data section is used to controlling one node's operation from another.
  * Towards this goal, we have subdivided the data section into two main subblocks
@@ -101,8 +101,18 @@ typedef struct __attribute__((packed)){
 typedef enum {
     NORM_DATA             = 0,
     SUB_CMD               = 1,
-    PUB_CMD               = 2
+    PUB_CMD               = 2, 
+    LEN_CLIENTS_LIST	  = 3,
+    GET_CLIENTS			  = 4,
+    RSSI_SEND			  = 5,
+    SENSOR_DATA           = 6       	
 } type_mqtt_data_t;
+
+typedef enum {
+    SERVER_ACK            = 0,
+    SERVER_REQUEST        = 1,
+    SERVER_SEND_RSSI      = 2,    
+} type_server_msg_type;
 
 /**
  * @brief constructs a mqtt pub packet

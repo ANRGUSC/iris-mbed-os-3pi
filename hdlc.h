@@ -104,6 +104,7 @@ typedef struct {
     union {
         void *ptr;              /**< Pointer content field. */
         uint32_t value;         /**< Value content field. */
+        float line;
     } content;                  /**< Content of the message. */
 } msg_t;
 
@@ -188,6 +189,13 @@ void hdlc_unregister(hdlc_entry_t *entry);
  * @return                [description]
  */
 int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, riot_to_mbed_t reply);
+/**
+ * @brief Send @p pkt as an hdlc command packet over serial. This function blocks.
+ * @param  pkt            Packet to be sent.
+ * @param  sender_mailbox Pointer to sender's mailbox.
+ * @return                [description]
+ */
+int hdlc_send_command_wo_resp(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, riot_to_mbed_t reply);
 /**
  * @brief      Sends a hdlc packet.
  *
