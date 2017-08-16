@@ -29,11 +29,11 @@ app_path = args.app_files + '.mbedignore'
 ignore_file = 'app_files/ignore_file/.mbedignore'
 
 if args.m3pi == '0':
-    m3pi_path = 'm3pi_library/original/.mbedignore'
+    m3pi_path = 'm3pi/original/.mbedignore'
 elif args.m3pi == '1':
-    m3pi_path = 'm3pi_library/modified/.mbedignore'
+    m3pi_path = 'm3pi/modified/.mbedignore'
 else:
-    m3pi_path = 'm3pi_library/original/.mbedignore'
+    m3pi_path = 'm3pi/original/.mbedignore'
 
 print m3pi_path
 
