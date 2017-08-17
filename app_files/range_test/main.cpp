@@ -176,7 +176,7 @@ int main(void)
     
         i++;
 
-        params.num_samples = SAMPS_PER_MODE;
+        params.node_id = -1;
 
         /* Blinks the led. */
         myled = !myled;

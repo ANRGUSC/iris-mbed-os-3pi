@@ -90,14 +90,19 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 
 #define MBED_RANGE_PORT 5678
 #define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
-#define START_RANGE_THR 139       
+#define START_RANGE_THR 139
+
+#define MAX_NUM_ANCHORS 20       
 
 typedef struct __attribute__((packed)) {
     uint8_t         last_pkt;      
     range_data_t    data[DATA_PER_PKT];                  
 } range_hdr_t;
 
-dist_angle_t get_range_data(){
+static uint8_t reachable_nodes[MAX_NUM_ANCHORS];
+static uint8_t num_nodes;
+
+dist_angle_t get_range_data(uint8_t node_id){
     ranging = 1;
  
     int exit = 0;
@@ -119,7 +124,7 @@ dist_angle_t get_range_data(){
     
     uart_pkt_hdr_t recv_hdr;
     uart_pkt_hdr_t send_hdr = (uart_pkt_hdr_t){ MBED_RANGE_PORT, RIOT_MQTT_PORT, SOUND_RANGE_REQ };
-    range_params_t params = (range_params_t){1, OMNI_SENSOR_MODE};
+    range_params_t params = (range_params_t){node_id, OMNI_SENSOR_MODE};
     
     /* misc */
     osEvent evt;
@@ -134,6 +139,7 @@ dist_angle_t get_range_data(){
 
     
     int i = 0;
+    int j = 0;
     int data_per_pkt;
 
     //send ranging request packet up hdlc   
@@ -282,7 +288,10 @@ dist_angle_t get_range_data(){
 
                             return_val.distance = dist;
                             return_val.angle = angle;
-                            return_val.node_id = 5;
+                            return_val.node_id = time_diffs->node_id;
+
+                            reachable_nodes[j] = time_diffs->node_id;
+                            j++;
 
                             time_diffs++;
                         }
@@ -319,6 +328,7 @@ dist_angle_t get_range_data(){
         }
     }
     
+    num_nodes = j;
     ranging = 0;
 
     printf("Range: Returning value\n");
@@ -356,7 +366,7 @@ void _range_thread(){
             msg = (msg_t*)evt.value.p;
             if(msg->type == START_RANGE_THR){
                 PRINTF("range_thread: got range init message, starting routine\n");
-                range_data = get_range_data();
+                range_data = get_range_data(-1);
                 PRINTF("range_thread: range_routine done. publishing data now\n");
                 
                 memcpy(topic_pub, RANGE_TOPIC, 10);

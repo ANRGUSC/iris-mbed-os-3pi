@@ -5,6 +5,12 @@ in the application code, not inside libraries. */
 the new uint16_t port number */
 #ifndef MAIN_CONF_H
 #define MAIN_CONF_H
+
+#define MBED_MQTT_PORT  200
+#define RIOT_MQTT_PORT  170
+#define MAIN_THR_PORT   165
+#define NULL_PKT_TYPE   0xFF
+
 /* RSSI dump thread port number */
 #define RSSI_DUMP_PORT              9000
 
@@ -34,11 +40,9 @@ the new uint16_t port number */
 #define RANGE_THR_START			0x63
 #define RANGE_THR_COMPLETE		0x64
 
-#define RANGE_DATA_LEN    5
+#define RANGE_DATA_LEN    6
 
-#define MISSED_PIN_MASK     10
 #define MISSED_PIN_UNMASK   13
-
 #define RF_MISSED         20
 #define ULTRSND_MISSED    21
 
@@ -55,6 +59,7 @@ typedef struct __attribute__((packed)){
     uint16_t tdoa; //time difference of arrival
     uint16_t orient_diff; //orientation differential
     uint8_t status; //pin flag to indicate which pin came first and if a pin had missed a ping
+    int8_t node_id;
 } range_data_t;
 
 /**
@@ -66,10 +71,9 @@ typedef struct __attribute__((packed)){
  * It can be extended
  */
 typedef struct __attribute__((packed)){
-    uint16_t num_samples;
+    int8_t node_id;
     uint8_t ranging_mode;
     // add more options in the future?
 } range_params_t;
 
 #endif
-

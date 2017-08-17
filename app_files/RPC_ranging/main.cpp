@@ -119,7 +119,7 @@ DigitalOut                      myled3(LED3); //to notify when a character was r
 DigitalOut                      myled(LED1);
 
 static uint8_t mode = ONE_SENSOR_MODE;
-static uint16_t samples = 1;
+static int8_t node_id = -1;
 volatile uint8_t loopbegin = 0;
 
 /**
@@ -162,7 +162,6 @@ void range_thread(){
     range_params_t params;
     range_data_t* time_diffs;
     range_hdr_t* range_hdr;
-    float dist_avg = 0;
 
     int tdoa_a = 0;
     int tdoa_b = 0;
@@ -172,7 +171,6 @@ void range_thread(){
     float angle = 0;
     int data_per_pkt;
     while(1){
-        dist_avg = 0;
         PRINTF("Range: Waiting for RANGE_THR_START\n");
         evt = range_thr_mailbox.get();
         
@@ -190,7 +188,7 @@ void range_thread(){
 
         params.ranging_mode = mode;  
         
-        params.num_samples = samples;
+        params.node_id = node_id;
 
         /* Blinks the led. */
         myled = !myled;
@@ -342,8 +340,6 @@ void range_thread(){
                                 }
                                  printf("******************************\n");
 
-                                dist_avg += dist;
-
                                 time_diffs++;
                             }
                             if(range_hdr->last_pkt == 1){
@@ -376,8 +372,6 @@ void range_thread(){
                 break;
             }
         }
-        dist_avg/=samples;
-        printf("avg = %.2f\n", dist_avg);
         msg2 = RPC_mailbox.alloc();
         msg2->type = RANGE_THR_COMPLETE;
         msg2->content.ptr = NULL;
@@ -404,12 +398,13 @@ void range_RPC(Arguments* input, Reply* output){
     osEvent RPC_evt;
 
     if(input->argc != 2){
-        printf("usage: <num_samples> <ranging_mode>\n");
+        printf("usage: <node_id> <ranging_mode>\n");
         return;
     }
 
     mode = atoi(input->argv[1]);
-    samples = atoi(input->argv[0]);
+    node_id = atoi(input->argv[0]);
+
     switch (mode){
         case 0:
             mode = ONE_SENSOR_MODE;
@@ -430,11 +425,6 @@ void range_RPC(Arguments* input, Reply* output){
         default:
             printf("Invalid ranging mode entry\nValid entries are:\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\n");
             return;
-    }
-
-    if(samples <= 0){
-        printf("Error: num_samples must be greater than 0\n");
-        return;
     }
 
     PRINTF("RPC: Starting ranging thread\n");
