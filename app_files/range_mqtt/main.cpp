@@ -102,7 +102,7 @@ typedef struct __attribute__((packed)) {
 static uint8_t reachable_nodes[MAX_NUM_ANCHORS];
 static uint8_t num_nodes;
 
-dist_angle_t get_range_data(uint8_t node_id){
+dist_angle_t get_range_data(int8_t node_id){
     ranging = 1;
  
     int exit = 0;
@@ -114,10 +114,7 @@ dist_angle_t get_range_data(uint8_t node_id){
     float dist_b;
     float dist;
     float angle = -361;
-    float avg_dist = 0;
-    float avg_angle = 0;
 
-    
     msg_t *msg, *msg2;
     hdlc_buf_t *buf;
     hdlc_pkt_t pkt;
@@ -149,6 +146,7 @@ dist_angle_t get_range_data(uint8_t node_id){
     uart_pkt_cpy_data(pkt.data, pkt.length, &params, sizeof(range_params_t));
 
     PRINTF("src_port: %d, dst_port: %d\n", send_hdr.src_port, send_hdr.dst_port);
+    PRINTF("node_id: %d\n", node_id);
 
     if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){
         PRINTF("range_thread: sending range_req pkt\n"); 
@@ -340,7 +338,6 @@ void _range_thread(){
 
     char            topic_pub[16];
     char            data_pub[32];
-    char *ptr;
     hdlc_pkt_t      pkt;
     
     pkt.data = data_pub;
@@ -348,7 +345,7 @@ void _range_thread(){
 
     mqtt_pkt_t      mqtt_send;
     osEvent evt;
-    msg_t *msg, *msg2;
+    msg_t *msg;
 
     dist_angle_t range_data;
 
@@ -366,7 +363,7 @@ void _range_thread(){
             msg = (msg_t*)evt.value.p;
             if(msg->type == START_RANGE_THR){
                 PRINTF("range_thread: got range init message, starting routine\n");
-                range_data = get_range_data(-1);
+                range_data = get_range_data(msg->content.value);
                 PRINTF("range_thread: range_routine done. publishing data now\n");
                 
                 memcpy(topic_pub, RANGE_TOPIC, 10);
@@ -407,16 +404,14 @@ void _mqtt_thread()
     char            mqtt_thread_frame_no = 0;
     msg_t           *msg, *msg2;
     char            send_data[32];
-    char            recv_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t      pkt;
     pkt.data        = send_data;  
-    pkt.length      = 0;
+    pkt.length      = 32;
 
     mqtt_pkt_t      *mqtt_recv;
     mqtt_pkt_t      mqtt_send;
     mqtt_data_t     mqtt_recv_data;
-    char            *test_str;
-    
+
     uart_pkt_hdr_t  send_hdr = { 0, 0, 0};
     hdlc_buf_t      *buf;
     uart_pkt_hdr_t  recv_hdr;
@@ -425,12 +420,8 @@ void _mqtt_thread()
     hdlc_entry_t    mqtt_thread = { NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox };
     hdlc_register(&mqtt_thread);
     
-    char            test_pub[] = "Hello world";
     char            topic_pub[16];
     char            data_pub[32];
-
-    range_data_t* time_diffs;
-    range_hdr_t* range_hdr;
 
     osEvent         evt;
 
@@ -509,13 +500,13 @@ void _mqtt_thread()
                                     case NORM_DATA:
                                         PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
                                         pub_msg = mqtt_recv_data.data;
-                                        if(strcmp(pub_msg, START_RANGE_MSG) == 0){
+                                        if(strcmp(pub_msg + 1, START_RANGE_MSG) == 0){
                                             PRINTF("MQTT: pub_msg matches START_RANGE_MSG\n");
                                             if(!ranging){
-                                                PRINTF("MQTT: telling thread to start ranging\n");
+                                                PRINTF("MQTT: telling thread to start ranging with node_id: %d\n",pub_msg[0]);
                                                 msg2 = range_thr_mailbox.alloc();
                                                 msg2->type = START_RANGE_THR;
-                                                msg2->content.ptr = NULL;
+                                                msg2->content.value = pub_msg[0];
                                                 msg2->sender_pid = osThreadGetId();
                                                 msg2->source_mailbox = &mqtt_thread_mailbox;
                                                 range_thr_mailbox.put(msg2);
