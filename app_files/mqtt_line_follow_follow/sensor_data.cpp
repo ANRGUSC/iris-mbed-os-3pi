@@ -24,7 +24,7 @@ float get_telemetry()
 { 
     osEvent evt = telemetry_mailbox.get(); // Clear the queue 
     if(evt.status != osEventMail) 
-        return -1;
+        return -100;
 
     float *message = (float*)evt.value.p;
     float telemetry_data= *message; 
@@ -32,6 +32,20 @@ float get_telemetry()
 
     return telemetry_data;
 }
+
+float get_telemetry(int millisec)
+{ 
+    osEvent evt = telemetry_mailbox.get(millisec); // Clear the queue 
+    if(evt.status != osEventMail) 
+        return -100;
+
+    float *message = (float*)evt.value.p;
+    float telemetry_data= *message; 
+    telemetry_mailbox.free(message);
+
+    return telemetry_data;
+}
+
 
 /**
  * @brief puts the recent telemetry value in the buffer

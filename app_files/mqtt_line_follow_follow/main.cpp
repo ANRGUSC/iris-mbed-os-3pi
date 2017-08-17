@@ -75,6 +75,8 @@ Serial                          pc(USBTX,USBRX,115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
 volatile bool                   mqtt_go = 0;
+volatile bool                   control_go = 0;
+
 m3pi                            m3pi;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 // volatile bool  go_flag = 0;
@@ -167,18 +169,32 @@ void _mqtt_thread()
                         else
                             PRINTF("mqtt_thread: failed to send pkt no\n");
                     }
+                    else if(recv_hdr.pkt_type == MQTT_SUB_ACK){                                
+                            PRINTF("mqtt_thread: SUB ACK message received\n");
+                            exit = 1;
+                            mqtt_thread_mailbox.free(msg);
+                            hdlc_pkt_release(buf);
+                    }
                     else{
                         /* ERROR */
-                        PRINTF("mqtt_thread: wrong syntax\n");
+                        PRINTF("mqtt_thread: wrong syntax %d \n", recv_hdr.pkt_type);
+                        mqtt_thread_mailbox.free(msg);
+                        hdlc_pkt_release(buf);
                     }
-
+                    
                     break;
                 case HDLC_RESP_SND_SUCC:
                     if (mqtt_thread_frame_no == 0){
                         mqtt_go = 1;
-                        exit = 1;
                         PRINTF("mqtt_thread: sent GO_ACK!\n");
-                    }
+                        Thread::wait(100);
+                        build_mqtt_pkt_sub(SUB_TOPIC, MBED_MQTT_PORT, &mqtt_send, &pkt);
+                        mqtt_thread_frame_no ++;
+                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
+                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                        else
+                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                    }              
                     mqtt_thread_frame_no ++;
                     mqtt_thread_mailbox.free(msg);
                     break;
@@ -211,15 +227,11 @@ void _mqtt_thread()
         }        
     }
 
-    build_mqtt_pkt_sub(SUB_TOPIC, MBED_MQTT_PORT, &mqtt_send, &pkt);
-    if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
-        PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
-    else
-        PRINTF("mqtt_thread: failed to send pkt no\n"); 
-
+    m3pi.locate(0,1);
+    m3pi.printf("Connected");
     while (1) 
     {
-        // PRINTF("In mqtt_thread");
+        PRINTF("In mqtt_thread");
         myled3 =! myled3;
         pkt.length = HDLC_MAX_PKT_SIZE;        
 
@@ -258,6 +270,11 @@ void _mqtt_thread()
                                 PRINTF("The data received is %s \n", mqtt_recv->data);
                                 PRINTF("The topic received is %s \n", mqtt_recv->topic); 
                                 process_mqtt_pkt(mqtt_recv, &mqtt_recv_data);
+                                if(strcmp(mqtt_recv->topic, "common") == 0){
+                                    PRINTF("mqtt_thread: received line cpy go\n");
+                                    control_go = 1;
+                                    break;
+                                }
                                 switch (mqtt_recv_data.data_type){
                                     case NORM_DATA:
                                         PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
@@ -288,6 +305,9 @@ void _mqtt_thread()
 
                                     case SENSOR_DATA:
                                         sensor_data = atof(mqtt_recv_data.data);
+                                        // m3pi.locate(0,0);
+                                        // m3pi.printf("%f",sensor_data);
+            
                                         PRINTF ("mqtt_thread: sensor data received %f\n", sensor_data);
                                         put_telemetry(sensor_data);
                                         break;
@@ -332,6 +352,7 @@ void _mqtt_thread()
 // Mutex       data_mutex; 
 // float       sense_position_of_line;
 
+#define STEP_SIZE 100
 
 int main(void)
 {
@@ -364,13 +385,30 @@ int main(void)
         // PRINTF("main_thr: waiting for go \n");
         Thread::wait(100);
     }
-
-
+    
+    while(!control_go)
+    {
+        // PRINTF("main_thr: waiting for go \n");
+        Thread::wait(100);
+    }
+    
+    int mqtt_counter = 0;
     while (1) 
     {
+        mqtt_counter ++;
 
         // -1.0 is far left, 1.0 is far right, 0.0 in the middle
-        float position_of_line = get_telemetry();
+        float position_of_line;
+
+        if (mqtt_counter == 1){
+            m3pi.stop();
+            position_of_line = get_telemetry();
+        }
+
+        if (mqtt_counter == STEP_SIZE){
+            mqtt_counter = 0;
+        }
+
         PRINTF("main_thr: sensor data %f\n", position_of_line);
         // Line is more than the threshold to the right, slow the left motor
         if (position_of_line > threshold) {

@@ -19,6 +19,13 @@ void clear_telemetry();
 float get_telemetry();
 
 /**
+ * @brief returns the current telemetry value
+ * @param millisec      wait time in milisecond
+ * @return              [the current telemetry]
+ */
+float get_telemetry(int millisec);
+
+/**
  * @brief puts the recent telemetry value in the buffer
  * @param telemetry          telemetry
  * @return              [ ]
