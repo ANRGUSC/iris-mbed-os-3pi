@@ -255,7 +255,7 @@ void _mqtt_thread()
      */
     while (1) 
     {
-        PRINTF("In mqtt_thread");
+        PRINTF("In mqtt_thread\n");
         myled3 =! myled3;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
         pkt.length = HDLC_MAX_PKT_SIZE;        
@@ -619,6 +619,7 @@ int main(void)
                     case INTER_THREAD:
                         //communicates with the mbed_mqtt thread
                         if (priochk == 1){
+                            Thread::wait(3000);
                             //starting the rssi send messages                            
                             PRINTF("******************\n"); 
                             PRINTF("3\n");  
@@ -671,13 +672,13 @@ int main(void)
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 rssi_value = rssi_value - 73;
                                 //sending the message
-                                /*
+                                
                                 msg2->type = INTER_THREAD;                                   
                                 msg2->sender_pid = osThreadGetId();
                                 msg2->source_mailbox = &main_thr_mailbox;
                                 move_thread_mailbox.put(msg2);
                                 PRINTF("rssi_thread: RSSI value has been sent\n");
-                                */
+                                
                                 //displaying for now 
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
                                 //conditions to satisfy depending on the value of the RSSI
