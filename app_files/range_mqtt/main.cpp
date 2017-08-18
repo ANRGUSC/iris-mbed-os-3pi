@@ -92,28 +92,117 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 #define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
 #define START_RANGE_THR 139
 
-#define MAX_NUM_ANCHORS 20       
+#define MAX_NUM_ANCHORS 20     
+#define DATA_STRING_SIZE  9
 
 typedef struct __attribute__((packed)) {
     uint8_t         last_pkt;      
     range_data_t    data[DATA_PER_PKT];                  
 } range_hdr_t;
 
-static uint8_t reachable_nodes[MAX_NUM_ANCHORS];
-static uint8_t num_nodes;
+typedef struct __attribute__((packed)) {
+    int8_t         node_id;      
+    uint16_t       tdoa;                  
+} node_t;
 
-dist_angle_t get_range_data(int8_t node_id){
-    ranging = 1;
- 
-    int exit = 0;
-    int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(range_params_t);
-    char send_data[pkt_size];
+static node_t nodes_reached[MAX_NUM_ANCHORS];
+static uint8_t num_nodes_reached;
+
+static uint8_t num_nodes_to_pub;
+
+node_t get_node(range_data_t data){
+    return {data.node_id, data.tdoa};
+}
+
+int load_data(char *buff, int buff_size, node_t node){
+    if((num_nodes_to_pub + 1) * DATA_STRING_SIZE >= buff_size - 1){
+        PRINTF("Buffer is full\n");
+        return -1;
+    }
+    snprintf(buff + (num_nodes_to_pub * DATA_STRING_SIZE), buff_size - (num_nodes_to_pub * DATA_STRING_SIZE), "%05d,%02d;", node.tdoa, node.node_id);
+    num_nodes_to_pub++;
+    PRINTF("# of nodes = %d\n",num_nodes_to_pub);
+    return 0;
+}
+
+void clear_data(char *buff, int buff_size){
+    memset(buff,0,buff_size);
+    num_nodes_to_pub = 0;
+}
+
+dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
     int tdoa_a;
     int tdoa_b;
     float dist_a;
     float dist_b;
     float dist;
     float angle = -361;
+
+    dist_angle_t return_val;
+    return_val.distance = -1;
+    return_val.angle = 0;
+    return_val.node_id = 0;
+
+    tdoa_a = time_diffs->tdoa;
+    dist_a = tdoa_to_dist(tdoa_a);
+
+    switch (ranging_mode)
+    {
+        case ONE_SENSOR_MODE:
+            dist = dist_a;
+            break;
+        case TWO_SENSOR_MODE:
+            if(time_diffs->status > 2)
+            {
+                PRINTF("Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs-> status); 
+            } 
+            else
+            {
+                tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
+                dist_b = tdoa_to_dist(tdoa_b);
+                PRINTF("OD = %lu\n", time_diffs-> orient_diff);
+            }
+            break;
+        case XOR_SENSOR_MODE:
+            tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
+            dist_b = tdoa_to_dist(tdoa_b);
+            PRINTF("OD = %lu\n", time_diffs->orient_diff);
+            break;
+        case OMNI_SENSOR_MODE:
+            dist = dist_a;
+            break;
+    }
+    if(dist_b != 0){
+        dist = calc_x(dist_a, dist_b);
+        if(time_diffs->status == 2){
+            angle = od_to_angle(dist_b, dist_a);
+        }
+        else{
+            angle = od_to_angle(dist_a, dist_b);
+        }
+        PRINTF("Distance: %.2f\n", dist);
+        PRINTF("Angle : %.2f\n", angle);
+    }
+    else{
+        PRINTF("Distance: %.2f\n", dist);
+    }
+     printf("******************************\n");
+
+    return_val.distance = dist;
+    return_val.angle = angle;
+    return_val.node_id = time_diffs->node_id;
+
+    printf("Range: Returning value\n");
+    printf("Range: %.2f, %.2f, %d\n",return_val.distance,return_val.angle,return_val.node_id);
+    return return_val;
+}
+
+range_data_t get_range_data(int8_t node_id){
+    ranging = 1;
+ 
+    int exit = 0;
+    int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(range_params_t);
+    char send_data[pkt_size];
 
     msg_t *msg, *msg2;
     hdlc_buf_t *buf;
@@ -128,12 +217,6 @@ dist_angle_t get_range_data(int8_t node_id){
 
     range_data_t* time_diffs;
     range_hdr_t* range_hdr;
-
-    dist_angle_t return_val;
-    return_val.distance = -1;
-    return_val.angle = 0;
-    return_val.node_id = 0;
-
     
     int i = 0;
     int j = 0;
@@ -153,7 +236,7 @@ dist_angle_t get_range_data(int8_t node_id){
     }
     else{
         PRINTF("range_thread: failed to send pkt no\n"); 
-        return return_val;
+        return {0,0,0,node_id};
     }
     //recieving data
     while(!exit)
@@ -218,84 +301,49 @@ dist_angle_t get_range_data(int8_t node_id){
                         data_per_pkt = (buf->length - sizeof(uart_pkt_hdr_t) - sizeof(uint8_t))/sizeof(range_data_t);
                         PRINTF("range_thread: There should be %d ranges in this pkt\n",data_per_pkt);
 
+                        if(data_per_pkt == 0){
+                            ranging = 0;
+                            hdlc_pkt_release(buf);
+                            range_thr_mailbox.free(msg);
+                            return {0,0,0,node_id};
+                        }
+
                         for(i = 0; i < data_per_pkt; i++){
                             PRINTF ("%d:\n", i);
-                            tdoa_a = 0;
-                            tdoa_b = 0;
                             /* Displaying results. */
-
-                            if(time_diffs->status == RF_MISSED){
-                                PRINTF("RF Ping missed\n");
-                                time_diffs++;
-                                continue;
-                            }
-                            else if(time_diffs->status == ULTRSND_MISSED){
-                                PRINTF("Ultrsnd Ping missed\n");
-                                time_diffs++;
-                                continue;
-                            }
                             
-                            
-                            tdoa_a = time_diffs->tdoa;
-                            dist_a = tdoa_to_dist(tdoa_a);
-                            PRINTF("TDoA = %lu\n", tdoa_a);
+                            PRINTF("TDoA = %lu\n", time_diffs->tdoa);
 
                             switch (params.ranging_mode)
                             {
                                 case ONE_SENSOR_MODE:
-                                    dist = dist_a;
                                     break;
                                 case TWO_SENSOR_MODE:
-                                    if(time_diffs->status > 2)
-                                    {
-                                        printf("Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs-> status); 
+                                    if(time_diffs->status > 2){
+                                        printf("Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs->status); 
                                     } 
-                                    else
-                                    {
-                                        tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                                        dist_b = tdoa_to_dist(tdoa_b);
+                                    else{
                                         PRINTF("OD = %lu\n", time_diffs-> orient_diff);
                                     }
                                     break;
                                 case XOR_SENSOR_MODE:
-                                    tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                                    dist_b = tdoa_to_dist(tdoa_b);
                                     PRINTF("OD = %lu\n", time_diffs-> orient_diff);
                                     break;
                                 case OMNI_SENSOR_MODE:
-                                    dist = dist_a;
                                     break;
                             }
 
-                            //printf("\n******************************\n", dist);
-                           if(tdoa_b != 0){
-                                dist = calc_x(dist_a, dist_b);
-                                if(time_diffs->status == 2){
-                                    angle = od_to_angle(dist_b, dist_a);
-                                }
-                                else{
-                                    angle = od_to_angle(dist_a, dist_b);
-                                }
-                                printf("Distance: %.2f\n", dist);
-                                printf("Angle : %.2f\n", angle);
-                            }
-                            else{
-                                printf("Distance: %.2f\n", dist);
-                            }
-                             printf("******************************\n");
-
-                            return_val.distance = dist;
-                            return_val.angle = angle;
-                            return_val.node_id = time_diffs->node_id;
-
                             if(node_id == -1){
-                                reachable_nodes[j] = time_diffs->node_id;
+                                nodes_reached[j] = (node_t) {time_diffs->node_id, time_diffs->tdoa};
                                 j++;
+                                if(j >= MAX_NUM_ANCHORS){
+                                    printf("Exceeded max number of anchors\n");
+                                    return {0,0,0,node_id};
+                                }
+                                num_nodes_reached = j;
                             }
-
                             time_diffs++;
                         }
-
                         if(range_hdr->last_pkt == 1){
                             printf("All data recieved\n");
                             exit = 1;
@@ -328,17 +376,22 @@ dist_angle_t get_range_data(int8_t node_id){
         }
     }
     
-    num_nodes = j;
     ranging = 0;
 
-    printf("Range: Returning value\n");
-    printf("Range: %.2f, %.2f, %lu\n",return_val.distance,return_val.angle,return_val.node_id);
-    return return_val;
+    return *(time_diffs-1);
 }
+
+void range_all(){
+    get_range_data(-1);
+}
+
+range_data_t range_node(int8_t node_id){
+    return get_range_data(node_id);
+}
+
 
 void _range_thread(){
 
-    char            topic_pub[16];
     char            data_pub[32];
     hdlc_pkt_t      pkt;
     
@@ -349,7 +402,7 @@ void _range_thread(){
     osEvent evt;
     msg_t *msg;
 
-    dist_angle_t range_data;
+    range_data_t range_data;
 
     hdlc_entry_t range_thread = { NULL, MBED_RANGE_PORT, &range_thr_mailbox };
     hdlc_register(&range_thread);
@@ -365,17 +418,14 @@ void _range_thread(){
             msg = (msg_t*)evt.value.p;
             if(msg->type == START_RANGE_THR){
                 PRINTF("range_thread: got range init message, starting routine\n");
-                range_data = get_range_data(msg->content.value);
+                range_data = range_node(msg->content.value);
+                PRINTF("tdoa = %lu\n",range_data.tdoa);
+                PRINTF("node_id = %lu\n",range_data.node_id);
                 PRINTF("range_thread: range_routine done. publishing data now\n");
-                
-                if(m)
-                memcpy(topic_pub, RANGE_TOPIC, 10);
-                snprintf(data_pub, 32, "%.2f,%d", range_data.distance, range_data.node_id);                          
-                topic_pub[10]='\0';
-                PRINTF("The the topic_pub %s\n", topic_pub);
-                PRINTF("The data_pub %s\n", data_pub); 
 
-                PRINTF("range_thread: 1- %s\n",data_pub);
+                load_data(data_pub, 32, get_node(range_data));                         
+
+                PRINTF("Publishing data: %s\n", data_pub); 
                 build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
                 if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
                     PRINTF("mqtt_thread: sending pkt of size\n"); 
@@ -384,6 +434,7 @@ void _range_thread(){
 
                     PRINTF("mqtt_thread: failed to send pkt no\n"); 
                 }
+                clear_data(data_pub, 32);
             }
             else{
                 PRINTF("range_thread: Recieved something other than start message\n");
@@ -506,7 +557,7 @@ void _mqtt_thread()
                                         if(strcmp(pub_msg + 1, START_RANGE_MSG) == 0){
                                             PRINTF("MQTT: pub_msg matches START_RANGE_MSG\n");
                                             if(!ranging){
-                                                PRINTF("MQTT: telling thread to start ranging with node_id: %d\n",pub_msg[0]);
+                                                PRINTF("MQTT: telling thread to start ranging with node_id: %d\n",pub_msg[0] - '0');
                                                 msg2 = range_thr_mailbox.alloc();
                                                 msg2->type = START_RANGE_THR;
                                                 msg2->content.value = pub_msg[0] - '0';
