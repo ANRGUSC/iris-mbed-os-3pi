@@ -288,8 +288,10 @@ dist_angle_t get_range_data(int8_t node_id){
                             return_val.angle = angle;
                             return_val.node_id = time_diffs->node_id;
 
-                            reachable_nodes[j] = time_diffs->node_id;
-                            j++;
+                            if(node_id == -1){
+                                reachable_nodes[j] = time_diffs->node_id;
+                                j++;
+                            }
 
                             time_diffs++;
                         }
@@ -366,6 +368,7 @@ void _range_thread(){
                 range_data = get_range_data(msg->content.value);
                 PRINTF("range_thread: range_routine done. publishing data now\n");
                 
+                if(m)
                 memcpy(topic_pub, RANGE_TOPIC, 10);
                 snprintf(data_pub, 32, "%.2f,%d", range_data.distance, range_data.node_id);                          
                 topic_pub[10]='\0';
@@ -506,7 +509,7 @@ void _mqtt_thread()
                                                 PRINTF("MQTT: telling thread to start ranging with node_id: %d\n",pub_msg[0]);
                                                 msg2 = range_thr_mailbox.alloc();
                                                 msg2->type = START_RANGE_THR;
-                                                msg2->content.value = pub_msg[0];
+                                                msg2->content.value = pub_msg[0] - '0';
                                                 msg2->sender_pid = osThreadGetId();
                                                 msg2->source_mailbox = &mqtt_thread_mailbox;
                                                 range_thr_mailbox.put(msg2);

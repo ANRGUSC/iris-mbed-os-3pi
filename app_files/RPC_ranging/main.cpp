@@ -75,7 +75,7 @@
 #include "data_conv.h"
 #include "SerialRPCInterface.h"
 
-#define DEBUG   0 
+#define DEBUG   1
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
