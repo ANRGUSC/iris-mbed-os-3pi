@@ -7,6 +7,7 @@
  *
  * Contributors:
  * Pradipta Ghosh
+ * Yutong Gu
  * Daniel Dsouza
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
@@ -37,9 +38,10 @@
 
 /**
  * @file        main.cpp
- * @brief       Full-duplex hdlc with mqtt.
+ * @brief       Full-duplex hdlc with mqtt for ranging.
  *
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Yutong Gu <yutonggu@usc.edu>
  * @author      Daniel Dsouza <dmdsouza@usc.edu>
  * 
  *
@@ -110,10 +112,26 @@ static uint8_t num_nodes_reached;
 
 static uint8_t num_nodes_to_pub;
 
+/**
+ * @brief      Returns range data as a node_t
+ *
+ * @param[in]  data  The range data as a range_data_t struct
+ *
+ * @return     The data as a node_t.
+ */
 node_t get_node(range_data_t data){
     return {data.node_id, data.tdoa};
 }
 
+/**
+ * @brief      Loads data into a buffer for publishing.
+ *
+ * @param      buff       The data buffer
+ * @param[in]  buff_size  The buffer size
+ * @param[in]  node       The node_t containing the range data
+ *
+ * @return     returns 0 on success, otherwise returns -1 on failure
+ */
 int load_data(char *buff, int buff_size, node_t node){
     if((num_nodes_to_pub + 1) * DATA_STRING_SIZE >= buff_size - 1){
         PRINTF("Buffer is full\n");
@@ -125,11 +143,25 @@ int load_data(char *buff, int buff_size, node_t node){
     return 0;
 }
 
+/**
+ * @brief      clears the data in the data buffer
+ *
+ * @param      buff       The data buffer
+ * @param[in]  buff_size  The buffer size
+ */
 void clear_data(char *buff, int buff_size){
     memset(buff,0,buff_size);
     num_nodes_to_pub = 0;
 }
 
+/**
+ * @brief      Gets the distance in feet and angle in degrees.
+ *
+ * @param      time_diffs    The range data
+ * @param[in]  ranging_mode  The ranging mode
+ *
+ * @return     The distance and angle in a dist_angle_t struct.
+ */
 dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
     int tdoa_a;
     int tdoa_b;
@@ -144,7 +176,7 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
     return_val.node_id = 0;
 
     tdoa_a = time_diffs->tdoa;
-    dist_a = tdoa_to_dist(tdoa_a);
+    dist_a = get_dist(tdoa_a);
 
     switch (ranging_mode)
     {
@@ -159,13 +191,13 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
             else
             {
                 tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                dist_b = tdoa_to_dist(tdoa_b);
+                dist_b = get_dist(tdoa_b);
                 PRINTF("OD = %lu\n", time_diffs-> orient_diff);
             }
             break;
         case XOR_SENSOR_MODE:
             tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-            dist_b = tdoa_to_dist(tdoa_b);
+            dist_b = get_dist(tdoa_b);
             PRINTF("OD = %lu\n", time_diffs->orient_diff);
             break;
         case OMNI_SENSOR_MODE:
@@ -173,12 +205,12 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
             break;
     }
     if(dist_b != 0){
-        dist = calc_x(dist_a, dist_b);
+        dist = get_mid_dist(dist_a, dist_b);
         if(time_diffs->status == 2){
-            angle = od_to_angle(dist_b, dist_a);
+            angle = get_angle(dist_b, dist_a);
         }
         else{
-            angle = od_to_angle(dist_a, dist_b);
+            angle = get_angle(dist_a, dist_b);
         }
         PRINTF("Distance: %.2f\n", dist);
         PRINTF("Angle : %.2f\n", angle);
@@ -197,6 +229,13 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
     return return_val;
 }
 
+/**
+ * @brief      Gets the range data by communicating with the openmote over hdlc.
+ *
+ * @param[in]  params  The parameters for ranging
+ *
+ * @return     The range data.
+ */
 range_data_t get_range_data(range_params_t params){
     ranging = 1;
  
@@ -384,15 +423,32 @@ range_data_t get_range_data(range_params_t params){
     return *(time_diffs-1);
 }
 
+/**
+ * @brief      Discovers all nodes that can be ranged with. This is a wrapper function for get range data. The data is stored in a
+ *             static array of node_t data
+ *
+ * @param[in]  ranging_mode  The ranging mode
+ */
 void range_all(uint8_t ranging_mode){
     get_range_data((range_params_t){-1, ranging_mode});
 }
 
+/**
+ * @brief      Looks for a specific node to range with based on what's given in params. This is a wrapper function for get range data.
+ *
+ * @param[in]  params  The ranging parameters
+ *
+ * @return     the range data
+ */
 range_data_t range_node(range_params_t params){
     return get_range_data(params);
 }
 
-
+/**
+ * @brief      This is the range thread that triggers the range routine for localization.
+ *             To trigger localization, a msg of type START_RANGE_THR must be sent to the
+ *             range_thread_mailbox containing the parameters for localization.
+ */
 void _range_thread(){
 
     char            data_pub[32];

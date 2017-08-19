@@ -281,7 +281,7 @@ int main(void)
                                 
                                 
                                 tdoa_a = time_diffs->tdoa;
-                                dist_a = tdoa_to_dist(tdoa_a);
+                                dist_a = get_dist(tdoa_a);
                                 printf("TDoA = %lu\n", tdoa_a);
 
                                 switch (params.ranging_mode)
@@ -297,13 +297,13 @@ int main(void)
                                         else
                                         {
                                             tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                                            dist_b = tdoa_to_dist(tdoa_b);
+                                            dist_b = get_dist(tdoa_b);
                                             printf("OD = %lu\n", time_diffs-> orient_diff);
                                         }
                                         break;
                                     case XOR_SENSOR_MODE:
                                         tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                                        dist_b = tdoa_to_dist(tdoa_b);
+                                        dist_b = get_dist(tdoa_b);
                                         printf("OD = %lu\n", time_diffs-> orient_diff);
                                         break;
                                     case OMNI_SENSOR_MODE:
@@ -313,12 +313,12 @@ int main(void)
 
                                 //printf("\n******************************\n", dist);
                                if(tdoa_b != 0){
-                                    dist = calc_x(dist_a, dist_b);
+                                    dist = get_mid_dist(dist_a, dist_b);
                                     if(time_diffs->status == 2){
-                                        angle = od_to_angle(dist_b, dist_a);
+                                        angle = get_angle(dist_b, dist_a);
                                     }
                                     else{
-                                        angle = od_to_angle(dist_a, dist_b);
+                                        angle = get_angle(dist_a, dist_b);
                                     }
                                     printf("Distance: %.2f\n", dist);
                                     printf("Angle : %.2f\n", angle);

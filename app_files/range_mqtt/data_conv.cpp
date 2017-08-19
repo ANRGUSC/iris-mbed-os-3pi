@@ -46,7 +46,7 @@
  *
  * @return     The distance corresponding to that TDoA value in feet
  */
-float tdoa_to_dist(int tdoa){
+float get_dist(int tdoa){
     return ((float) tdoa - 19628.977) / 885.274; // this equation can be modified
 }
 
@@ -58,9 +58,9 @@ float tdoa_to_dist(int tdoa){
  *
  * @return     The angle at which the two sensors are facing the transmitter in degrees
  */
-float od_to_angle(float a, float b){
+float get_angle(float a, float b){
     float ans;
-    float x = calc_x(a,b);
+    float x = get_mid_dist(a,b);
     float ratio = (b * b - a * a) / (2 * SEPARATION_DIST * x);
     
     if(ratio > 1 || ratio < -1){
@@ -79,6 +79,6 @@ float od_to_angle(float a, float b){
  *
  * @return     The the middle distance between the sensors and transmitter
  */
-float calc_x(float a, float b){
+float get_mid_dist(float a, float b){
     return sqrt((a * a / 2) + (b * b / 2) - (SEPARATION_DIST * SEPARATION_DIST / 4));
 }
