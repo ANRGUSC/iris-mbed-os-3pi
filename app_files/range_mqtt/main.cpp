@@ -197,7 +197,7 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
     return return_val;
 }
 
-range_data_t get_range_data(int8_t node_id){
+range_data_t get_range_data(range_params_t params){
     ranging = 1;
  
     int exit = 0;
@@ -210,7 +210,6 @@ range_data_t get_range_data(int8_t node_id){
     
     uart_pkt_hdr_t recv_hdr;
     uart_pkt_hdr_t send_hdr = (uart_pkt_hdr_t){ MBED_RANGE_PORT, RIOT_MQTT_PORT, SOUND_RANGE_REQ };
-    range_params_t params = (range_params_t){node_id, OMNI_SENSOR_MODE};
     
     /* misc */
     osEvent evt;
@@ -229,14 +228,14 @@ range_data_t get_range_data(int8_t node_id){
     uart_pkt_cpy_data(pkt.data, pkt.length, &params, sizeof(range_params_t));
 
     PRINTF("src_port: %d, dst_port: %d\n", send_hdr.src_port, send_hdr.dst_port);
-    PRINTF("node_id: %d\n", node_id);
+    PRINTF("node_id: %d\n", params.node_id);
 
     if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){
         PRINTF("range_thread: sending range_req pkt\n"); 
     }
     else{
         PRINTF("range_thread: failed to send pkt no\n"); 
-        return {0,0,0,node_id};
+        return {0,0,0,params.node_id};
     }
     //recieving data
     while(!exit)
@@ -305,7 +304,7 @@ range_data_t get_range_data(int8_t node_id){
                             ranging = 0;
                             hdlc_pkt_release(buf);
                             range_thr_mailbox.free(msg);
-                            return {0,0,0,node_id};
+                            return (range_data_t){0,0,0,params.node_id};
                         }
 
                         for(i = 0; i < data_per_pkt; i++){
@@ -317,28 +316,32 @@ range_data_t get_range_data(int8_t node_id){
                             switch (params.ranging_mode)
                             {
                                 case ONE_SENSOR_MODE:
+                                    PRINTF("One Sensor Mode^\n");
                                     break;
                                 case TWO_SENSOR_MODE:
                                     if(time_diffs->status > 2){
                                         printf("Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs->status); 
                                     } 
                                     else{
-                                        PRINTF("OD = %lu\n", time_diffs-> orient_diff);
+                                        PRINTF("OD = %lu\n", time_diffs->orient_diff);
                                     }
+                                    PRINTF("Two Sensor Mode^\n");
                                     break;
                                 case XOR_SENSOR_MODE:
-                                    PRINTF("OD = %lu\n", time_diffs-> orient_diff);
+                                    PRINTF("OD = %lu\n", time_diffs->orient_diff);
+                                    PRINTF("Xor Sensor Mode^\n");
                                     break;
                                 case OMNI_SENSOR_MODE:
+                                    PRINTF("Omni Sensor Mode^\n");
                                     break;
                             }
 
-                            if(node_id == -1){
+                            if(params.node_id == -1){
                                 nodes_reached[j] = (node_t) {time_diffs->node_id, time_diffs->tdoa};
                                 j++;
                                 if(j >= MAX_NUM_ANCHORS){
                                     printf("Exceeded max number of anchors\n");
-                                    return {0,0,0,node_id};
+                                    return (range_data_t){0,0,0,params.node_id};
                                 }
                                 num_nodes_reached = j;
                             }
@@ -381,12 +384,12 @@ range_data_t get_range_data(int8_t node_id){
     return *(time_diffs-1);
 }
 
-void range_all(){
-    get_range_data(-1);
+void range_all(uint8_t ranging_mode){
+    get_range_data((range_params_t){-1, ranging_mode});
 }
 
-range_data_t range_node(int8_t node_id){
-    return get_range_data(node_id);
+range_data_t range_node(range_params_t params){
+    return get_range_data(params);
 }
 
 
@@ -394,6 +397,8 @@ void _range_thread(){
 
     char            data_pub[32];
     hdlc_pkt_t      pkt;
+
+    int i = 0;
     
     pkt.data = data_pub;
     pkt.length = 32;
@@ -403,6 +408,7 @@ void _range_thread(){
     msg_t *msg;
 
     range_data_t range_data;
+    range_params_t range_params;
 
     hdlc_entry_t range_thread = { NULL, MBED_RANGE_PORT, &range_thr_mailbox };
     hdlc_register(&range_thread);
@@ -416,25 +422,46 @@ void _range_thread(){
         {
             PRINTF("range_thread: got mail\n");
             msg = (msg_t*)evt.value.p;
-            if(msg->type == START_RANGE_THR){
+            if(msg->type == START_RANGE_THR){ 
+
+                //***This is where the range routine will go*****
+                
                 PRINTF("range_thread: got range init message, starting routine\n");
-                range_data = range_node(msg->content.value);
-                PRINTF("tdoa = %lu\n",range_data.tdoa);
-                PRINTF("node_id = %lu\n",range_data.node_id);
-                PRINTF("range_thread: range_routine done. publishing data now\n");
+                range_params = *(range_params_t*)(msg->content.ptr);
 
-                load_data(data_pub, 32, get_node(range_data));                         
-
-                PRINTF("Publishing data: %s\n", data_pub); 
-                build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
-                    PRINTF("mqtt_thread: sending pkt of size\n"); 
+                if(range_params.node_id == -1){
+                    range_all(range_params.ranging_mode);
+                    printf("****************Discovery mode***************\n");
+                    printf("Nodes reached:\n");
+                    for(i=0; i<num_nodes_reached; i++){
+                        printf("Node %d: %lu\n", nodes_reached[i].node_id, nodes_reached[i].tdoa);
+                    }
+                    printf("*********************************************\n");
                 }
                 else{
+                    range_data = range_node(range_params);
 
-                    PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                    load_data(data_pub, 32, get_node(range_data));                         
+
+                    build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt); 
+
+                    //for some reason it will only publish if you include a print statement here
+                    printf("tdoa = %lu\n",range_data.tdoa);
+                    printf("node_id = %lu\n",range_data.node_id);
+                    PRINTF("range_thread: range_routine done. publishing data now\n");
+
+                    if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                        PRINTF("mqtt_thread: sending pkt of size\n"); 
+                    }
+                    else{
+
+                        PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                    }
+                    clear_data(data_pub, 32);
                 }
-                clear_data(data_pub, 32);
+                
+
+                //*************************************************
             }
             else{
                 PRINTF("range_thread: Recieved something other than start message\n");
@@ -459,6 +486,8 @@ void _mqtt_thread()
     msg_t           *msg, *msg2;
     char            send_data[32];
     hdlc_pkt_t      pkt;
+    range_params_t  params;
+
     pkt.data        = send_data;  
     pkt.length      = 32;
 
@@ -554,13 +583,15 @@ void _mqtt_thread()
                                     case NORM_DATA:
                                         PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
                                         pub_msg = mqtt_recv_data.data;
-                                        if(strcmp(pub_msg + 1, START_RANGE_MSG) == 0){
+                                        if(strcmp(pub_msg + 2, START_RANGE_MSG) == 0){
                                             PRINTF("MQTT: pub_msg matches START_RANGE_MSG\n");
                                             if(!ranging){
                                                 PRINTF("MQTT: telling thread to start ranging with node_id: %d\n",pub_msg[0] - '0');
+                                                params.node_id = pub_msg[0] - '0';
+                                                params.ranging_mode = pub_msg[1];
                                                 msg2 = range_thr_mailbox.alloc();
                                                 msg2->type = START_RANGE_THR;
-                                                msg2->content.value = pub_msg[0] - '0';
+                                                msg2->content.ptr = &params;
                                                 msg2->sender_pid = osThreadGetId();
                                                 msg2->source_mailbox = &mqtt_thread_mailbox;
                                                 range_thr_mailbox.put(msg2);
