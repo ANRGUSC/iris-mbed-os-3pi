@@ -447,9 +447,10 @@ void _mqtt_thread()
                                 PRINTF("mqtt_thread: PUB ACK message received\n");
                                 break;
 
-                            case RSSI_PUB:                                 
+                            case RSSI_PUB:   
+                                //not used                              
                                 PRINTF("******************\n"); 
-                                PRINTF("8\n");  
+                                PRINTF("9\n");  
                                 PRINTF("******************\n");
                                 PRINTF("mqtt_thread: pub message received\n");
                                 
@@ -619,7 +620,7 @@ int main(void)
                     case INTER_THREAD:
                         //communicates with the mbed_mqtt thread
                         if (priochk == 1){
-                            Thread::wait(3000);
+                            Thread:wait(3000);
                             //starting the rssi send messages                            
                             PRINTF("******************\n"); 
                             PRINTF("3\n");  
