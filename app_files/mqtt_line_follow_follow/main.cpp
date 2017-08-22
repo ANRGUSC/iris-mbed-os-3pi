@@ -86,7 +86,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_thr_mailbox;
 Mail<float, HDLC_MAILBOX_SIZE>  sensor_data_mailbox;
 
-
+control_data_t                  received_telemetry;
 DigitalOut                      reset_riot(p26,1);
 extern "C" void mbed_reset();
 
@@ -304,12 +304,13 @@ void _mqtt_thread()
                                         break;
 
                                     case SENSOR_DATA:
-                                        sensor_data = atof(mqtt_recv_data.data);
+
+                                        // sensor_data = atof(mqtt_recv_data.data);
                                         // m3pi.locate(0,0);
                                         // m3pi.printf("%f",sensor_data);
             
-                                        PRINTF ("mqtt_thread: sensor data received %f\n", sensor_data);
-                                        put_telemetry(sensor_data);
+                                        PRINTF ("mqtt_thread: sensor data received %s\n", mqtt_recv_data.data);
+                                        put_telemetry(mqtt_recv_data.data);
                                         break;
                                 }
                                 // Mbed send a pub message to the broker                        
@@ -358,7 +359,9 @@ int main(void)
 {
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
-   
+    
+    control_data_t new_data;
+    
     Thread mqtt_thr;
     mqtt_thr.start(_mqtt_thread);
     msg_t *msg;
@@ -366,9 +369,10 @@ int main(void)
   
     PRINTF("Starting the MBED\n");
         // Parameters that affect the performance
-    float speed = 0.1;
-    float correction = 0.1;   
+    float speed = 0.2;
+    float correction = 0.05;   
     float threshold = 0.5;
+ 
  
     
     m3pi.locate(0,1);
@@ -393,40 +397,30 @@ int main(void)
     }
     
     int mqtt_counter = 0;
+    float position_of_line;
     while (1) 
     {
         mqtt_counter ++;
 
         // -1.0 is far left, 1.0 is far right, 0.0 in the middle
-        float position_of_line;
+        position_of_line = m3pi.line_position();
 
         if (mqtt_counter == 1){
             m3pi.stop();
-            position_of_line = get_telemetry();
+            get_telemetry(&new_data);
         }
 
         if (mqtt_counter == STEP_SIZE){
             mqtt_counter = 0;
         }
 
-        PRINTF("main_thr: sensor data %f\n", position_of_line);
-        // Line is more than the threshold to the right, slow the left motor
-        if (position_of_line > threshold) {
-            m3pi.right_motor(speed);
-            m3pi.left_motor(speed - correction);
-        }
- 
-        // Line is more than 50% to the left, slow the right motor
-        else if (position_of_line < -threshold) {
-            m3pi.left_motor(speed);
-            m3pi.right_motor(speed - correction);
-        }
- 
-        // Line is in the middle
-        else {
-            m3pi.forward(speed);
-        } 
-        // Thread::wait(10);    
+        // PRINTF("main_thr: speed data %f, %f\n", new_data.speed_l, new_data.speed_r);
+        
+        m3pi.right_motor (new_data.speed_r);
+        m3pi.left_motor (new_data.speed_l);
+        Thread::wait(5);    
+        m3pi.stop();
+
     }
     /* should be never reached */
     return 0;

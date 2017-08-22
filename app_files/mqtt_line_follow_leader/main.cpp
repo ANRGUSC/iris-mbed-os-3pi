@@ -75,6 +75,13 @@ volatile bool                   mqtt_go = 0;
 volatile bool                   control_go = 0;
 m3pi                            m3pi;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
+
+typedef struct control_data{
+    float speed_l;
+    float speed_r;
+}control_data_t;
+
+control_data_t                  sample_control;
 // volatile bool  go_flag = 0;
 /**
  * @brief      This is the MQTT thread on MBED
@@ -341,7 +348,7 @@ void _cont_thread()
     osEvent         evt;
     uart_pkt_hdr_t  send_hdr = { 0, 0, 0};
     int             exit = 0;
-
+    control_data_t  *control_ptr;
     while (1) 
     {
 
@@ -374,7 +381,8 @@ void _cont_thread()
                         cont_thr_mailbox.free(msg);
                         break;
                     case INTER_THREAD:
-                        sprintf(data_pub, "%d%f",SENSOR_DATA, msg->content.line);                                                         
+                        control_ptr = (control_data_t *) msg->content.ptr;
+                        sprintf(data_pub, "%d %0.2f %0.2f ",SENSOR_DATA, control_ptr->speed_l, control_ptr->speed_r);                                                         
                         build_mqtt_pkt_pub(topic_pub, data_pub, CONT_THR_PORT, &mqtt_send, &pkt);
                         PRINTF("_cont_thread: sending update %s\n", mqtt_send.data);
                         if (send_hdlc_mail(msg, HDLC_MSG_SND, &cont_thr_mailbox, (void*) &pkt))
@@ -416,8 +424,8 @@ int main(void)
     PRINTF("Starting the MBED\n");
 
     // Parameters that affect the performance
-    float speed = 0.1;
-    float correction = 0.1;   
+    float speed = 0.2;
+    float correction = 0.05;   
     float threshold = 0.5;
  
     
@@ -444,14 +452,44 @@ int main(void)
 
 
     int mqtt_counter = 1;
+    float speed_l = speed;
+    float speed_r = speed;
     while (1) 
     {
-        PRINTF("main_th: in the control thread\n");
+        // PRINTF("main_th: in the control thread\n");
         mqtt_counter ++;
         m3pi.locate(0,0);
         m3pi.printf("%d",mqtt_counter);
         // -1.0 is far left, 1.0 is far right, 0.0 in the middle
         float position_of_line = m3pi.line_position();
+
+
+        // Line is more than the threshold to the right, slow the left motor
+        if (position_of_line > threshold) {
+            m3pi.right_motor(speed);
+            speed_r = speed;
+            m3pi.left_motor(speed - correction);
+            speed_l = speed - correction;
+            // PRINTF("main_thr: case 1\n");           
+        }
+ 
+        // Line is more than 50% to the left, slow the right motor
+        else if (position_of_line < -threshold) {
+            m3pi.left_motor(speed);
+            speed_l = speed;
+            m3pi.right_motor(speed - correction);
+            speed_r = speed - correction;
+        }
+ 
+        // Line is in the middle
+        else {
+            m3pi.forward(speed);
+            speed_l = speed;
+            speed_r = speed;
+         
+        }
+        Thread::wait(5);    
+        m3pi.stop();
 
         if (mqtt_counter == STEP_SIZE)
         {
@@ -474,28 +512,14 @@ int main(void)
                 m3pi.locate(0,1);
                 m3pi.printf("error");
             }
+            sample_control.speed_r = speed_r;
+            sample_control.speed_l = speed_l;
             msg->type = INTER_THREAD;
-            msg->content.line = position_of_line;
+            msg->content.ptr = &sample_control;
             cont_thr_mailbox.put(msg); 
         }
-        // Line is more than the threshold to the right, slow the left motor
-        if (position_of_line > threshold) {
-            m3pi.right_motor(speed);
-            m3pi.left_motor(speed-correction);
-            // PRINTF("main_thr: case 1\n");           
-        }
- 
-        // Line is more than 50% to the left, slow the right motor
-        else if (position_of_line < -threshold) {
-            m3pi.left_motor(speed);
-            m3pi.right_motor(speed - correction);
-        }
- 
-        // Line is in the middle
-        else {
-            m3pi.forward(speed);         
-        }
-        // Thread::wait(10);    
+
+
     }
     /* should be never reached */
     return 0;
