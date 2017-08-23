@@ -67,6 +67,14 @@ typedef enum
 	DRIVE_PID			  = 5
 } movement_funct_t;
 
+//Holds the x and y position of the node, as well as its distance from the m3pi
+typedef struct
+{
+	float x;
+	float y;
+	float radius;
+} node_info_t;
+
 //init_minimu()
 //Initializes the MINIMU-9 so that data from gyroscope, accelerometer,
 //and magnetometer can be read
@@ -118,5 +126,15 @@ void drive_forward(uint16_t time, int8_t speed);
 //Parameters; uint16_t time: time in ms to move forward
 //Returns: none
 void drive_forward(uint16_t time);
+
+//find_location()
+//Uses the received data from three anchor nodes to triangulate the position
+//of the m3pi, then returns the location
+//Parameters: node_info_t anchor1, anchor2, anchor3: structures containing
+//				the positions and distances of each anchor node
+//Returns: node_info_t containing the x and y position of the m3pi, with the
+//				radius set to -1.0 if there was an error in triangulation
+node_info_t find_location(node_info_t &anchor1, node_info_t &anchor2,
+	node_info_t &anchor3);
 
 #endif

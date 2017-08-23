@@ -638,3 +638,131 @@ void drive_forward(uint16_t time)
 	run_timer.stop();
 	loop_timer.stop();
 }
+
+node_info_t find_location(node_info_t &anchor1, node_info_t &anchor2,
+	node_info_t &anchor3)
+{
+	node_info_t m3pi_node;
+	float dx1_2, dy1_2, dx3_1, dy3_1, dx2_3, dy2_3;
+	float dist1_2, dist3_1, dist2_3, a1_2, a2_3, a3_1;
+	float bx1_2, by1_2, bx2_3, by2_3, bx3_1, by3_1;
+	float h1_2, h2_3, h3_1, average_x, average_y;
+	float rx1_2, ry1_2, rx2_3, ry2_3, rx3_1, ry3_1;
+	float inter_x[6], inter_y[6], inter_dist[3], inter_dx[3], inter_dy[3];
+	//weird order to use values from circle not used in measurements (see below)
+	node_info_t node_array[3] = {anchor3, anchor1, anchor2};
+
+	average_x = 0.0;
+	average_y = 0.0;
+
+	dx1_2 = anchor2.x - anchor1.x;
+	dy1_2 = anchor2.y - anchor1.y;
+	dx3_1 = anchor1.x - anchor3.x;
+	dy3_1 = anchor1.y - anchor3.y;
+	dx2_3 = anchor3.x - anchor2.x;
+	dy2_3 = anchor3.y - anchor2.y;
+
+	dist1_2 = sqrt((dx1_2 * dx1_2) + (dy1_2 * dy1_2));
+	dist3_1 = sqrt((dx3_1 * dx3_1) + (dy3_1 * dy3_1));
+	dist2_3 = sqrt((dx2_3 * dx2_3) + (dy2_3 * dy2_3));
+
+	//Check if the m3pi has left the space between the nodes
+	if((anchor1.radius > dist1_2 && anchor1.radius > dist3_1) ||
+		(anchor2.radius > dist1_2 && anchor2.radius > dist2_3) ||
+		(anchor3.radius > dist3_1 && anchor3.radius > dist2_3))
+	{
+		//return negative radius to signal error
+		m3pi_node = {0.0, 0.0, -1.0};
+		return m3pi_node;
+	}
+
+	//a is the distance from the center of the first point to where line
+	//between circle centers and line connecting circle intersections meet
+	//
+	//call that intersection point b  (arbitrary)
+	a1_2 = ((anchor1.radius * anchor1.radius - anchor2.radius * anchor2.radius
+		+ dist1_2 * dist1_2) / (2.0 * dist1_2));
+	a2_3 = ((anchor2.radius * anchor2.radius - anchor3.radius * anchor3.radius
+		+ dist2_3 * dist2_3) / (2.0 * dist2_3));
+	a3_1 = ((anchor3.radius * anchor3.radius - anchor1.radius * anchor1.radius
+		+ dist3_1 * dist3_1) / (2.0 * dist3_1));
+
+	//Find coordinates point b for each circle intersection
+	bx1_2 = anchor1.x + (dx1_2 * a1_2 / dist1_2);
+	by1_2 = anchor1.y + (dy1_2 * a1_2 / dist1_2);
+	bx2_3 = anchor2.x + (dx2_3 * a2_3 / dist2_3);
+	by2_3 = anchor2.y + (dy2_3 * a2_3 / dist2_3);
+	bx3_1 = anchor3.x + (dx3_1 * a3_1 / dist3_1);
+	by3_1 = anchor3.y + (dy3_1 * a3_1 / dist3_1);
+
+	//Distance from point b to each of two intersection points
+	//Use absolute value in case measurement is slightly off so you
+	//don't get NaN
+	h1_2 = sqrt(fabs(anchor1.radius * anchor1.radius - a1_2 * a1_2));
+	h2_3 = sqrt(fabs(anchor2.radius * anchor2.radius - a2_3 * a2_3));
+	h3_1 = sqrt(fabs(anchor3.radius * anchor3.radius - a3_1 * a3_1));
+
+	//rx and ry are the x and y offsets of intersection points from pointb
+	rx1_2 = -1.0 * dy1_2 * h1_2 / dist1_2;
+	ry1_2 = dx1_2 * h1_2 / dist1_2;
+	rx2_3 = -1.0 * dy2_3 * h2_3 / dist2_3;
+	ry2_3 = dx2_3 * h2_3 / dist2_3;
+	rx3_1 = -1.0 * dy3_1 * h3_1 / dist3_1;
+	ry3_1 = dx3_1 * h3_1 / dist3_1;
+
+	//Find half of the intersection points
+	inter_x[0] = bx1_2 + rx1_2;
+	inter_y[0] = by1_2 + ry1_2;
+	inter_x[1] = bx2_3 + rx2_3;
+	inter_y[1] = by2_3 + ry2_3;
+	inter_x[2] = bx3_1 + rx3_1;
+	inter_y[2] = by3_1 + ry3_1;
+	//Second half on intersection points
+	inter_x[3] = bx1_2 - rx1_2;
+	inter_y[3] = by1_2 - ry1_2;
+	inter_x[4] = bx2_3 - rx2_3;
+	inter_y[4] = by2_3 - ry2_3;
+	inter_x[5] = bx3_1 - rx3_1;
+	inter_y[5] = by3_1 - ry3_1;
+
+	//Find intersection of 3 circles and average them
+	for(uint8_t i = 0; i < 3; i++)
+	{
+
+		//Find distance between intersection point and third circle center
+		inter_dx[i] = inter_x[i] - node_array[i].x;
+		inter_dy[i] = inter_y[i] - node_array[i].y;
+		inter_dist[i] = sqrt(inter_dx[i] * inter_dx[i]
+			+ inter_dy[i] * inter_dy[i]);
+		PRINTF("inter_dist: %.3f\n", inter_dist[i]);
+
+		//Check which intersection point also intersects with third circle
+		if(fabs(inter_dist[i] - node_array[i].radius) < EPSILON)
+		{
+			average_x += inter_x[i];
+			average_y += inter_y[i];
+		}
+		else
+		{
+			inter_dx[i] += inter_x[i+3] - inter_x[i];
+			inter_dy[i] += inter_y[i+3] - inter_y[i];
+			inter_dist[i] = sqrt(inter_dx[i] * inter_dx[i]
+				+ inter_dy[i] * inter_dy[i]);
+
+			if(fabs(inter_dist[i] - node_array[i].radius) >= EPSILON)
+			{
+				PRINTF("Error: Triangulation not possible\n");
+				m3pi_node = {0.0, 0.0, -1.0};
+				return m3pi_node;
+			}
+			average_x += inter_x[i+3];
+			average_y += inter_y[i+3];
+		}
+	}
+	average_x /= 3.0;
+	average_y /= 3.0;
+	m3pi_node = {average_x, average_y, 0.0};
+
+	//Send location and focus on communicating
+	return m3pi_node;
+}
