@@ -60,6 +60,7 @@
 #include "main-conf.h"
 #include "data_conv.h"
 #include "mqtt.h"
+#include "mbed_movement.h"
 
 #define START_RANGE_MSG   "INIT_RANGE"
 
@@ -85,6 +86,7 @@ static Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
+
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
  
 #define NULL_PKT_TYPE   0xFF 
@@ -444,6 +446,43 @@ range_data_t range_node(range_params_t params){
     return get_range_data(params);
 }
 
+uint16_t lock_on_anchor(int8_t node_id){
+    range_data_t raw_data; 
+    dist_angle_t conv_data;
+    float angle;
+
+    if(!init_minimu()){
+        PRINTF("Failed to init minimu");
+        return;
+    }
+
+    calibrate_compass();
+
+    while(angle > 5 && angle < -5){
+        
+        raw_data = range_node({node_id, TWO_SENSOR_MODE});
+        if(raw_data.tdoa = 0){
+            PRINTF("Locking failed: Anchor node unavailable\n");
+            return 0;
+        }
+        conv_data = get_dist_angle(raw_data);
+        angle = conv_data.angle;
+
+        if(angle == -361){
+            rotate_degrees(180,40);
+        }
+        else{
+            if(angle < 75 && angle > -75){
+                rotate_parts(angle);
+            }
+            else{
+                rotate_degrees(angle,40);
+            }
+        }
+    }
+    return range_data.tdoa;
+}
+
 /**
  * @brief      This is the range thread that triggers the range routine for localization.
  *             To trigger localization, a msg of type START_RANGE_THR must be sent to the
@@ -495,7 +534,12 @@ void _range_thread(){
                     printf("*********************************************\n");
                 }
                 else{
-                    range_data = range_node(range_params);
+                    if(range_params.ranging_mode == TWO_SENSOR_MODE){
+                        range_data = lock_on_anchor(range_params.node_id);
+                    }
+                    else{
+                         range_data = range_node(range_params);
+                    }
 
                     load_data(data_pub, 32, get_node(range_data));                         
 
