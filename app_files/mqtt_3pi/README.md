@@ -1,3 +1,13 @@
+# MQTT_3PI
+
+This code utilizes the mbed, openmote, m3pi robot, and mqtt server to allow
+movement commands to be sent to the mbed and executed on the m3pi.
+Look at mbed_movement.h for mqtt packet message instructions.
+
+
+Code built upon MQTT_COMPLEX, old README below
+-------------------------------------------------------------------------------
+
 # MQTT_COMPLEX Description
 
 This is a code for 3pi to 3pi communication via MQTT. 

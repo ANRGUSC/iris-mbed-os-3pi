@@ -13,7 +13,7 @@
 #include <string.h>
 
 /*	MQTT Packet Format for MBED Movement Commands
-*	(sent as string over MQTT)
+*	(sent as string over MQTT to hardware address topic)
 *	First character:	7	(Movement command type number)
 *	Characters 2-3:	hex representation of move_type (check movement_funct_t)
 *	Characters 4-7: hex representation of time (0000 to FFFF)
