@@ -61,11 +61,12 @@
 #include "mqtt.h"
 #include "range.h"
 
-#define DEBUG   1
+
 #define TEST_TOPIC   ("test/trial")
-#define RANGE_TOPIC   ("range_info")
+
 #define START_RANGE_MSG   ("INIT_RANGE")
 
+#define DEBUG   1
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
 #else
@@ -198,7 +199,7 @@ void _mqtt_thread()
                                                 PRINTF("MQTT: telling thread to start ranging with node_id: %d\n",pub_msg[0] - '0');
                                                 params.node_id = pub_msg[0] - '0';
                                                 params.ranging_mode = pub_msg[1];
-                                                trigger_range_routine(params,&msg2);
+                                                trigger_range_routine(&params, msg2);
                                             }
                                         } else{
                                             PRINTF("MQTT: %s does not match %s\n", pub_msg, START_RANGE_MSG);

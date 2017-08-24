@@ -1,8 +1,14 @@
-#include "mbed_movement.h"
+#ifndef RANGE_H
+#define RANGE_H
+
+#include "m3pi/modified/mbed_movement.h"
 #include "data_conv.h"
 #include "mqtt.h"
+#include "rtos.h"
 #include "hdlc.h"
 #include "uart_pkt.h"
+
+#define RANGE_TOPIC   ("range_info")
 
 #define ONE_SENSOR_MODE       0x60 // 96
 #define TWO_SENSOR_MODE       0x61 // 97
@@ -26,25 +32,7 @@
 #define RF_MISSED         20
 #define ULTRSND_MISSED    21
 
-static volatile bool ranging = 0;
-
-static node_t nodes_reached[MAX_NUM_ANCHORS];
-static uint8_t num_nodes_reached;
-
-Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
-Thread range_thr;
-
-static uint8_t num_nodes_to_pub;
-
-typedef struct __attribute__((packed)) {
-    uint8_t         last_pkt;      
-    range_data_t    data[DATA_PER_PKT];                  
-} range_hdr_t;
-
-typedef struct __attribute__((packed)) {
-    int8_t         node_id;      
-    uint16_t       tdoa;                  
-} node_t;
+#define MBED_RANGE_PORT 5678
 
 /**
  * @brief Structure holding metrics measured by ultrasound ranging
@@ -62,6 +50,11 @@ typedef struct __attribute__((packed)){
     int8_t node_id;
 } range_data_t;
 
+typedef struct __attribute__((packed)) {
+    uint8_t         last_pkt;      
+    range_data_t    data[DATA_PER_PKT];                  
+} range_hdr_t;
+
 /**
  * @brief Structure holding parameters for ultrasound ranging
  *
@@ -76,6 +69,12 @@ typedef struct __attribute__((packed)){
     // add more options in the future?
 } range_params_t;
 
+typedef struct __attribute__((packed)) {
+    int8_t         node_id;      
+    uint16_t       tdoa;                  
+} node_t;
+
+static uint8_t num_nodes_to_pub;
 
 /**
  * @brief      Returns range data as a node_t
@@ -140,10 +139,12 @@ void range_all(uint8_t ranging_mode);
  * @return     the range data
  */
 range_data_t range_node(range_params_t params);
-uint16_t lock_on_anchor(int8_t node_id);
+range_data_t lock_on_anchor(int8_t node_id);
 
 void init_range_thread();
-void trigger_range_routine(range_params_t params);
+void trigger_range_routine(range_params_t *params, msg_t *msg);
 bool is_ranging();
-nodes_t* get_nodes_reached();
+node_t* get_nodes_reached();
 uint8_t get_num_nodes_reached();
+
+#endif

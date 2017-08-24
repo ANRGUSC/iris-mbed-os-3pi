@@ -1,5 +1,20 @@
 #include "range.h"
 
+#define DEBUG   1
+
+#if (DEBUG) 
+#define PRINTF(...) printf(__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif /* (DEBUG) & DEBUG_PRINT */
+
+static volatile bool ranging = 0;
+
+static node_t nodes_reached[MAX_NUM_ANCHORS];
+static uint8_t num_nodes_reached;
+
+Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
+Thread range_thr;
 
 node_t get_node(range_data_t data){
     return {data.node_id, data.tdoa};
@@ -90,6 +105,7 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
 }
 
 range_data_t get_range_data(range_params_t params){
+    Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr = get_hdlc_mailbox();
     ranging = 1;
  
     int exit = 0;
@@ -284,14 +300,14 @@ range_data_t range_node(range_params_t params){
     return get_range_data(params);
 }
 
-uint16_t lock_on_anchor(int8_t node_id){
+range_data_t lock_on_anchor(int8_t node_id){
     range_data_t raw_data; 
     dist_angle_t conv_data;
     float angle;
 
     if(!init_minimu()){
         PRINTF("Failed to init minimu");
-        return;
+        return {0,0,0,node_id};
     }
 
     calibrate_compass();
@@ -301,9 +317,9 @@ uint16_t lock_on_anchor(int8_t node_id){
         raw_data = range_node({node_id, TWO_SENSOR_MODE});
         if(raw_data.tdoa = 0){
             PRINTF("Locking failed: Anchor node unavailable\n");
-            return 0;
+            return {0,0,0,node_id};
         }
-        conv_data = get_dist_angle(raw_data);
+        conv_data = get_dist_angle(&raw_data, TWO_SENSOR_MODE);
         angle = conv_data.angle;
 
         if(angle == -361){
@@ -318,7 +334,7 @@ uint16_t lock_on_anchor(int8_t node_id){
             }
         }
     }
-    return range_data.tdoa;
+    return raw_data;
 }
 
 /**
@@ -388,7 +404,7 @@ void _range_thread(){
                     printf("node_id = %lu\n",range_data.node_id);
                     PRINTF("range_thread: range_routine done. publishing data now\n");
 
-                    if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                    if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){
                         PRINTF("mqtt_thread: sending pkt of size\n"); 
                     }
                     else{
@@ -418,12 +434,12 @@ void init_range_thread(){
     range_thr.start(_range_thread);
 }
 
-void trigger_range_routine(range_params_t params, msg_t* msg){
+void trigger_range_routine(range_params_t *params, msg_t *msg){
     msg = range_thr_mailbox.alloc();
     msg->type = START_RANGE_THR;
-    msg->content.ptr = &params;
+    msg->content.ptr = params;
     msg->sender_pid = osThreadGetId();
-    msg->source_mailbox = &mqtt_thread_mailbox;
+    msg->source_mailbox = &range_thr_mailbox;
     range_thr_mailbox.put(msg);
 }
 
