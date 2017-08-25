@@ -92,7 +92,8 @@
  */
 typedef struct __attribute__((packed)){
     uint8_t data_type;
-    char data[31];
+    char topic[16];
+    char data[32];
 } mqtt_data_t;
 
 /**

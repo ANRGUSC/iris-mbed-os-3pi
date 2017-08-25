@@ -1,6 +1,8 @@
 #ifndef _MQTT_THREAD_H
 #define _MQTT_THREAD_H
 
+#define EMCUTE_ID_LEN       (8)
+
 /**
  * @brief      This lists the states of the mqtt_control_thread in the sequence
  */

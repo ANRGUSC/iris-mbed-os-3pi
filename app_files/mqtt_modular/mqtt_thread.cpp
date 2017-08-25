@@ -31,10 +31,8 @@ DigitalOut myled3(LED3); //to notify when a character was received on mbed
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
 
-DigitalOut                      reset_riot(p26,1);
+DigitalOut reset_riot(p26,1);
 
-
-static osThreadId sender_pid;
 
 static unsigned char MQTT_STACK[DEFAULT_STACK_SIZE];
 
@@ -43,7 +41,9 @@ Thread mqtt(osPriorityNormal,
     (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)MQTT_STACK); 
 
 
-int mqtt_state = MQTT_DISCON;
+volatile int mqtt_state = MQTT_DISCON;
+static char mqtt_m3pi_ID[9];
+
 
 void reset_system(void)
 {
@@ -88,9 +88,6 @@ void _mqtt_thread()
     char topic_pub[16];
     char data_pub[32];
 
-    char *node_ID; 
-    char node_new_ID[9];
-    char node_send_ID[9];  
     osEvent evt;
 
     /**
@@ -98,6 +95,8 @@ void _mqtt_thread()
      * DO NOT Proceed further before the follwing steps are complete. 
      * (1) The openmote sends a MQTT_GO msg once the mqtt connection is properly setup.
      * (2) The MBED replies by sending a MQTT_GO_ACK msg to the Openmote
+     * (3) The Openmote sends the HWADDR to the mbed
+     * (4) The MBED replies by sending a HW_ADDR_ACK
      * 
      * After this sequece is complete, the mqtt is ready to go 
      */
@@ -130,10 +129,9 @@ void _mqtt_thread()
                     }
                     else if (recv_hdr.pkt_type == HWADDR_GET){
                         mqtt_state = MQTT_RECV_HW_ADDR;
-                        node_ID = (char *)uart_pkt_get_data(buf->data, buf->length);
-                        memcpy(node_new_ID, node_ID, sizeof(node_new_ID));
-                        node_new_ID[8]='\0';                     
-                        PRINTF("mqtt_thread: HWADDR received; own node ID is %s\n", node_new_ID);
+                        memcpy(mqtt_m3pi_ID, (char *)uart_pkt_get_data(buf->data, buf->length), EMCUTE_ID_LEN);  
+                        mqtt_m3pi_ID[8]='\0';                     
+                        PRINTF("mqtt_thread: HWADDR received; own node ID is %s\n", mqtt_m3pi_ID);
                         
                         send_hdr.pkt_type = HWADDR_ACK;
                         send_hdr.dst_port = RIOT_MQTT_PORT;
@@ -196,6 +194,11 @@ void _mqtt_thread()
     mqtt_state = MQTT_MBED_INIT_DONE;
     PRINTF("mqtt_thread: All Initialization Done\n");
     
+
+    /**
+     * The follwing is the main portion of the mqtt thread. make your changes here.
+     */
+
     // Thread::wait(2000);
     // reset_system();
     while (1) 
@@ -235,11 +238,10 @@ void _mqtt_thread()
                         switch (recv_hdr.pkt_type)
                         {
                             case MQTT_PKT_TYPE:                                
-                                mqtt_recv = (mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length);
-                                PRINTF("The data received is %s \n", mqtt_recv->data);
-                                PRINTF("The topic received is %s \n", mqtt_recv->topic); 
-                                process_mqtt_pkt(mqtt_recv, &mqtt_recv_data);
-
+                                
+                                process_mqtt_pkt((mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length), &mqtt_recv_data);
+                                // PRINTF("The data received is %s \n", mqtt_recv_data->data);
+                                PRINTF("The topic received is %s \n", mqtt_recv_data.topic); 
                                 switch (mqtt_recv_data.data_type){
                                     case NORM_DATA:
                                         PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
@@ -261,13 +263,13 @@ void _mqtt_thread()
                                         topic_pub[pub_length]='\0';
                                         PRINTF("The topic to pub to %s\n", topic_pub);
                                         PRINTF("The data to pub %s\n", data_pub);                                 
+                                        
                                         build_mqtt_pkt_pub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
                                         if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         else
                                             PRINTF("mqtt_thread: failed to send pkt no\n"); 
                                         break;
-
                                 }
                                 // Mbed send a pub message to the broker                        
                                 break;
