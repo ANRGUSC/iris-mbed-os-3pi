@@ -108,6 +108,7 @@ void process_mqtt_pkt(mqtt_pkt_t *pkt, mqtt_data_t *data_pkt)
 { 
     data_pkt->data_type = pkt->data[0] - '0';
     strcpy(data_pkt->data, pkt->data + 1);
+    strcpy(data_pkt->topic, pkt->topic);
 
     // PRINTF("MQTT: Data type %d\n", data_pkt.data_type);
 
