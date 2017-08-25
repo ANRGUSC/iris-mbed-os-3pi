@@ -75,7 +75,7 @@
 #include "data_conv.h"
 #include "SerialRPCInterface.h"
 
-#define DEBUG   0 
+#define DEBUG   1
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -119,7 +119,7 @@ DigitalOut                      myled3(LED3); //to notify when a character was r
 DigitalOut                      myled(LED1);
 
 static uint8_t mode = ONE_SENSOR_MODE;
-static uint16_t samples = 1;
+static int8_t node_id = -1;
 volatile uint8_t loopbegin = 0;
 
 /**
@@ -162,7 +162,6 @@ void range_thread(){
     range_params_t params;
     range_data_t* time_diffs;
     range_hdr_t* range_hdr;
-    float dist_avg = 0;
 
     int tdoa_a = 0;
     int tdoa_b = 0;
@@ -172,7 +171,6 @@ void range_thread(){
     float angle = 0;
     int data_per_pkt;
     while(1){
-        dist_avg = 0;
         PRINTF("Range: Waiting for RANGE_THR_START\n");
         evt = range_thr_mailbox.get();
         
@@ -190,7 +188,7 @@ void range_thread(){
 
         params.ranging_mode = mode;  
         
-        params.num_samples = samples;
+        params.node_id = node_id;
 
         /* Blinks the led. */
         myled = !myled;
@@ -295,7 +293,7 @@ void range_thread(){
                                 }
 
                                 tdoa_a = time_diffs->tdoa;
-                                dist_a = tdoa_to_dist(tdoa_a);
+                                dist_a = get_dist(tdoa_a);
                                 printf("TDoA = %lu\n", tdoa_a);
 
                                 switch (params.ranging_mode)
@@ -311,13 +309,13 @@ void range_thread(){
                                         else
                                         {
                                             tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                                            dist_b = tdoa_to_dist(tdoa_b);
+                                            dist_b = get_dist(tdoa_b);
                                             printf("OD = %lu\n", time_diffs-> orient_diff);
                                         }
                                         break;
                                     case XOR_SENSOR_MODE:
                                         tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
-                                        dist_b = tdoa_to_dist(tdoa_b);
+                                        dist_b = get_dist(tdoa_b);
                                         printf("OD = %lu\n", time_diffs-> orient_diff);
                                         break;
                                     case OMNI_SENSOR_MODE:
@@ -327,12 +325,12 @@ void range_thread(){
 
                                 //printf("\n******************************\n", dist);
                                 if(tdoa_b != 0){
-                                    dist = calc_x(dist_a, dist_b);
+                                    dist = get_mid_dist(dist_a, dist_b);
                                     if(time_diffs->status == 2){
-                                        angle = od_to_angle(dist_b, dist_a);
+                                        angle = get_angle(dist_b, dist_a);
                                     }
                                     else{
-                                        angle = od_to_angle(dist_a, dist_b);
+                                        angle = get_angle(dist_a, dist_b);
                                     }
                                     printf("Distance: %.2f\n", dist);
                                     printf("Angle : %.2f\n", angle);
@@ -341,8 +339,6 @@ void range_thread(){
                                     printf("Distance: %.2f\n", dist);
                                 }
                                  printf("******************************\n");
-
-                                dist_avg += dist;
 
                                 time_diffs++;
                             }
@@ -376,8 +372,6 @@ void range_thread(){
                 break;
             }
         }
-        dist_avg/=samples;
-        printf("avg = %.2f\n", dist_avg);
         msg2 = RPC_mailbox.alloc();
         msg2->type = RANGE_THR_COMPLETE;
         msg2->content.ptr = NULL;
@@ -404,12 +398,13 @@ void range_RPC(Arguments* input, Reply* output){
     osEvent RPC_evt;
 
     if(input->argc != 2){
-        printf("usage: <num_samples> <ranging_mode>\n");
+        printf("usage: <node_id> <ranging_mode>\n");
         return;
     }
 
     mode = atoi(input->argv[1]);
-    samples = atoi(input->argv[0]);
+    node_id = atoi(input->argv[0]);
+
     switch (mode){
         case 0:
             mode = ONE_SENSOR_MODE;
@@ -430,11 +425,6 @@ void range_RPC(Arguments* input, Reply* output){
         default:
             printf("Invalid ranging mode entry\nValid entries are:\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\n");
             return;
-    }
-
-    if(samples <= 0){
-        printf("Error: num_samples must be greater than 0\n");
-        return;
     }
 
     PRINTF("RPC: Starting ranging thread\n");
