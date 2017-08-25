@@ -68,12 +68,16 @@
 #endif /* (DEBUG) & DEBUG_PRINT */
 
 /* the only instance of pc -- debug statements in other files depend on it */
-Serial                          pc(USBTX,USBRX,115200);
-DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
-DigitalOut                      myled(LED1);
-volatile bool                   mqtt_go = 0;
-volatile bool                   control_go = 0;
-m3pi                            m3pi;
+Serial pc(USBTX,USBRX,115200);
+
+DigitalOut  myled3(LED3); //to notify when a character was received on mbed
+DigitalOut  myled(LED1);
+
+volatile bool mqtt_go = 0;
+volatile bool control_go = 0;
+
+m3pi m3pi;
+
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 
 typedef struct control_data{
@@ -81,14 +85,14 @@ typedef struct control_data{
     float speed_r;
 }control_data_t;
 
-control_data_t                  sample_control;
+control_data_t sample_control;
 // volatile bool  go_flag = 0;
 /**
  * @brief      This is the MQTT thread on MBED
  */
 Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_thr_mailbox;
 
-DigitalOut                      reset_riot(p26,1);
+DigitalOut reset_riot(p26,1);
 extern "C" void mbed_reset();
 
 void reset_system(void)
@@ -104,36 +108,35 @@ void reset_system(void)
 }
 
 void _mqtt_thread()
-{
-    int             pub_length;
-    char            mqtt_thread_frame_no = 0;
-    msg_t           *msg, *msg2;
-    char            send_data[HDLC_MAX_PKT_SIZE];
-    char            recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t      pkt;
-    pkt.data        = send_data;  
-    pkt.length      = 0;
-
-    mqtt_pkt_t      *mqtt_recv;
-    mqtt_pkt_t      mqtt_send;
-    mqtt_data_t     mqtt_recv_data;
-    char            *test_str;
+{ 
+    char mqtt_thread_frame_no = 0;
+    char send_data[HDLC_MAX_PKT_SIZE];
+    char recv_data[HDLC_MAX_PKT_SIZE];
     
+    msg_t *msg, *msg2;
+    
+    hdlc_pkt_t  pkt = {send_data, 0};
+    mqtt_pkt_t  *mqtt_recv;
+    mqtt_pkt_t  mqtt_send;
+    mqtt_data_t mqtt_recv_data;
+       
     uart_pkt_hdr_t  send_hdr = { 0, 0, 0};
     hdlc_buf_t      *buf;
     uart_pkt_hdr_t  recv_hdr;
+    
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = get_hdlc_mailbox();
     
-    int             exit = 0;
     hdlc_entry_t    mqtt_thread = { NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox };
     hdlc_register(&mqtt_thread);
     
-    char            test_pub[] = "Hello world";
-    char            topic_pub[16];
-    char            data_pub[32];
+    
+    char topic_pub[16];
+    char data_pub[32];
+    int  pub_length;
 
-    osEvent         evt;
+    osEvent evt;
+    int exit = 0;
 
     /**
      * Check if the MQTT connection is established by the openmote. If not,
@@ -424,7 +427,7 @@ int main(void)
     PRINTF("Starting the MBED\n");
 
     // Parameters that affect the performance
-    float speed = 0.2;
+    float speed = 0.1;
     float correction = 0.05;   
     float threshold = 0.5;
  
@@ -454,6 +457,8 @@ int main(void)
     int mqtt_counter = 1;
     float speed_l = speed;
     float speed_r = speed;
+    float position_of_line = m3pi.line_position();
+
     while (1) 
     {
         // PRINTF("main_th: in the control thread\n");
@@ -461,7 +466,6 @@ int main(void)
         m3pi.locate(0,0);
         m3pi.printf("%d",mqtt_counter);
         // -1.0 is far left, 1.0 is far right, 0.0 in the middle
-        float position_of_line = m3pi.line_position();
 
 
         // Line is more than the threshold to the right, slow the left motor
@@ -488,10 +492,10 @@ int main(void)
             speed_r = speed;
          
         }
-        Thread::wait(5);    
+        Thread::wait(50);    
         m3pi.stop();
 
-        if (mqtt_counter == STEP_SIZE)
+        if (1) //mqtt_counter == STEP_SIZE)
         {
             control_go = 0;
             m3pi.stop();
@@ -499,9 +503,9 @@ int main(void)
             m3pi.locate(0,0);
             m3pi.printf("stopping");
 
-            while(!control_go){
+            // while(!control_go){
                 Thread::wait(100);
-            }
+            // }
 
             position_of_line = m3pi.line_position();
             mqtt_counter = 0;
