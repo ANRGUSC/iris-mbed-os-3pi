@@ -90,6 +90,7 @@ volatile int                    move_complete = 1;
 m3pi                            m3pi;
 
 //declaring a mutex
+//Semaphore                       move_complete_mutex(1);
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
@@ -502,7 +503,12 @@ void _mqtt_thread()
         Thread::wait(100);
     }
 }
-
+/**
+ * @brief      moves depending on the argument provided
+ *
+ * @param[in]  direction  The direction
+ */
+/*
 void movement(int direction) {
 
     float       right;
@@ -558,35 +564,18 @@ void movement(int direction) {
     m3pi.stop();
     return;
 }
-
+*/
 
 
 /* Movement Thread */
 
 void _move_thread()
 {
-    msg_t           *msg, *msg2;
-    char            send_data[HDLC_MAX_PKT_SIZE];
-    char            recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t      pkt;
-    pkt.data        = send_data;
-    pkt.length      = 0;
+    msg_t           *msg;
     char            move_thread_frame_no = 0;
     int8_t          rssi_value;
 
-    char            str[9];
- 
-    uart_pkt_hdr_t  send_hdr = {0, 0, 0};
-    hdlc_buf_t      *buf;
-    uart_pkt_hdr_t  recv_hdr;
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-    hdlc_mailbox_ptr = get_hdlc_mailbox();
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *mailbox_ptr;
-
     int             exit = 0;
-    hdlc_entry_t    move_thread = { NULL, MOVE_MBED_PORT, &move_thread_mailbox };
-    hdlc_register(&move_thread);
-
     osEvent         evt;
     //clears lcd screen
     //m3pi.cls();
@@ -600,18 +589,6 @@ void _move_thread()
             msg = (msg_t *)evt.value.p;
             switch(msg->type)
             {
-                case HDLC_PKT_RDY:
-                    buf = (hdlc_buf_t *) msg->content.ptr;
-                    uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                    switch (recv_hdr.pkt_type)
-                    {
-                        default:
-                            //error
-                            break;
-                    }
-                    hdlc_pkt_release(buf);
-                    move_thread_mailbox.free(msg);
-                    break;
                 case INTER_THREAD:
                     PRINTF("move_thread: message to move received\n");
                     rssi_value = (*(int8_t *)msg->content.ptr);
@@ -621,31 +598,16 @@ void _move_thread()
 
                     PRINTF("MOVING\n");
                     //dereferencing before movement 
-                    move_thread_mailbox.free(msg);
                     //insert movement code here
-                    if (rssi_value > (-40))
-                    {
-                        //forward movement
-                        movement(1);                        
-                    }
-                    else if (rssi_value < (-40))
-                    {
-                        //backward movement
-                        movement(-1);
-                    }
-                    // changing the flag to indicate movement is complete
-                    move_complete = 1;
-                   
-                    PRINTF("Movement completed\n");
                     
-                    break;
-                case HDLC_RESP_SND_SUCC:
-                        exit = 1;
-                        PRINTF("move_thread: sent frame_no\n");                    
-                        move_thread_mailbox.free(msg);
-                        break;
-                default:
-                    move_thread_mailbox.free(msg);
+                    // changing the flag to indicate movement is complete
+                    // Using a mutex to lock
+                    //move_complete_mutex.wait();
+                    move_complete = 1;
+                    //move_complete_mutex.release();
+                    move_thread_mailbox.free(msg);                   
+                    PRINTF("Movement completed\n");
+                    exit = 1;
                     break;
             }
         }
@@ -688,8 +650,10 @@ int main(void)
     mqtt_thr.start(_mqtt_thread);
 
     //Movement thread
+    
     Thread move_thr;
     move_thr.start(_move_thread);
+    
     
     
     int             exit = 0;
@@ -769,6 +733,7 @@ int main(void)
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 rssi_value = rssi_value - 73;
                                 //sending the message
+                                
                                 if (move_complete == 1)
                                 {
                                     msg2->content.ptr = &rssi_value;
@@ -778,20 +743,26 @@ int main(void)
                                     move_thread_mailbox.put(msg2);
                                     PRINTF("rssi_thread: RSSI value has been sent\n");
                                     //changing the flag
+                                    //Using a mutex to change 
+                                    //move_complete_mutex.wait();
                                     move_complete = 0;
-                                }                               
+                                    //move_complete_mutex.release();
+                                }  
+                                 
+                                                          
                                 
                                 //displaying for now 
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
+                                main_thr_mailbox.free(msg);
                                                                                 
                                                                
                                 break;
                             default:
                                 PRINTF("Message received from RIOT \n");
+                                main_thr_mailbox.free(msg);
                                 /* error */
                                 break;
-                        }
-                        main_thr_mailbox.free(msg);
+                        }                        
                         hdlc_pkt_release(buf);     
                         break;
                     default:
