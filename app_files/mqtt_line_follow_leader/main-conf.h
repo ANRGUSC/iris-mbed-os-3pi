@@ -3,19 +3,18 @@ in the application code, not inside libraries. */
 
 /* keep this port under 255 because the application code is not ready to adapt
 the new uint16_t port number */
-#define INTER_THREAD    14
- 
-
-
 #define MBED_MQTT_PORT  200
 #define RIOT_MQTT_PORT  170
 #define MAIN_THR_PORT   165
-#define CONT_THR_PORT   250
-
 #define NULL_PKT_TYPE   0xFF
+#define CONT_THR_PORT   300
 
 /* RSSI dump thread port number */
-#define RSSI_DUMP_PORT              9000
+#define RSSI_RIOT_PORT              220
+#define RSSI_MBED_DUMP_PORT         9111
+#define PRIORITY_NODE				"0433ed81"
+#define INTER_THREAD				0xaa
+
 
 #define GET_SET_RANGING_THR_PORT    9100
 
