@@ -90,7 +90,7 @@ volatile int                    move_complete = 1;
 m3pi                            m3pi;
 
 //declaring a mutex
-//Semaphore                       move_complete_mutex(1);
+Semaphore                       move_complete_mutex(1);
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
@@ -596,17 +596,17 @@ void _move_thread()
                     m3pi.locate(0,1);
                     m3pi.printf("%d", rssi_value);
 
-                    PRINTF("MOVING\n");
+                    PRINTF("move_thread: MOVING\n");
                     //dereferencing before movement 
                     //insert movement code here
                     
                     // changing the flag to indicate movement is complete
                     // Using a mutex to lock
-                    //move_complete_mutex.wait();
+                    move_complete_mutex.wait();
                     move_complete = 1;
-                    //move_complete_mutex.release();
+                    move_complete_mutex.release();
                     move_thread_mailbox.free(msg);                   
-                    PRINTF("Movement completed\n");
+                    PRINTF("move_thread: Movement completed\n");
                     exit = 1;
                     break;
             }
@@ -614,7 +614,6 @@ void _move_thread()
         if (exit)
         {
             exit = 0;
-            break;
         }
     }
     move_thread_frame_no++;
@@ -744,9 +743,9 @@ int main(void)
                                     PRINTF("rssi_thread: RSSI value has been sent\n");
                                     //changing the flag
                                     //Using a mutex to change 
-                                    //move_complete_mutex.wait();
+                                    move_complete_mutex.wait();
                                     move_complete = 0;
-                                    //move_complete_mutex.release();
+                                    move_complete_mutex.release();
                                 }  
                                  
                                                           
