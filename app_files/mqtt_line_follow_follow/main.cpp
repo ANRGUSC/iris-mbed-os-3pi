@@ -72,10 +72,10 @@
 #endif /* (DEBUG) & DEBUG_PRINT */
 
 /* the only instance of pc -- debug statements in other files depend on it */
-Serial                          pc(USBTX,USBRX,115200);
-DigitalOut                      myled(LED1);
+Serial pc(USBTX,USBRX,115200);
+DigitalOut myled(LED1);
 
-m3pi                            m3pi;
+m3pi  m3pi;
 // volatile bool  go_flag = 0;
 /**
  * @brief      This is the MQTT thread on MBED
@@ -142,7 +142,7 @@ int main(void)
             mqtt_counter = 0;
         }
 
-        PRINTF("main_thr: speed data %f, %f\n", new_data.speed_l, new_data.speed_r);
+        // PRINTF("main_thr: speed data %f, %f\n", new_data.speed_l, new_data.speed_r);
         
         m3pi.right_motor (new_data.speed_r);
         m3pi.left_motor (new_data.speed_l);

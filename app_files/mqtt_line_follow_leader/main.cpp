@@ -98,7 +98,7 @@ void _cont_thread()
     hdlc_register(&contr_thr);
 
     char frame_no = 0;
-    char topic_pub[16] = SENSOR_DATA;
+    char topic_pub[16] = SENSOR_DATA_TOPIC;
     char data_pub[32];
     char send_data[HDLC_MAX_PKT_SIZE];
     int  status = 0;
@@ -257,9 +257,9 @@ int main(void)
             m3pi.locate(0,0);
             m3pi.printf("stopping");
 
-            while(get_mqtt_state() != MQTT_CONTROL_GO){
-                Thread::wait(100);
-            }
+            // while(get_mqtt_state() != MQTT_CONTROL_GO){
+            //     Thread::wait(100);
+            // }
 
             position_of_line = m3pi.line_position();
             mqtt_counter = 0;

@@ -33,6 +33,7 @@ DigitalOut myled3(LED3); //to notify when a character was received on mbed
 
 DigitalOut reset_riot(p26,1);
 
+extern m3pi m3pi;
 
 static unsigned char MQTT_STACK[DEFAULT_STACK_SIZE];
 
@@ -194,7 +195,8 @@ void _mqtt_thread()
 
     PRINTF("mqtt_thread: All Initialization Done\n");
     
-
+    m3pi.locate(0,0);
+    m3pi.printf("Connected");
     /**
      * The follwing is the main portion of the mqtt thread. make your changes here.
      */
