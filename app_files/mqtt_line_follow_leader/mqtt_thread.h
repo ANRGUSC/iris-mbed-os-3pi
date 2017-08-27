@@ -32,5 +32,6 @@ int get_mqtt_state (void);
 void set_mqtt_state (int state);
 
 void reset_system(void);
+void reset_openmote(void);
 
 #endif /*  _MQTT_THREAD_H */ 

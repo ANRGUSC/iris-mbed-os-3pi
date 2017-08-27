@@ -86,6 +86,7 @@ control_data_t sample_control;
 /**
  * @brief      This is the MQTT thread on MBED
  */
+Mail<msg_t, 4>  cont_data_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_thr_mailbox;
 
 
@@ -111,62 +112,34 @@ void _cont_thread()
     uart_pkt_hdr_t send_hdr = { 0, 0, 0};
     int exit = 0;
     control_data_t *control_ptr;
-
-    while (1) 
+    
+    while(1)
     {
-
-        // PRINTF("In mqtt_thread");
-        // myled2 =! myled3;
-        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
-        pkt.length = HDLC_MAX_PKT_SIZE;        
-
-        while(1)
+        evt = cont_data_mailbox.get();
+        if (evt.status == osEventMail) 
         {
-            evt = cont_thr_mailbox.get();
-            if (evt.status == osEventMail) 
+            msg = (msg_t*)evt.value.p;
+            switch (msg->type)
             {
-                msg = (msg_t*)evt.value.p;
-                switch (msg->type)
-                {
-                    case HDLC_RESP_SND_SUCC:
-                        PRINTF("_cont_thread: sent frame_no %d!\n", frame_no);
-                        exit = 1;
-                        cont_thr_mailbox.free(msg);
-                        break;    
-                    case HDLC_RESP_RETRY_W_TIMEO:
-                        Thread::wait(msg->content.value/1000);
-                        PRINTF("_cont_thread: retry frame_no %d \n", frame_no);
-                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &cont_thr_mailbox, (void*) &pkt) < 0)
-                        {
-                            while (send_hdlc_retry_mail (msg2, &cont_thr_mailbox) < 0)
-                                Thread::wait(10);
-                        }
-                        cont_thr_mailbox.free(msg);
-                        break;
-                    case INTER_THREAD:
-                        control_ptr = (control_data_t *) msg->content.ptr;
-                        sprintf(data_pub, "%d %0.2f %0.2f ",SENSOR_DATA, control_ptr->speed_l, control_ptr->speed_r);                                                         
-                        build_mqtt_pkt_pub(topic_pub, data_pub, CONT_THR_PORT, &mqtt_send, &pkt);
-                        PRINTF("_cont_thread: sending update %s\n", mqtt_send.data);
-                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &cont_thr_mailbox, (void*) &pkt))
-                            PRINTF("_cont_thread: sending pkt no %d \n", frame_no); 
-                        else
-                            PRINTF("_cont_thread: failed to send pkt no\n"); 
-
-                        cont_thr_mailbox.free(msg);
-                        break;
-                    default:
-                        cont_thr_mailbox.free(msg);
-                        /* error */
-                        break;
-                }
-            }    
-            if(exit) {
-                exit = 0;
-                break;
+                case INTER_THREAD:
+                    control_ptr = (control_data_t *) msg->content.ptr;
+                    sprintf(data_pub, "%d %0.2f %0.2f ",SENSOR_DATA, control_ptr->speed_l, control_ptr->speed_r);                                                         
+                    build_mqtt_pkt_pub(topic_pub, data_pub, CONT_THR_PORT, &mqtt_send, &pkt);
+                    PRINTF("_cont_thread: sending update %s\n", mqtt_send.data);
+                    if (hdlc_send_command_wo_resp(&pkt, &cont_thr_mailbox))
+                        PRINTF("_cont_thread: sending pkt no %d \n", frame_no); 
+                    else
+                        PRINTF("_cont_thread: failed to send pkt no\n"); 
+                    
+                    frame_no++;
+                    cont_data_mailbox.free(msg);
+                    break;
+                default:
+                    cont_data_mailbox.free(msg);
+                    /* error */
+                    break;
             }
-        }
-        frame_no++;
+        }    
     }
 }
 
@@ -175,6 +148,7 @@ void _cont_thread()
 
 int main(void)
 {
+    // reset_openmote();
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
@@ -193,12 +167,12 @@ int main(void)
     float threshold = 0.5;
  
     
-    m3pi.locate(0,1);
-    m3pi.printf("Line Flw");
+    // m3pi.locate(0,1);
+    // m3pi.printf("Line Flw");
  
     wait(2.0);
     
-    m3pi.sensor_auto_calibrate();
+    // m3pi.sensor_auto_calibrate();
     int countt = 0;
     int countt1 = 0;
 
@@ -211,70 +185,74 @@ int main(void)
     int mqtt_counter = 1;
     float speed_l = speed;
     float speed_r = speed;
-    float position_of_line = m3pi.line_position();
+    float position_of_line;// = m3pi.line_position();
 
     while (1) 
     {
         PRINTF("main_th: in the control thread\n");
         mqtt_counter ++;
-        m3pi.locate(0,0);
-        m3pi.printf("%d",mqtt_counter);
+        // m3pi.locate(0,0);
+        // m3pi.printf("%d",mqtt_counter);
         // -1.0 is far left, 1.0 is far right, 0.0 in the middle
 
 
-        // Line is more than the threshold to the right, slow the left motor
-        if (position_of_line > threshold) {
-            m3pi.right_motor(speed);
-            speed_r = speed;
-            m3pi.left_motor(speed - correction);
-            speed_l = speed - correction;
-            // PRINTF("main_thr: case 1\n");           
-        }
+        // // Line is more than the threshold to the right, slow the left motor
+        // if (position_of_line > threshold) {
+        //     // m3pi.right_motor(speed);
+        //     speed_r = speed;
+        //     m3pi.left_motor(speed - correction);
+        //     speed_l = speed - correction;
+        //     // PRINTF("main_thr: case 1\n");           
+        // }
  
-        // Line is more than 50% to the left, slow the right motor
-        else if (position_of_line < -threshold) {
-            m3pi.left_motor(speed);
-            speed_l = speed;
-            m3pi.right_motor(speed - correction);
-            speed_r = speed - correction;
-        }
+        // // Line is more than 50% to the left, slow the right motor
+        // else if (position_of_line < -threshold) {
+        //     m3pi.left_motor(speed);
+        //     speed_l = speed;
+        //     m3pi.right_motor(speed - correction);
+        //     speed_r = speed - correction;
+        // }
  
-        // Line is in the middle
-        else {
-            m3pi.forward(speed);
-            speed_l = speed;
-            speed_r = speed;
+        // // Line is in the middle
+        // else {
+        //     m3pi.forward(speed);
+        //     speed_l = speed;
+        //     speed_r = speed;
          
-        }
-        Thread::wait(50);    
-        m3pi.stop();
+        // }
+        Thread::wait(100);    
+        // m3pi.stop();
+        // Thread::wait(100);    
 
         if (1) //mqtt_counter == STEP_SIZE)
         {
             set_mqtt_state(MQTT_CONTROL_GO_WAIT);
-            m3pi.stop();
+            // m3pi.stop();
             PRINTF("main_th: the m3pi is stopped\n");
-            m3pi.locate(0,0);
-            m3pi.printf("stopping");
+            // m3pi.locate(0,0);
+            // m3pi.printf("stopping");
 
             // while(get_mqtt_state() != MQTT_CONTROL_GO){
             //     Thread::wait(100);
             // }
 
-            position_of_line = m3pi.line_position();
+            // position_of_line = m3pi.line_position();
             mqtt_counter = 0;
-            msg = cont_thr_mailbox.alloc(); 
-            if (msg == NULL)
-            {
+            msg = cont_data_mailbox.alloc(); 
+            while (msg == NULL){
                 PRINTF("main_th: No space in control thread mailbox\n");
-                m3pi.locate(0,1);
-                m3pi.printf("error");
+                Thread::wait(100);
+                msg = cont_data_mailbox.alloc(); 
+                // m3pi.locate(0,1);
+                // m3pi.printf("no space");
             }
-            sample_control.speed_r = speed_r;
-            sample_control.speed_l = speed_l;
-            msg->type = INTER_THREAD;
-            msg->content.ptr = &sample_control;
-            cont_thr_mailbox.put(msg); 
+            {
+                sample_control.speed_r = speed_r;
+                sample_control.speed_l = speed_l;
+                msg->type = INTER_THREAD;
+                msg->content.ptr = &sample_control;
+                cont_data_mailbox.put(msg); 
+            }
         }
 
 

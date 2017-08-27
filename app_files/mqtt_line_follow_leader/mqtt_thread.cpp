@@ -57,6 +57,17 @@ void reset_system(void)
     reset_riot = 1;
     mbed_reset();
 }
+void reset_openmote(void)
+{
+    reset_riot = 0; 
+    Thread::wait(1); 
+    reset_riot = 1;
+    Thread::wait(1); 
+    reset_riot = 0; 
+    Thread::wait(1); 
+    reset_riot = 1;
+    // mbed_reset();
+}
 /**
  * @brief      This is the MQTT thread on MBED
  */
@@ -195,8 +206,8 @@ void _mqtt_thread()
 
     PRINTF("mqtt_thread: All Initialization Done\n");
     
-    m3pi.locate(0,0);
-    m3pi.printf("Connected");
+    // m3pi.locate(0,0);
+    // m3pi.printf("Connected");
     /**
      * The follwing is the main portion of the mqtt thread. make your changes here.
      */
