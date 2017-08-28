@@ -206,8 +206,8 @@ void _mqtt_thread()
 
     PRINTF("mqtt_thread: All Initialization Done\n");
     
-    // m3pi.locate(0,0);
-    // m3pi.printf("Connected");
+    m3pi.locate(0,0);
+    m3pi.printf("Connected");
     /**
      * The follwing is the main portion of the mqtt thread. make your changes here.
      */

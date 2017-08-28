@@ -86,7 +86,7 @@ control_data_t sample_control;
 /**
  * @brief      This is the MQTT thread on MBED
  */
-Mail<msg_t, 4>  cont_data_mailbox;
+Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_data_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_thr_mailbox;
 
 
@@ -123,7 +123,7 @@ void _cont_thread()
             {
                 case INTER_THREAD:
                     control_ptr = (control_data_t *) msg->content.ptr;
-                    sprintf(data_pub, "%d %0.2f %0.2f ",SENSOR_DATA, control_ptr->speed_l, control_ptr->speed_r);                                                         
+                    sprintf(data_pub, "%d %0.2f %0.2f %d",SENSOR_DATA, control_ptr->speed_l, control_ptr->speed_r, frame_no);                                                         
                     build_mqtt_pkt_pub(topic_pub, data_pub, CONT_THR_PORT, &mqtt_send, &pkt);
                     PRINTF("_cont_thread: sending update %s\n", mqtt_send.data);
                     if (hdlc_send_command_wo_resp(&pkt, &cont_thr_mailbox))
@@ -167,12 +167,12 @@ int main(void)
     float threshold = 0.5;
  
     
-    // m3pi.locate(0,1);
-    // m3pi.printf("Line Flw");
+    m3pi.locate(0,1);
+    m3pi.printf("Line Flw");
  
     wait(2.0);
     
-    // m3pi.sensor_auto_calibrate();
+    m3pi.sensor_auto_calibrate();
     int countt = 0;
     int countt1 = 0;
 
@@ -185,7 +185,7 @@ int main(void)
     int mqtt_counter = 1;
     float speed_l = speed;
     float speed_r = speed;
-    float position_of_line;// = m3pi.line_position();
+    float position_of_line = m3pi.line_position();
 
     while (1) 
     {
@@ -196,55 +196,55 @@ int main(void)
         // -1.0 is far left, 1.0 is far right, 0.0 in the middle
 
 
-        // // Line is more than the threshold to the right, slow the left motor
-        // if (position_of_line > threshold) {
-        //     // m3pi.right_motor(speed);
-        //     speed_r = speed;
-        //     m3pi.left_motor(speed - correction);
-        //     speed_l = speed - correction;
-        //     // PRINTF("main_thr: case 1\n");           
-        // }
+        // Line is more than the threshold to the right, slow the left motor
+        if (position_of_line > threshold) {
+            // m3pi.right_motor(speed);
+            speed_r = speed;
+            m3pi.left_motor(speed - correction);
+            speed_l = speed - correction;
+            // PRINTF("main_thr: case 1\n");           
+        }
  
-        // // Line is more than 50% to the left, slow the right motor
-        // else if (position_of_line < -threshold) {
-        //     m3pi.left_motor(speed);
-        //     speed_l = speed;
-        //     m3pi.right_motor(speed - correction);
-        //     speed_r = speed - correction;
-        // }
+        // Line is more than 50% to the left, slow the right motor
+        else if (position_of_line < -threshold) {
+            m3pi.left_motor(speed);
+            speed_l = speed;
+            m3pi.right_motor(speed - correction);
+            speed_r = speed - correction;
+        }
  
-        // // Line is in the middle
-        // else {
-        //     m3pi.forward(speed);
-        //     speed_l = speed;
-        //     speed_r = speed;
+        // Line is in the middle
+        else {
+            m3pi.forward(speed);
+            speed_l = speed;
+            speed_r = speed;
          
-        // }
-        Thread::wait(100);    
-        // m3pi.stop();
-        // Thread::wait(100);    
+        }
+        Thread::wait(25);    
+        m3pi.stop();
+        Thread::wait(200);    
 
         if (1) //mqtt_counter == STEP_SIZE)
         {
             set_mqtt_state(MQTT_CONTROL_GO_WAIT);
             // m3pi.stop();
             PRINTF("main_th: the m3pi is stopped\n");
-            // m3pi.locate(0,0);
-            // m3pi.printf("stopping");
+            m3pi.locate(0,0);
+            m3pi.printf("stopping");
 
             // while(get_mqtt_state() != MQTT_CONTROL_GO){
             //     Thread::wait(100);
             // }
 
-            // position_of_line = m3pi.line_position();
+            position_of_line = m3pi.line_position();
             mqtt_counter = 0;
             msg = cont_data_mailbox.alloc(); 
             while (msg == NULL){
                 PRINTF("main_th: No space in control thread mailbox\n");
                 Thread::wait(100);
                 msg = cont_data_mailbox.alloc(); 
-                // m3pi.locate(0,1);
-                // m3pi.printf("no space");
+                m3pi.locate(0,1);
+                m3pi.printf("no space");
             }
             {
                 sample_control.speed_r = speed_r;

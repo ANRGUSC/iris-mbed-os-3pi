@@ -146,7 +146,7 @@ int main(void)
         
         m3pi.right_motor (new_data.speed_r);
         m3pi.left_motor (new_data.speed_l);
-        Thread::wait(50);    
+        Thread::wait(25);    
         m3pi.stop();
 
     }
