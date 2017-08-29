@@ -57,10 +57,14 @@
 #include "uart_pkt.h"
 #include "main-conf.h"
 #include "mqtt.h"
-
 //to reset the mbed
 extern "C" void mbed_reset();
 
+#define MAX 0.2
+#define MIN 0
+#define P_TERM 1
+#define I_TERM 0
+#define D_TERM 20
 
 
 #define DEBUG   1
@@ -81,8 +85,12 @@ DigitalOut                      reset_riot(p26,1);
 bool                            mqtt_go = 0;
 volatile int                    turn    = 0;
 volatile int                    priochk = 0;
+volatile int                    move_complete = 1;
 
 m3pi                            m3pi;
+
+//declaring a mutex
+Semaphore                       move_complete_mutex(1);
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
@@ -91,11 +99,11 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  move_thread_mailbox;
 void reset_system(void)
 {
     reset_riot = 0; 
-    Thread::wait(1); 
+    Thread::wait(10); 
     reset_riot = 1;
-    Thread::wait(1); 
+    Thread::wait(10); 
     reset_riot = 0; 
-    Thread::wait(1); 
+    Thread::wait(10); 
     reset_riot = 1;
     mbed_reset();
 }
@@ -250,6 +258,8 @@ void _mqtt_thread()
        }        
     }
     PRINTF("mqtt_thread: All Initialization Done\n");
+    m3pi.locate(0,0);
+    m3pi.printf("Connect");
 
     /**
      * This is the portion of MQTT loop that run forever for Mbed based control and communication
@@ -277,7 +287,7 @@ void _mqtt_thread()
                             //resetting the mbed and riot after 30 iterations
                             printf("mqtt_thread: resetting the mbed\n");
                             // reset twice for redundancy
-                            reset_system();
+                            //reset_system();
                         }
                         mqtt_thread_mailbox.free(msg);
                         break;
@@ -415,8 +425,7 @@ void _mqtt_thread()
                                                 PRINTF("mqtt_thread: the other node's id is %s\n", clients[c]);   
                                                 strcpy(node_send_ID, clients[c]);     
                                             }
-                                        }
-
+                                        }                                    
                                         // PRINTF("mqtt_thread: the node_send_ID is %s\n",node_send_ID);
                                         send_hdr.src_port = MBED_MQTT_PORT;
                                         send_hdr.dst_port = RSSI_RIOT_PORT;
@@ -494,31 +503,83 @@ void _mqtt_thread()
         Thread::wait(100);
     }
 }
+/**
+ * @brief      moves depending on the argument provided
+ *
+ * @param[in]  direction  The direction
+ */
+/*
+void movement(int direction) {
+
+    float       right;
+    float       left;
+    float       current_pos_of_line = 0.0;
+    float       previous_pos_of_line = 0.0;
+    float       derivative,proportional,integral = 0;
+    float       power;
+    float       speed = MAX;
+    int         move_count = 0;
+    while (move_count <= 100 && direction == (-1)){
+        m3pi.backward(0.2);
+        move_count++ ;
+    }
+    
+    while (move_count <= 200 && direction == 1) 
+    {
+        // Get the position of the line.
+        current_pos_of_line = m3pi.line_position();        
+        proportional = current_pos_of_line;          
+        // Compute the derivative
+        derivative = current_pos_of_line - previous_pos_of_line;
+        
+        // Compute the integral
+        integral += proportional;
+        
+        // Remember the last position.
+        previous_pos_of_line = current_pos_of_line;
+        
+        // Compute the power
+        power = (proportional * (P_TERM) ) + (integral*(I_TERM)) + (derivative*(D_TERM)) ;
+        
+        // Compute new speeds   
+        right = speed+power;
+        left  = speed-power;
+        
+        // limit checks
+        if (right < MIN)
+            right = MIN;
+        else if (right > MAX)
+            right = MAX;
+            
+        if (left < MIN)
+            left = MIN;
+        else if (left > MAX)
+            left = MAX;
+            
+       // set speed 
+        m3pi.left_motor(left*direction);
+        m3pi.right_motor(right*direction);
+        move_count++;
+    }
+    m3pi.stop();
+    return;
+}
+*/
+
 
 /* Movement Thread */
 
 void _move_thread()
 {
-    msg_t           *msg, *msg2;
-    char            send_data[HDLC_MAX_PKT_SIZE];
-    char            recv_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t      pkt;
-    pkt.data        = send_data;
-    pkt.length      = 0;
+    msg_t           *msg;
     char            move_thread_frame_no = 0;
-
-    uart_pkt_hdr_t  send_hdr = {0, 0, 0};
-    hdlc_buf_t      *buf;
-    uart_pkt_hdr_t  recv_hdr;
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-    hdlc_mailbox_ptr = get_hdlc_mailbox();
-    Mail<msg_t, HDLC_MAILBOX_SIZE> *mailbox_ptr;
+    int8_t          rssi_value;
 
     int             exit = 0;
-    hdlc_entry_t    move_thread = { NULL, MOVE_MBED_PORT, &move_thread_mailbox };
-    hdlc_register(&move_thread);
-
     osEvent         evt;
+    //clears lcd screen
+    //m3pi.cls();
+    m3pi.sensor_auto_calibrate();
 
     while(1)
     {
@@ -528,36 +589,31 @@ void _move_thread()
             msg = (msg_t *)evt.value.p;
             switch(msg->type)
             {
-                case HDLC_PKT_RDY:
-                    buf = (hdlc_buf_t *) msg->content.ptr;
-                    uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                    switch (recv_hdr.pkt_type)
-                    {
-                        default:
-                            //error
-                            break;
-                    }
-                    hdlc_pkt_release(buf);
-                    move_thread_mailbox.free(msg);
-                    break;
                 case INTER_THREAD:
                     PRINTF("move_thread: message to move received\n");
-                    move_thread_mailbox.free(msg);
-                    break;
-                case HDLC_RESP_SND_SUCC:
-                        exit = 1;
-                        PRINTF("move_thread: sent frame_no\n");                    
-                        move_thread_mailbox.free(msg);
-                        break;
-                default:
-                    move_thread_mailbox.free(msg);
+                    rssi_value = (*(int8_t *)msg->content.ptr);
+                    PRINTF("move_thread: the rssi value is %d\n", rssi_value);  
+                    m3pi.locate(0,1);
+                    m3pi.printf("%d", rssi_value);
+
+                    PRINTF("move_thread: MOVING\n");
+                    //dereferencing before movement 
+                    //insert movement code here
+                    
+                    // changing the flag to indicate movement is complete
+                    // Using a mutex to lock
+                    move_complete_mutex.wait();
+                    move_complete = 1;
+                    move_complete_mutex.release();
+                    move_thread_mailbox.free(msg);                   
+                    PRINTF("move_thread: Movement completed\n");
+                    exit = 1;
                     break;
             }
         }
         if (exit)
         {
             exit = 0;
-            break;
         }
     }
     move_thread_frame_no++;
@@ -593,8 +649,10 @@ int main(void)
     mqtt_thr.start(_mqtt_thread);
 
     //Movement thread
+    
     Thread move_thr;
     move_thr.start(_move_thread);
+    
     
     
     int             exit = 0;
@@ -621,8 +679,8 @@ int main(void)
                     case INTER_THREAD:
                         //communicates with the mbed_mqtt thread
                         if (priochk == 1){
-                            Thread:wait(3000);
-                            //starting the rssi send messages                            
+                            //starting the rssi send messages   
+                            Thread::wait(3000);                         
                             PRINTF("******************\n"); 
                             PRINTF("3\n");  
                             PRINTF("******************\n");
@@ -675,41 +733,35 @@ int main(void)
                                 rssi_value = rssi_value - 73;
                                 //sending the message
                                 
-                                msg2->type = INTER_THREAD;                                   
-                                msg2->sender_pid = osThreadGetId();
-                                msg2->source_mailbox = &main_thr_mailbox;
-                                move_thread_mailbox.put(msg2);
-                                PRINTF("rssi_thread: RSSI value has been sent\n");
+                                if (move_complete == 1)
+                                {
+                                    msg2->content.ptr = &rssi_value;
+                                    msg2->type = INTER_THREAD;                                   
+                                    msg2->sender_pid = osThreadGetId();
+                                    msg2->source_mailbox = &main_thr_mailbox;
+                                    move_thread_mailbox.put(msg2);
+                                    PRINTF("rssi_thread: RSSI value has been sent\n");
+                                    //changing the flag
+                                    //Using a mutex to change 
+                                    move_complete_mutex.wait();
+                                    move_complete = 0;
+                                    move_complete_mutex.release();
+                                }  
+                                 
+                                                          
                                 
                                 //displaying for now 
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
-                                //conditions to satisfy depending on the value of the RSSI
-                                /*
-                                if (rssi_value < -40)
-                                {
-                                    PRINTF("The value is less than forty, move cautiously\n");
-                                    m3pi.backward(speed);
-                                    Thread::wait(delta_t);
-                                    m3pi.stop();
-                                    if (rssi_value < -50){
-                                        PRINTF("The value is less than -50, move back\n");
-                                    }
-                                }
-                                else
-                                {
-                                    PRINTF("greater than -40, move forward normally\n");
-                                    m3pi.forward(speed);
-                                    Thread::wait(delta_t);
-                                    m3pi.stop();
-                                } 
-                                */                                                     
+                                main_thr_mailbox.free(msg);
+                                                                                
                                                                
                                 break;
                             default:
+                                PRINTF("Message received from RIOT \n");
+                                main_thr_mailbox.free(msg);
                                 /* error */
                                 break;
-                        }
-                        main_thr_mailbox.free(msg);
+                        }                        
                         hdlc_pkt_release(buf);     
                         break;
                     default:
