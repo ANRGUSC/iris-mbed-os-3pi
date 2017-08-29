@@ -37,3 +37,6 @@ the new uint16_t port number */
 #define RANGE_GO_FLAG       0x56
 
 #define DEFAULT_ULTRASOUND_THRESH   25
+
+#define MOVEMENT_GRAN       300
+#define WAIT_GRAN           0

@@ -86,7 +86,7 @@ control_data_t sample_control;
 /**
  * @brief      This is the MQTT thread on MBED
  */
-Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_data_mailbox;
+Mail<msg_t, 10>  cont_data_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  cont_thr_mailbox;
 
 
@@ -220,9 +220,9 @@ int main(void)
             speed_r = speed;
          
         }
-        Thread::wait(25);    
+        Thread::wait(MOVEMENT_GRAN);    
         m3pi.stop();
-        Thread::wait(200);    
+        Thread::wait(WAIT_GRAN);    
 
         if (1) //mqtt_counter == STEP_SIZE)
         {

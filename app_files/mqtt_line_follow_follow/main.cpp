@@ -102,7 +102,7 @@ int main(void)
     msg_t *msg;
 
   
-    PRINTF("Starting the MBED\n");
+    PRINTF("Starting the MBED %d\n",MOVEMENT_GRAN);
         // Parameters that affect the performance
     float speed = 0.1;
     float correction = 0.05;   
@@ -146,7 +146,7 @@ int main(void)
         
         m3pi.right_motor (new_data.speed_r);
         m3pi.left_motor (new_data.speed_l);
-        Thread::wait(25);    
+        Thread::wait(MOVEMENT_GRAN);    
         m3pi.stop();
 
     }
