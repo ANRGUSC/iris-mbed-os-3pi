@@ -498,8 +498,7 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
  * @param  sender_mailbox Pointer to sender's mailbox.
  * @return                [description]
  */
-int hdlc_send_command_wo_resp(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, 
-                                                    riot_to_mbed_t reply)
+int hdlc_send_command_wo_resp(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox)
 {
 // /* TODO: should the second input not be a void pointer? */
 // /* TODO: limit the number of retries */

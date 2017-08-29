@@ -33,6 +33,7 @@ DigitalOut myled3(LED3); //to notify when a character was received on mbed
 
 DigitalOut reset_riot(p26,1);
 
+extern m3pi m3pi;
 
 static unsigned char MQTT_STACK[DEFAULT_STACK_SIZE];
 
@@ -41,9 +42,9 @@ Thread mqtt(osPriorityNormal,
     (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)MQTT_STACK); 
 
 
-volatile int mqtt_state = MQTT_DISCON;
+static int mqtt_state = MQTT_DISCON;
 static char mqtt_m3pi_ID[9];
-
+Mutex data_mtx;
 
 void reset_system(void)
 {
@@ -55,6 +56,17 @@ void reset_system(void)
     Thread::wait(1); 
     reset_riot = 1;
     mbed_reset();
+}
+void reset_openmote(void)
+{
+    reset_riot = 0; 
+    Thread::wait(1); 
+    reset_riot = 1;
+    Thread::wait(1); 
+    reset_riot = 0; 
+    Thread::wait(1); 
+    reset_riot = 1;
+    // mbed_reset();
 }
 /**
  * @brief      This is the MQTT thread on MBED
@@ -194,7 +206,8 @@ void _mqtt_thread()
 
     PRINTF("mqtt_thread: All Initialization Done\n");
     
-
+    m3pi.locate(0,0);
+    m3pi.printf("Connected");
     /**
      * The follwing is the main portion of the mqtt thread. make your changes here.
      */
@@ -242,9 +255,14 @@ void _mqtt_thread()
                                 process_mqtt_pkt((mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length), &mqtt_recv_data);
                                 // PRINTF("The data received is %s \n", mqtt_recv_data->data);
                                 PRINTF("The topic received is %s \n", mqtt_recv_data.topic); 
+                                if (strcmp(mqtt_recv_data.topic, CONTROL_GO) == 0){
+                                    set_mqtt_state(MQTT_CONTROL_GO);
+                                    PRINTF("mqtt_thread: Control go received %d\n", get_mqtt_state());
+                                }
+
                                 switch (mqtt_recv_data.data_type){
                                     case NORM_DATA:
-                                        PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
+                                        PRINTF("mqtt_thread: Normal Data Received %s \n", mqtt_recv_data.data);
                                         break;
 
                                     case SUB_CMD:
@@ -323,5 +341,14 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *get_mqtt_mailbox()
 }
 
 int get_mqtt_state (void){
-    return mqtt_state;
+    data_mtx.lock();
+    int state = mqtt_state;
+    data_mtx.unlock();
+    return state;
+}
+
+void set_mqtt_state (int state){
+    data_mtx.lock();
+    mqtt_state = state;
+    data_mtx.unlock();
 }
