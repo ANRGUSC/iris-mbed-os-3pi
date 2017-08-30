@@ -13,9 +13,7 @@ the new uint16_t port number */
 #define RSSI_RIOT_PORT              220
 #define RSSI_MBED_DUMP_PORT         9111
 #define PRIORITY_NODE				"0433ed4f"
-#define INTER_THREAD				14
-
-#define MOVE_MBED_PORT				9999
+#define INTER_THREAD				0xaa
 
 
 #define GET_SET_RANGING_THR_PORT    9100

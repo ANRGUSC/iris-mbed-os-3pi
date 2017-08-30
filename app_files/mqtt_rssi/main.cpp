@@ -612,16 +612,20 @@ int main(void)
         while(1)
         {
             evt = main_thr_mailbox.get(3000);
+
             if (evt.status == osEventMail) 
             {
                 msg = (msg_t*)evt.value.p;
+                // PRINTF("got mail %d  %d\n",msg->type, priochk);
+
                 switch (msg->type)
                 {               
                     
                     case INTER_THREAD:
                         //communicates with the mbed_mqtt thread
-                        if (priochk == 1){
-                            Thread:wait(3000);
+                        // PRINTF("****************** %d\n",priochk); 
+                        if(priochk == 1){
+                            Thread::wait(1000);
                             //starting the rssi send messages                            
                             PRINTF("******************\n"); 
                             PRINTF("3\n");  

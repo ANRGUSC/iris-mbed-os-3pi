@@ -217,8 +217,7 @@ int main(void)
         else {
             m3pi.forward(speed);
             speed_l = speed;
-            speed_r = speed;
-         
+            speed_r = speed;         
         }
         Thread::wait(MOVEMENT_GRAN);    
         m3pi.stop();
