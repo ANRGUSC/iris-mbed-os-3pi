@@ -262,7 +262,7 @@ int main(void)
                         break;
                 }
             }
-            Thread::wait(3000);
+            //Thread::wait(2000);
             if (evt.status == osEventTimeout || recv_rssi){
                 recv_rssi = 0;
                 PRINTF("rssi_thread: sending periodic keep alive msg.\n");
