@@ -26,7 +26,30 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *mqtt_init(osPriority priority);
  */
 Mail<msg_t, HDLC_MAILBOX_SIZE> *get_mqtt_mailbox();
 
+/**
+ * @brief      Gets the mqtt state.
+ *
+ * @return     The mqtt state.
+ */
 int get_mqtt_state (void);
+
+/**
+ * @brief      Sets the mqtt state.
+ *
+ * @param[in]  state  The state
+ */
+void set_mqtt_state (int state);
+
+/**
+ * @brief      Gets the node identifier.
+ *
+ * @param      ret   The ret
+ */
+void get_node_id (char *ret);
+
+/**
+ * @brief      reset the m3pi
+ */
 void reset_system(void);
 
 #endif /*  _MQTT_THREAD_H */ 

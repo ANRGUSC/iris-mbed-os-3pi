@@ -46,7 +46,6 @@
 
 #include "mbed.h"
 #include "rtos.h"
-#include "m3pi.h"
 #include "hdlc.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -79,7 +78,6 @@ Serial      pc(USBTX,USBRX,115200);
 DigitalOut  myled(LED1);
 
 
-m3pi m3pi;
 
 
 

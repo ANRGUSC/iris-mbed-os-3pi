@@ -1,6 +1,5 @@
 #include "mbed.h"
 #include "rtos.h"
-#include "m3pi.h"
 #include "hdlc.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -322,6 +321,23 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> *get_mqtt_mailbox()
     return &mqtt_thread_mailbox;
 }
 
+
+Mutex data_mtx;
+
 int get_mqtt_state (void){
-    return mqtt_state;
+    data_mtx.lock();
+    int state = mqtt_state;
+    data_mtx.unlock();
+    return state;
+}
+
+void set_mqtt_state (int state){
+    data_mtx.lock();
+    mqtt_state = state;
+    data_mtx.unlock();
+}
+
+void get_node_id (char *ret)
+{
+    strcpy(ret, mqtt_m3pi_ID); 
 }
