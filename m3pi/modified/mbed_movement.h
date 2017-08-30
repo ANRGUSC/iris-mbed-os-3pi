@@ -46,6 +46,9 @@
 #define KD		 0.5
 #define KI		 0.0
 
+//Error tolerance for triangulation.  Tune through experimentation
+#define EPSILON	 0.05
+
 //movement_t which includes the type of movement and any parameters
 //(time, degrees, speed) needed to perform the movement
 typedef struct __attribute__((packed))
