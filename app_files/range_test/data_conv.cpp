@@ -44,10 +44,10 @@
  *
  * @param[in]  tdoa  The TDoA value
  *
- * @return     The distance corresponding to that TDoA value in feet
+ * @return     The distance corresponding to that TDoA value in meters
  */
 float tdoa_to_dist(int tdoa){
-    return ((float) tdoa - 19628.977) / 885.274; // this equation can be modified
+    return ((float) tdoa - 19628.977) / 2904.44; // this equation can be modified
 }
 
 /**

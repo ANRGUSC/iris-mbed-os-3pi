@@ -45,7 +45,7 @@
  *
  * @param[in]  tdoa  The TDoA value
  *
- * @return     The distance corresponding to that TDoA value in feet
+ * @return     The distance corresponding to that TDoA value in meters
  */
 float tdoa_to_dist(int tdoa);
 
