@@ -1,7 +1,8 @@
 #ifndef _MQTT_THREAD_H
 #define _MQTT_THREAD_H
 
-#define EMCUTE_ID_LEN       (8)
+#define EMCUTE_ID_LEN           (8)
+#define EMCUTE_ID_STR_LEN       (EMCUTE_ID_LEN + 1)
 
 /**
  * @brief      This lists the states of the mqtt_control_thread in the sequence
@@ -11,7 +12,9 @@ enum mqtt_states
     MQTT_DISCON              = 0,
     MQTT_RECV_MQTT_GO        = 1,
     MQTT_RECV_HW_ADDR        = 2,
-    MQTT_MBED_INIT_DONE      = 3    
+    MQTT_MBED_INIT_DONE      = 3,
+    MQTT_LEN_CLIENTS_LIST    = 4,
+    MQTT_GOT_CLIENTS         = 5,
 };
 
 /**

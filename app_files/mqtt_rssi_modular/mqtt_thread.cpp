@@ -1,5 +1,6 @@
 #include "mbed.h"
 #include "rtos.h"
+// #include "m3pi.h"
 #include "hdlc.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -41,8 +42,15 @@ Thread mqtt(osPriorityNormal,
 
 
 volatile int mqtt_state = MQTT_DISCON;
-static char mqtt_m3pi_ID[9];
+static char  mqtt_m3pi_ID[EMCUTE_ID_STR_LEN];
+static char  mqtt_m3pi_neighbor_ID[EMCUTE_ID_STR_LEN];       
 
+// volatile int turn = 0;
+
+
+#define MAX_CLIENT_NO   2
+
+int  clients_count = 0;
 
 void reset_system(void)
 {
@@ -110,7 +118,7 @@ void _mqtt_thread()
                     buf = (hdlc_buf_t *) msg->content.ptr;   
                     uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
                     if (recv_hdr.pkt_type == MQTT_GO){
-                        mqtt_state = MQTT_RECV_MQTT_GO;
+                        set_mqtt_state (MQTT_RECV_MQTT_GO);
                         PRINTF("mqtt_thread: the node is conected to the broker \n");
                         send_hdr.pkt_type = MQTT_GO_ACK;
                         send_hdr.dst_port = RIOT_MQTT_PORT;
@@ -126,7 +134,7 @@ void _mqtt_thread()
                             PRINTF("mqtt_thread: failed to send pkt no\n");
                     }
                     else if (recv_hdr.pkt_type == HWADDR_GET){
-                        mqtt_state = MQTT_RECV_HW_ADDR;
+                        set_mqtt_state(MQTT_RECV_HW_ADDR);
                         memcpy(mqtt_m3pi_ID, (char *)uart_pkt_get_data(buf->data, buf->length), EMCUTE_ID_LEN);  
                         mqtt_m3pi_ID[8]='\0';                     
                         PRINTF("mqtt_thread: HWADDR received; own node ID is %s\n", mqtt_m3pi_ID);
@@ -189,7 +197,7 @@ void _mqtt_thread()
             break;
        }        
     }
-    mqtt_state = MQTT_MBED_INIT_DONE;
+    set_mqtt_state(MQTT_MBED_INIT_DONE);
 
     PRINTF("mqtt_thread: All Initialization Done\n");
     
@@ -240,7 +248,7 @@ void _mqtt_thread()
                                 
                                 process_mqtt_pkt((mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length), &mqtt_recv_data);
                                 // PRINTF("The data received is %s \n", mqtt_recv_data->data);
-                                PRINTF("The topic received is %s \n", mqtt_recv_data.topic); 
+                                PRINTF("The topic received is %s d %d \n", mqtt_recv_data.topic, mqtt_recv_data.data_type); 
                                 switch (mqtt_recv_data.data_type){
                                     case NORM_DATA:
                                         PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
@@ -262,12 +270,47 @@ void _mqtt_thread()
                                         topic_pub[pub_length]='\0';
                                         PRINTF("The topic to pub to %s\n", topic_pub);
                                         PRINTF("The data to pub %s\n", data_pub);                                 
-                                        
+                                        pkt.length = HDLC_MAX_PKT_SIZE;        
                                         build_mqtt_pkt_pub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
                                         if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         else
                                             PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                                        break;
+
+                                    case LEN_CLIENTS_LIST:
+                                        //receives the number of clients the server_script                                   //is going to send to the node
+                                        clients_count = mqtt_recv_data.data[0] - '0';
+                                        PRINTF("The length of the clients list is %d \n", clients_count);
+                                        set_mqtt_state(MQTT_LEN_CLIENTS_LIST);
+                                        break;
+                  
+                                    case GET_CLIENTS:
+                                        //handles the storing the clients and initiating the 
+                                        //RSSI PING PONG
+                                        if (clients_count != 0 && strcmp(mqtt_recv_data.data, mqtt_m3pi_ID) != 0){                                            
+                                            strcpy(mqtt_m3pi_neighbor_ID, mqtt_recv_data.data);  
+                                            PRINTF("The IP of the neighbor is %s\n", mqtt_m3pi_neighbor_ID);
+                                            set_mqtt_state(MQTT_GOT_CLIENTS);
+                                        }
+                                        break;
+
+                                    case RSSI_SEND: 
+                                        PRINTF("mqtt_thread: RSSI SEND message received\n");                                      
+                                        send_hdr.src_port = MBED_MQTT_PORT;
+                                        send_hdr.dst_port = RSSI_RIOT_PORT;
+                                        send_hdr.pkt_type = RSSI_SND;
+                                        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
+                                        uart_pkt_cpy_data(pkt.data, HDLC_MAX_PKT_SIZE, mqtt_m3pi_neighbor_ID, sizeof(mqtt_m3pi_neighbor_ID));
+                                        pkt.length = UART_PKT_HDR_LEN + sizeof(mqtt_m3pi_neighbor_ID);        
+
+                                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt)){
+                                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+                                        }
+                                        else{
+                                            PRINTF("mqtt_thread: failed to send pkt no\n");
+                                        }
+                                        //send rssi_send to the rssi thread in RIOT
                                         break;
                                 }
                                 // Mbed send a pub message to the broker                        

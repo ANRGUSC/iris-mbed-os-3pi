@@ -13,7 +13,8 @@ enum mqtt_states
     MQTT_RECV_HW_ADDR        = 2,
     MQTT_MBED_INIT_DONE      = 3,
     MQTT_CONTROL_GO          = 4,
-    MQTT_CONTROL_GO_WAIT     = 5    
+    MQTT_CONTROL_GO_WAIT     = 5,
+    MQTT_CONTROL_SEND        = 6
 };
 
 /**
