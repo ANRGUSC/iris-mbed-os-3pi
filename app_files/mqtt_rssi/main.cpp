@@ -128,6 +128,9 @@ int main(void)
     sprintf(data_pub,"%d",SERVER_SEND_RSSI);
     strcat(data_pub, self_node_id);   
     
+    /**
+     * Initiate the UDP RSSI Ping Pong Process
+     */
     if (strcmp(self_node_id, PRIORITY_NODE) == 0)
     {
         PRINTF("rssi_thread: Inittiating the PING PONG.\n");
@@ -177,10 +180,6 @@ int main(void)
                         switch (recv_hdr.pkt_type)
                         {
                             case RSSI_DATA_PKT:                                
-                                PRINTF("******************\n"); 
-                                // PRINTF("7\n");  
-                                // PRINTF("******************\n");
-                                // //handles the movement of the robot
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 rssi_value = rssi_value - 73;
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
