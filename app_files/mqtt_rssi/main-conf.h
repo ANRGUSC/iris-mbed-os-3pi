@@ -15,8 +15,6 @@ the new uint16_t port number */
 #define PRIORITY_NODE				"0433ed4f"
 #define INTER_THREAD				14
 
-#define MOVE_MBED_PORT				9999
-
 
 #define GET_SET_RANGING_THR_PORT    9100
 
