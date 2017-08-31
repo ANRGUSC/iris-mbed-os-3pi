@@ -64,6 +64,7 @@ extern "C" void mbed_reset();
 
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
+Mail<msg_t, HDLC_MAILBOX_SIZE> move_thr_mailbox;
 
 #define DEBUG   1
 #define TEST_TOPIC   ("init_info")
@@ -78,49 +79,48 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 Serial      pc(USBTX,USBRX,115200);
 DigitalOut  myled(LED1);
 
+volatile int move_complete = 0;
 
-m3pi            m3pi;
+m3pi                m3pi;
 
-int volatile move_complete = 0;
 
-Mail<msg_t, HDLC_MAILBOX_SIZE> move_thr_mailbox;
 
-void _move_thread()
-{
-    hdlc_entry_t move_thr = { NULL, MOVE_THR_PORT, &move_thr_mailbox };
-    hdlc_register(&move_thr);
 
+
+
+
+
+
+
+
+
+void _move_thread(){
+    msg_t *msg;
     char move_frame_no = 0;
-    char send_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t pkt = {send_data, HDLC_MAX_PKT_SIZE};
-
     int8_t rssi_value;
-    msg_t *msg, *msg2;
     osEvent evt;
-    uart_pkt_hdr_t send_hdr = { 0, 0, 0};
-    int exit = 0;
+
     while(1)
     {
         evt = move_thr_mailbox.get();
-        if (evt.status == osEventMail){
-            msg = (msg_t*) evt.value.p;
+        if (evt.status == osEventMail)
+        {
+            msg = (msg_t*)evt.value.p;
             switch (msg->type)
             {
                 case INTER_THREAD:
-                    rssi_value = (* ((int8_t *)msg->content.ptr));
-                    PRINTF("move_thread: Message received\n");
-                    PRINTF("The rssi_value %d\n", rssi_value)  ;                  
-                    move_frame_no ++;
+                    PRINTF("move_thr: Message received\n");
+                    move_complete = 0;
                     move_thr_mailbox.free(msg);
                     break;
                 default:
                     move_thr_mailbox.free(msg);
                     break;
-            }
-            move_complete = 0;
-        }
-    }
 
+            }
+        }
+
+    }
 }
 
 int main(void)
@@ -133,11 +133,8 @@ int main(void)
 
     Thread move_thr;
     move_thr.start(_move_thread);
-
-
-    PRINTF("All threads are running \n");
-
-    msg_t *msg, *msg2, *msg_move;
+   
+    msg_t *msg, *msg2, msg_move;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
@@ -147,8 +144,6 @@ int main(void)
 
     int8_t rssi_value;
     char rssi_str_value;
-    char speed = 40;
-    int delta_t = 100;
     float time_value;
 
     hdlc_buf_t *buf;
@@ -173,12 +168,15 @@ int main(void)
 
     get_node_id(self_node_id);
     sprintf(data_pub,"%d",SERVER_SEND_RSSI);
-    strcat(data_pub, self_node_id); 
-    //Testing the Movement thread
-    Thread::wait(2000);
+    strcat(data_pub, self_node_id);   
+  
+    Thread::wait(5000);  
+    /**
+     * Initiate the UDP RSSI Ping Pong Process
+     */
     if (strcmp(self_node_id, PRIORITY_NODE) == 0)
-    {        
-        PRINTF("rssi_thread: Initiating the PING PONG.\n");
+    {
+        PRINTF("rssi_thread: Inittiating the PING PONG.\n");
         build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
         if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt))
             PRINTF("rssi_thread: sending pkt no %d \n", frame_no); 
@@ -186,27 +184,27 @@ int main(void)
             PRINTF("rssi_thread: failed to send pkt no\n");
         frame_no++;
     }
-
+  
     while (1) 
     {
         // PRINTF("In mqtt_thread");
         myled =! myled;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
-        pkt.length = HDLC_MAX_PKT_SIZE;  
-        //sending a message to the movement thread
-        
-        if (move_complete == 1){
+        pkt.length = HDLC_MAX_PKT_SIZE;    
+        if (move_complete == 1)
+        {
             msg_move = move_thr_mailbox.alloc();
-            while (msg_move == NULL){
-                PRINTF("No space in the control thread\n");
-                Thread:wait(20);
+            while(msg_move == NULL)
+            {
+                PRINTF("rssi_thread: retry send to movement thread\n");
                 msg_move = move_thr_mailbox.alloc();
             }
-            msg_move->type = INTER_THREAD;
-            msg_move->content.ptr = &rssi_value;
-            move_thr_mailbox.put(msg_move);      
+            msg->type = INTER_THREAD;
+            msg->content.ptr = &rssi_value;
+            move_thr_mailbox.put(msg);
         }
         
+
 
         while(1)
         {
@@ -239,22 +237,20 @@ int main(void)
                         switch (recv_hdr.pkt_type)
                         {
                             case RSSI_DATA_PKT:                                
-                                PRINTF("******************\n"); 
-                                // PRINTF("7\n");  
-                                // PRINTF("******************\n");
-                                // //handles the movement of the robot
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 rssi_value = rssi_value - 73;
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
-                                move_complete = 1;
-                                recv_rssi = 1;                               
+                                recv_rssi = 1; 
+                                if (move_complete == 0)
+                                    move_complete = 1;
+                                // Thread::wait(1000);                              
                                 break;
                             default:
                                 /* error */
                                 break;
                         }
                         main_thr_mailbox.free(msg);
-                        hdlc_pkt_release(buf);   
+                        hdlc_pkt_release(buf);     
                         break;
                     default:
                         main_thr_mailbox.free(msg);
@@ -262,10 +258,16 @@ int main(void)
                         break;
                 }
             }
-            //Thread::wait(2000);
+            
             if (evt.status == osEventTimeout || recv_rssi){
+
+                if (recv_rssi)
+                    PRINTF("rssi_thread: sending  SERVER_SEND_RSSI msg.\n");
+                else
+                    PRINTF("rssi_thread: sending periodic keep alive msg.\n");
+
                 recv_rssi = 0;
-                PRINTF("rssi_thread: sending periodic keep alive msg.\n");
+                Thread::wait(2000);
                 build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
                 if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt)){
                     PRINTF("rssi_thread: sending pkt no %d \n", frame_no); 
