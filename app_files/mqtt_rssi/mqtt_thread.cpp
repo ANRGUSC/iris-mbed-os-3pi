@@ -248,7 +248,7 @@ void _mqtt_thread()
                                 
                                 process_mqtt_pkt((mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length), &mqtt_recv_data);
                                 // PRINTF("The data received is %s \n", mqtt_recv_data->data);
-                                PRINTF("The topic received is %s d %d \n", mqtt_recv_data.topic, mqtt_recv_data.data_type); 
+                                PRINTF("The topic received is %s\n", mqtt_recv_data.topic); 
                                 switch (mqtt_recv_data.data_type){
                                     case NORM_DATA:
                                         PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);

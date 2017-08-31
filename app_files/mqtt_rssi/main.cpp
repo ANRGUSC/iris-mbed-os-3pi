@@ -127,7 +127,8 @@ int main(void)
     get_node_id(self_node_id);
     sprintf(data_pub,"%d",SERVER_SEND_RSSI);
     strcat(data_pub, self_node_id);   
-    
+  
+    Thread::wait(5000);  
     /**
      * Initiate the UDP RSSI Ping Pong Process
      */
@@ -141,7 +142,7 @@ int main(void)
             PRINTF("rssi_thread: failed to send pkt no\n");
         frame_no++;
     }
-
+  
     while (1) 
     {
         // PRINTF("In mqtt_thread");
@@ -183,7 +184,8 @@ int main(void)
                                 rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, buf->length)));
                                 rssi_value = rssi_value - 73;
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
-                                recv_rssi = 1;                               
+                                recv_rssi = 1; 
+                                // Thread::wait(1000);                              
                                 break;
                             default:
                                 /* error */
@@ -201,8 +203,12 @@ int main(void)
             
             if (evt.status == osEventTimeout || recv_rssi){
 
+                if (recv_rssi)
+                    PRINTF("rssi_thread: sending  SERVER_SEND_RSSI msg.\n");
+                else
+                    PRINTF("rssi_thread: sending periodic keep alive msg.\n");
+
                 recv_rssi = 0;
-                PRINTF("rssi_thread: sending periodic keep alive msg.\n");
                 build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
                 if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt)){
                     PRINTF("rssi_thread: sending pkt no %d \n", frame_no); 
