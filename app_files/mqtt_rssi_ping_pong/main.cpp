@@ -62,6 +62,11 @@
 //to reset the mbed
 extern "C" void mbed_reset();
 
+#define MAX 1.0
+#define MIN 0
+#define P_TERM 1
+#define I_TERM 0
+#define D_TERM 20
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE> move_thr_mailbox;
@@ -79,26 +84,89 @@ Mail<msg_t, HDLC_MAILBOX_SIZE> move_thr_mailbox;
 Serial      pc(USBTX,USBRX,115200);
 DigitalOut  myled(LED1);
 
-volatile int move_complete = 0;
+volatile int move_complete = 1;
 
 m3pi                m3pi;
 
+/**
+ * @brief      moves depending on the argument provided
+ *
+ * @param[in]  direction  The direction
+ */
 
+void movement(int direction) {
 
-
-
-
-
+    float       right;
+    float       left;
+    float       current_pos_of_line = 0.0;
+    float       previous_pos_of_line = 0.0;
+    float       derivative,proportional,integral = 0;
+    float       power;
+    float       speed = MAX;
+    int         move_count = 0;
+    while (move_count <= 100 && direction == (-1)){
+        m3pi.backward(0.2);
+        move_count++ ;
+    }
+    
+    while (move_count <= 200 && direction == 1) 
+    {
+        // Get the position of the line.
+        current_pos_of_line = m3pi.line_position();        
+        proportional = current_pos_of_line;          
+        // Compute the derivative
+        derivative = current_pos_of_line - previous_pos_of_line;
+        
+        // Compute the integral
+        integral += proportional;
+        
+        // Remember the last position.
+        previous_pos_of_line = current_pos_of_line;
+        
+        // Compute the power
+        power = (proportional * (P_TERM) ) + (integral*(I_TERM)) + (derivative*(D_TERM)) ;
+        
+        // Compute new speeds   
+        right = speed+power;
+        left  = speed-power;
+        
+        // limit checks
+        if (right < MIN)
+            right = MIN;
+        else if (right > MAX)
+            right = MAX;
+            
+        if (left < MIN)
+            left = MIN;
+        else if (left > MAX)
+            left = MAX;
+            
+       // set speed 
+        m3pi.left_motor(left*direction);
+        m3pi.right_motor(right*direction);
+        move_count++;
+    }
+    m3pi.stop();
+    return;
+}
 
 
 
 
 
 void _move_thread(){
+
+    //calibrating the sensors
+    m3pi.sensor_auto_calibrate();
+
+
     msg_t *msg;
     char move_frame_no = 0;
     int8_t rssi_value;
+
+
     osEvent evt;
+
 
     while(1)
     {
@@ -110,8 +178,15 @@ void _move_thread(){
             {
                 case INTER_THREAD:
                     PRINTF("move_thr: Message received\n");
-                    move_complete = 0;
+                    rssi_value = (* (uint8_t *)msg->content.ptr);
+                    //PRINTF("move_thr: the RSSI %d\n", rssi_value);
+                    if (rssi_value >= (-40))  
+                    {
+                        movement(1);
+                    }  
+                    PRINTF("move_thr: Movement is complete\n");
                     move_thr_mailbox.free(msg);
+                    move_complete = 1;
                     break;
                 default:
                     move_thr_mailbox.free(msg);
@@ -133,8 +208,10 @@ int main(void)
 
     Thread move_thr;
     move_thr.start(_move_thread);
+
+    PRINTF("All Threads Running\n");
    
-    msg_t *msg, *msg2, msg_move;
+    msg_t *msg, *msg2, *msg_move;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
@@ -184,27 +261,20 @@ int main(void)
             PRINTF("rssi_thread: failed to send pkt no\n");
         frame_no++;
     }
-  
+
+    //Allocating space for the movement thread mailbox
+    msg_move = move_thr_mailbox.alloc();
+    while(msg_move == NULL)
+    {
+        PRINTF("rssi_thread: retry send to movement thread\n");
+        msg_move = move_thr_mailbox.alloc();
+    }
     while (1) 
     {
         // PRINTF("In mqtt_thread");
         myled =! myled;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
         pkt.length = HDLC_MAX_PKT_SIZE;    
-        if (move_complete == 1)
-        {
-            msg_move = move_thr_mailbox.alloc();
-            while(msg_move == NULL)
-            {
-                PRINTF("rssi_thread: retry send to movement thread\n");
-                msg_move = move_thr_mailbox.alloc();
-            }
-            msg->type = INTER_THREAD;
-            msg->content.ptr = &rssi_value;
-            move_thr_mailbox.put(msg);
-        }
-        
-
 
         while(1)
         {
@@ -213,8 +283,7 @@ int main(void)
             {
                 msg = (msg_t*)evt.value.p;
                 switch (msg->type)
-                {               
-                    
+                {                    
                     case HDLC_RESP_SND_SUCC:
                         PRINTF("rssi_thread: sent frame_no %d!\n", frame_no);
                         exit = 1;
@@ -241,8 +310,13 @@ int main(void)
                                 rssi_value = rssi_value - 73;
                                 PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
                                 recv_rssi = 1; 
-                                if (move_complete == 0)
-                                    move_complete = 1;
+                                if (move_complete == 1)
+                                {
+                                    msg->type = INTER_THREAD;
+                                    msg->content.ptr = &rssi_value;
+                                    move_thr_mailbox.put(msg);
+                                    move_complete = 0;
+                                }
                                 // Thread::wait(1000);                              
                                 break;
                             default:
@@ -267,7 +341,7 @@ int main(void)
                     PRINTF("rssi_thread: sending periodic keep alive msg.\n");
 
                 recv_rssi = 0;
-                Thread::wait(2000);
+                Thread::wait(1000);
                 build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
                 if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt)){
                     PRINTF("rssi_thread: sending pkt no %d \n", frame_no); 
