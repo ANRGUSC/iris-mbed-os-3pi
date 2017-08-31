@@ -62,7 +62,7 @@
 //to reset the mbed
 extern "C" void mbed_reset();
 
-#define MAX 1.0
+#define MAX 0.2
 #define MIN 0
 #define P_TERM 1
 #define I_TERM 0
@@ -159,7 +159,6 @@ void _move_thread(){
     //calibrating the sensors
     m3pi.sensor_auto_calibrate();
 
-
     msg_t *msg;
     char move_frame_no = 0;
     int8_t rssi_value;
@@ -178,12 +177,20 @@ void _move_thread(){
             {
                 case INTER_THREAD:
                     PRINTF("move_thr: Message received\n");
-                    rssi_value = (* (uint8_t *)msg->content.ptr);
+                    rssi_value = (* (int8_t *)msg->content.ptr);
                     //PRINTF("move_thr: the RSSI %d\n", rssi_value);
+                    
+                    m3pi.locate(0,1);
+                    m3pi.printf("%d\n", rssi_value);
+
                     if (rssi_value >= (-40))  
                     {
                         movement(1);
                     }  
+                    if (rssi_value <= (-40))
+                    {
+                        movement(-1);
+                    }
                     PRINTF("move_thr: Movement is complete\n");
                     move_thr_mailbox.free(msg);
                     move_complete = 1;
@@ -193,6 +200,7 @@ void _move_thread(){
                     break;
 
             }
+            move_frame_no ++;
         }
 
     }
@@ -245,8 +253,11 @@ int main(void)
 
     get_node_id(self_node_id);
     sprintf(data_pub,"%d",SERVER_SEND_RSSI);
-    strcat(data_pub, self_node_id);   
-  
+    strcat(data_pub, self_node_id); 
+
+    m3pi.locate(0,0);
+    m3pi.printf("Connect");
+
     Thread::wait(5000);  
     /**
      * Initiate the UDP RSSI Ping Pong Process
