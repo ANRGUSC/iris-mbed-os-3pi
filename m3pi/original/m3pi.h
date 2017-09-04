@@ -139,6 +139,21 @@ public:
      */
     void right (float speed);
 
+    /**
+     * @brief      Rotates the m3pi
+     * @param[in]  dir  The dir of rotation 
+     * ('L' : left 90 degree, 'R' : Right 90 degree, 'T': Right 180 degree ) 
+     */
+    void rotate (char dir);
+
+    /**
+     * @brief      Rotates the m3pi
+     *
+     * @param[in]  dir     The dir of rotation. 0: Clockwise, 1: Anticlockwise
+     * @param[in]  degree  The rotation amount in degree
+     */
+    void rotate (int dir, int degree);
+
     /** Stop both motors
      *
      */
