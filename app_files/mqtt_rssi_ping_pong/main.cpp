@@ -104,12 +104,13 @@ void movement(int direction) {
     float       power;
     float       speed = MAX;
     int         move_count = 0;
-    while (move_count <= 100 && direction == (-1)){
-        m3pi.backward(0.2);
-        move_count++ ;
+    if (direction == (-1)){
+        m3pi.right(0.315);
+        wait_ms(400);
+        m3pi.stop();
     }
     
-    while (move_count <= 200 && direction == 1) 
+    while (move_count <= 200) 
     {
         // Get the position of the line.
         current_pos_of_line = m3pi.line_position();        
@@ -142,9 +143,14 @@ void movement(int direction) {
             left = MAX;
             
        // set speed 
-        m3pi.left_motor(left*direction);
-        m3pi.right_motor(right*direction);
+        m3pi.left_motor(left);
+        m3pi.right_motor(right);
         move_count++;
+    }
+    if (direction == (-1)){
+        m3pi.right(0.315);
+        wait_ms(400);
+        m3pi.stop();
     }
     m3pi.stop();
     return;
