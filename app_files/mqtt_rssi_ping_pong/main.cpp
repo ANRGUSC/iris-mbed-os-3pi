@@ -62,11 +62,13 @@
 //to reset the mbed
 extern "C" void mbed_reset();
 
-#define MAX 0.2
-#define MIN 0
-#define P_TERM 1
-#define I_TERM 0
-#define D_TERM 20
+#define MAX_SPEED   0.2
+#define MIN_SPEED   0
+#define P_TERM      1
+#define I_TERM      0
+#define D_TERM      20
+#define FORWARD     1
+#define BACKWARD    -1
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE> move_thr_mailbox;
@@ -86,28 +88,26 @@ DigitalOut  myled(LED1);
 
 volatile int move_complete = 1;
 
-m3pi                m3pi;
+m3pi m3pi;
 
 /**
- * @brief      moves depending on the argument provided
- *
+ * @brief      moves a fixed distance on either of two directions
  * @param[in]  direction  The direction
  */
 
 void movement(int direction) {
 
-    float       right;
-    float       left;
-    float       current_pos_of_line = 0.0;
-    float       previous_pos_of_line = 0.0;
-    float       derivative,proportional,integral = 0;
-    float       power;
-    float       speed = MAX;
-    int         move_count = 0;
+    float right;
+    float left;
+    float current_pos_of_line = 0.0;
+    float previous_pos_of_line = 0.0;
+    float derivative, proportional, integral = 0;
+    float power;
+    float speed = MAX_SPEED;
+    int   move_count = 0;
+
     if (direction == (-1)){
-        m3pi.right(0.315);
-        wait_ms(400);
-        m3pi.stop();
+        m3pi.rotate('B');
     }
     
     while (move_count <= 200) 
@@ -125,33 +125,33 @@ void movement(int direction) {
         previous_pos_of_line = current_pos_of_line;
         
         // Compute the power
-        power = (proportional * (P_TERM) ) + (integral*(I_TERM)) + (derivative*(D_TERM)) ;
+        power = (proportional * P_TERM ) + (integral * I_TERM) + (derivative * D_TERM ) ;
         
         // Compute new speeds   
-        right = speed+power;
-        left  = speed-power;
+        right = speed + power;
+        left  = speed - power;
         
         // limit checks
-        if (right < MIN)
-            right = MIN;
-        else if (right > MAX)
-            right = MAX;
+        if (right < MIN_SPEED)
+            right = MIN_SPEED;
+        else if (right > MAX_SPEED)
+            right = MAX_SPEED;
             
-        if (left < MIN)
-            left = MIN;
-        else if (left > MAX)
-            left = MAX;
+        if (left < MIN_SPEED)
+            left = MIN_SPEED;
+        else if (left > MAX_SPEED)
+            left = MAX_SPEED;
             
        // set speed 
         m3pi.left_motor(left);
         m3pi.right_motor(right);
         move_count++;
     }
+
     if (direction == (-1)){
-        m3pi.right(0.315);
-        wait_ms(400);
-        m3pi.stop();
+        m3pi.rotate('B');
     }
+
     m3pi.stop();
     return;
 }
@@ -166,12 +166,9 @@ void _move_thread(){
     m3pi.sensor_auto_calibrate();
 
     msg_t *msg;
-    char move_frame_no = 0;
     int8_t rssi_value;
 
-
     osEvent evt;
-
 
     while(1)
     {
@@ -189,14 +186,11 @@ void _move_thread(){
                     m3pi.locate(0,1);
                     m3pi.printf("%d\n", rssi_value);
 
-                    if (rssi_value >= (-40))  
-                    {
-                        movement(1);
-                    }  
-                    if (rssi_value <= (-40))
-                    {
-                        movement(-1);
-                    }
+                    if ( rssi_value > RSSI_THR )  
+                        movement(FORWARD); 
+                    else
+                        movement(BACKWARD);
+   
                     PRINTF("move_thr: Movement is complete\n");
                     move_thr_mailbox.free(msg);
                     move_complete = 1;
@@ -204,11 +198,8 @@ void _move_thread(){
                 default:
                     move_thr_mailbox.free(msg);
                     break;
-
             }
-            move_frame_no ++;
         }
-
     }
 }
 
@@ -280,12 +271,8 @@ int main(void)
     }
 
     //Allocating space for the movement thread mailbox
-    msg_move = move_thr_mailbox.alloc();
-    while(msg_move == NULL)
-    {
-        PRINTF("rssi_thread: retry send to movement thread\n");
-        msg_move = move_thr_mailbox.alloc();
-    }
+    
+
     while (1) 
     {
         // PRINTF("In mqtt_thread");
@@ -329,9 +316,15 @@ int main(void)
                                 recv_rssi = 1; 
                                 if (move_complete == 1)
                                 {
-                                    msg->type = INTER_THREAD;
-                                    msg->content.ptr = &rssi_value;
-                                    move_thr_mailbox.put(msg);
+                                    msg_move = move_thr_mailbox.alloc();
+                                    while(msg_move == NULL)
+                                    {
+                                        PRINTF("rssi_thread: retry send to movement thread\n");
+                                        msg_move = move_thr_mailbox.alloc();
+                                    }
+                                    msg_move->type = INTER_THREAD;
+                                    msg_move->content.ptr = &rssi_value;
+                                    move_thr_mailbox.put(msg_move);
                                     move_complete = 0;
                                 }
                                 // Thread::wait(1000);                              

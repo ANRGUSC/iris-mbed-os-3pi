@@ -199,6 +199,17 @@ void _mqtt_thread()
     }
     set_mqtt_state(MQTT_MBED_INIT_DONE);
 
+    /**
+     * Sending the first request to register for the rssi ping pong
+     */
+    strcpy(topic_pub, TEST_TOPIC);
+    sprintf(data_pub, "%d", SERVER_REQUEST);                              
+    build_mqtt_pkt_pub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
+    if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
+        PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
+    else
+        PRINTF("mqtt_thread: failed to send pkt no\n");
+
     PRINTF("mqtt_thread: All Initialization Done\n");
     
 
@@ -248,7 +259,7 @@ void _mqtt_thread()
                                 
                                 process_mqtt_pkt((mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length), &mqtt_recv_data);
                                 // PRINTF("The data received is %s \n", mqtt_recv_data->data);
-                                PRINTF("The topic received is %s d %d \n", mqtt_recv_data.topic, mqtt_recv_data.data_type); 
+                                PRINTF("The topic received is %s\n", mqtt_recv_data.topic); 
                                 switch (mqtt_recv_data.data_type){
                                     case NORM_DATA:
                                         PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);

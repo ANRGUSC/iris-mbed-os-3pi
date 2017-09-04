@@ -25,6 +25,10 @@ This info consists of the 3pi specific topics (last eight character of their ipv
 In this example the UDP packets acts as the event triggers.
 Thus to deal with missing UDP packets, there is a periodic request by each node.
 
+Upon receiving a UDP packet, the Openmote dumps the RSSI value to the mbed.
+Upon receiving the RSSI value, the 3pi decides its movement direction based on the `RSSI_THR`.
+The idea is to stay furthests in each other's connected region with `RSSI > RSSI_THR`
+
 ## Set up the border router 
 
 [border router link](https://github.com/ANRGUSC/anrg-riot/tree/develop/examples/emcute_border_router_3pi)
