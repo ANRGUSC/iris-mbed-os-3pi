@@ -193,8 +193,54 @@ int m3pi::getc (void) {
     return(_ser.getc());
 }
 
+void m3pi::rotate (char dir)
+{
+    switch(dir)
+    {
+        case 'L': // Left 90 degree turn
+            // Turn left.
+            left(0.315);
+            wait_ms(200);
+            break;
+        case 'R': // Right 90 degree turn
+            // Turn right.
+            right(0.315);
+            wait_ms(200);
+            break;
+        case 'B': // Right 180 degree turn
+            // Turn around.
+            right(0.315);
+            wait_ms(400);
+            break;
+        case 'S':
+            // Don't do anything!
+            break;
+    }
+    stop();
+}
 
+void m3pi::rotate (int dir, int degree)
+{
+    float time = (degree / 90) * 200;
 
+    switch (dir)
+    {
+        case 1: 
+            // Turn left.
+            left(0.315);
+            wait_ms(time);
+            break;
+        case 0: // Right 90 degree turn
+            // Turn right.
+            right(0.315);
+            wait_ms(time);
+            break;
+        default:
+            // Don't do anything!
+            break;
+    }
+    stop();
+}
 
 
 #ifdef MBED_RPC
