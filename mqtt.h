@@ -107,7 +107,8 @@ typedef enum {
     GET_CLIENTS			  = 4,
     RSSI_SEND			  = 5,
     SENSOR_DATA           = 6,
-    MOVE_CMD              = 7      	
+    MOVE_CMD              = 7, 
+    RMT_CTRL              = 8      	
 } type_mqtt_data_t;
 
 typedef enum {
