@@ -119,7 +119,6 @@ int main(void)
     char *rmt_ctrl_command ;
     char move_command;
 
-    char check = 1;
 
     float speed = 0.15;
     int delta_t = 100;
@@ -134,13 +133,12 @@ int main(void)
     {
         myled =! myled;
         evt = main_thr_mailbox.get();
-        if (evt.status == osEventMail && check == 1)
+        if (evt.status == osEventMail )
         {
             msg = (msg_t*)evt.value.p;
             switch (msg->type)
             {
                 case INTER_THREAD:
-                    check = 0;
                     rmt_ctrl_command = (char *)msg->content.ptr ;
                     move_command = rmt_ctrl_command[0];                    
                     PRINTF("rmt_ctrl_thread: %c\n", move_command);
@@ -152,7 +150,6 @@ int main(void)
                     {
                         movement(move_command, speed, delta_t_angular);
                     }
-                    check = 1;
                     break;
                 default :
                     PRINTF("rmt_ctrl_thread: Error message\n");
