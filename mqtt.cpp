@@ -71,7 +71,8 @@ void build_mqtt_pkt_pub(char* topic, char* data, uint16_t src_port,
     strcpy(mqtt_send_pkt->data, data);
 
     uart_pkt_cpy_data(pkt->data, HDLC_MAX_PKT_SIZE, mqtt_send_pkt, sizeof(mqtt_pkt_t));
-    uart_pkt_insert_hdr(pkt->data, HDLC_MAX_PKT_SIZE, &send_hdr); 
+    uart_pkt_insert_hdr(pkt->data, HDLC_MAX_PKT_SIZE, &send_hdr);
+
     pkt->length = HDLC_MAX_PKT_SIZE;        
     
 }

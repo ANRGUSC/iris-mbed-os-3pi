@@ -394,11 +394,13 @@ void _range_thread(){
                     else{
                          range_data = range_node(range_params);
                     }
+                    clear_data(data_pub, 32);
+                    load_data(data_pub, 32, get_node(range_data)); 
 
-                    load_data(data_pub, 32, get_node(range_data));                         
 
                     build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt); 
-
+                    pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
+                    
                     //for some reason it will only publish if you include a print statement here
                     printf("tdoa = %lu\n",range_data.tdoa);
                     printf("node_id = %lu\n",range_data.node_id);
@@ -411,7 +413,7 @@ void _range_thread(){
 
                         PRINTF("mqtt_thread: failed to send pkt no\n"); 
                     }
-                    clear_data(data_pub, 32);
+                    
                 }
                 
 
