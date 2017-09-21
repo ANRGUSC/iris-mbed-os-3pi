@@ -74,14 +74,12 @@ static osThreadId sender_pid;
 
 static unsigned char HDLC_STACK[DEFAULT_STACK_SIZE];
 
-Thread hdlc(osPriorityNormal, 
-    (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)HDLC_STACK); 
+Thread hdlc(osPriorityNormal, (uint32_t) DEFAULT_STACK_SIZE, 
+            (unsigned char *)HDLC_STACK); 
 
-Serial uart2(p28,p27, 115200);
-
+Serial uart2(p28,p27, HDLC_BAUDRATE);
 
 static hdlc_entry_t *hdlc_reg;
-
 
 /**
  * @brief      adds a thread to port mapping
@@ -101,7 +99,6 @@ void hdlc_unregister(hdlc_entry_t *entry)
     LL_DELETE(hdlc_reg, entry);
 }
 
-
 static Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox_ptr;
 Mail<msg_t, HDLC_MAILBOX_SIZE> hdlc_mailbox;
 Semaphore   recv_buf_mutex(1);
@@ -109,7 +106,6 @@ Semaphore   recv_buf_cpy_mutex(1);
 // Mutex recv_buf_mutex;
 Timer       global_time;
 Timer       uart_lock_time;
-
 
 CircularBuffer<char, UART_BUFSIZE> circ_buf;
 
@@ -121,13 +117,10 @@ static char hdlc_recv_data_cpy[HDLC_MAX_PKT_SIZE];
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 
-
 static hdlc_buf_t recv_buf; // the initialization is done in the hdlc init function
 static hdlc_buf_t recv_buf_cpy; // the initialization is done in the hdlc init function
 static hdlc_buf_t send_buf;
 static hdlc_buf_t ack_buf;
-
-
 
 /* uart access control lock */
 static bool uart_lock = 0;
@@ -160,7 +153,6 @@ static void rx_cb(void)//(void *arg, uint8_t data)
     }
 
 }
-
 
 /**
  * @brief      This function is used by hdlc thread to check the validity of the incoming packets
@@ -294,13 +286,13 @@ static void _hdlc()
         // hdlc_ready=1;
         if(uart_lock) {
             // int uart_ll=(int)uart_lock_time.read_us();
-            // if(uart_ll>10*RETRANSMIT_TIMEO_USEC)
+            // if(uart_ll>10*HDLC_RETRANS_TIMEO_USEC)
             // {
             //     PRINTF("hdlc: UART is locked for %d us_seconds\n",uart_ll);
             //     uart_lock=0;
             //     goto getmail;
             // }    
-            int timeout = (int)RETRANSMIT_TIMEO_USEC - (int) global_time.read_us();
+            int timeout = (int)HDLC_RETRANS_TIMEO_USEC - (int) global_time.read_us();
             if(timeout < 0) {
                 // PRINTF("hdlc: inside timeout negative\n");
                 /* send message to self to resend msg */
@@ -350,7 +342,7 @@ static void _hdlc()
                         }
                         else {
                             reply->type = HDLC_RESP_RETRY_W_TIMEO;
-                            reply->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            reply->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                             reply->sender_pid = osThreadGetId();
                             ((Mail<msg_t, HDLC_MAILBOX_SIZE>*)msg->source_mailbox)->put(reply);
                         }
@@ -413,13 +405,12 @@ static void _hdlc()
  * @return                [description]
  */
 int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mailbox, 
-                                                    riot_to_mbed_t reply)
+                      riot_to_mbed_t reply)
 {
 // /* TODO: should the second input not be a void pointer? */
 // /* TODO: limit the number of retries */
     msg_t *msg, *msg2;
     hdlc_buf_t *buf;
-    char recv_data_local[HDLC_MAX_PKT_SIZE];
     uart_pkt_hdr_t hdr;
     // Timer       command_send_time;
     /* send pkt */
@@ -436,7 +427,7 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
         if(evt.status == osEventTimeout){
                     return 0;
         }
-            // if(uart_ll>10*RETRANSMIT_TIMEO_USEC)
+            // if(uart_ll>10*HDLC_RETRANS_TIMEO_USEC)
         if (evt.status == osEventMail) 
         {
             msg = (msg_t*)evt.value.p;
@@ -458,7 +449,7 @@ int hdlc_send_command(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_ma
                         }
                         /* TODO: this doesn't seem right... */
                         msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                        msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                        msg2->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                         msg2->sender_pid = osThreadGetId();
                         msg2->source_mailbox = sender_mailbox;
                         sender_mailbox->put(msg2);
@@ -636,7 +627,6 @@ void buffer_cpy(hdlc_buf_t* dst, hdlc_buf_t* src)
     dst->length=src->length;
 }
 
-
 /**
  * @brief      Intialized the HDLC Thread
  *
@@ -698,7 +688,7 @@ int send_hdlc_retry_mail(msg_t *msg, Mail<msg_t, HDLC_MAILBOX_SIZE> *sender_mail
     if (msg == NULL) 
         return -1;
     msg->type = HDLC_RESP_RETRY_W_TIMEO;
-    msg->content.value = (uint32_t) RTRY_TIMEO_USEC;
+    msg->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
     msg->sender_pid = osThreadGetId();
     msg->source_mailbox = sender_mailbox;
     sender_mailbox->put(msg);

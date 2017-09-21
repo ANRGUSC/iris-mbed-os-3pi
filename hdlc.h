@@ -58,31 +58,32 @@
 #include "mbed.h"
 #include "uart_pkt.h"
 
-
 /**
- * Define your custom parameter values under "hdlc_custom.h" header file
+ * Define your custom parameter values under your app's "main-conf.h" header file
  */
 #include "main-conf.h"
-
 
 /**
  * The follwing macros define the speed of operation. 
  */
-
-#ifndef RTRY_TIMEO_USEC
-    #define RTRY_TIMEO_USEC         100000
+#ifndef HDLC_BAUDRATE
+    #define HDLC_BAUDRATE               115200
 #endif
 
-#ifndef RETRANSMIT_TIMEO_USEC
-    #define RETRANSMIT_TIMEO_USEC   50000
+#ifndef HDLC_RTRY_TIMEO_USEC
+    #define HDLC_RTRY_TIMEO_USEC        200000
+#endif
+
+#ifndef HDLC_RETRANS_TIMEO_USEC
+    #define HDLC_RETRANS_TIMEO_USEC     50000
 #endif
 
 #ifndef HDLC_MAX_PKT_SIZE
-    #define HDLC_MAX_PKT_SIZE       64
+    #define HDLC_MAX_PKT_SIZE           64
 #endif
 
 #ifndef HDLC_MAILBOX_SIZE
-    #define HDLC_MAILBOX_SIZE       100 
+    #define HDLC_MAILBOX_SIZE           100 
 #endif
 
 /**

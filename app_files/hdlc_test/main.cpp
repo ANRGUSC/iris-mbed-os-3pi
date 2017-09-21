@@ -43,22 +43,26 @@
  * 
  * In this test, the main thread and thread2 thread will contend for the same
  * UART line to communicate to another MCU also running a main and thread2 
- * thread. It seems as though stability deteriorates if the hdlc thread is given
- * a higher priority than the two application threads (RIOT's MAC layer priority
- * is well below the default priority for the main thread. Note that two threads
- * are equally contending for the UART line, one thread may starve the other to 
- * the point where the other thread will continue to retry. Increasing the msg 
- * queue size of hdlc's thread may also increase stability. Since this test can
+ * thread. Increasing the hdlc mailbox size may increase stability.  
+ * queue size of hdlc's thread may increase stability. Since this test can
  * easily stress the system, carefully picking the transmission rates (see below)
- * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
- * may lead to different stability results. The following is one known stable
- * set of values for running this test:
+ * and tuning the HDLC_RTRY_TIMEO_USEC and HDLC_RETRANS_TIMEO_USEC macros
+ * may lead to different stability results. For mbed OS, you can define custom
+ * HDLC parameters using your main-conf.h (or a custom-hdlc.h header). The 
+ * following is one known stable set of values for running this test between an
+ * mbed and openmote:
  *
- * -100ms interpacket intervals in xtimer_usleep() below
- * -RTRY_TIMEO_USEC = 100000
- * -RETRANSMIT_TIMEO_USEC 50000
- *
+ * Turn off openmote debug statements and rely on mbed print statements
+ * 
+ * HDLC_BAUDRATE=230400 #limitation mainly due to RIOT/openmote
+ * 
+ * HDLC_RTRY_TIMEO_USEC=200000
+ * 
+ * HDLC_RETRANS_TIMEO_USEC=50000
+ * 
+ * 100ms interpacket intervals in Thread::wait() below.
  */
+
 
 #include "mbed.h"
 #include "rtos.h"
@@ -81,13 +85,12 @@
 #endif /* (DEBUG) & DEBUG_PRINT */
 
 /* the only instance of pc -- debug statements in other files depend on it */
-Serial                          pc(USBTX,USBRX,115200);
+Serial                          pc(USBTX, USBRX, 115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  thread2_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
-
 
 #define MAIN_THR_PORT   1234
 #define THREAD2_PORT    5678
@@ -164,7 +167,7 @@ void _thread2()
                                 Thread::wait(10);
                             }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            msg2->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
                             msg2->source_mailbox = &thread2_mailbox;
                             thread2_mailbox.put(msg2);
@@ -282,7 +285,7 @@ int main(void)
                                 Thread::wait(10);
                             }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            msg2->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
                             msg2->source_mailbox = &main_thr_mailbox;
                             main_thr_mailbox.put(msg2);
