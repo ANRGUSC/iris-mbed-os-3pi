@@ -245,7 +245,7 @@ void range_thread(){
                                 Thread::wait(10);
                             }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            msg2->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
                             msg2->source_mailbox = &range_thr_mailbox;
                             range_thr_mailbox.put(msg2);

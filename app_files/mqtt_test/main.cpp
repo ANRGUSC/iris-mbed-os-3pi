@@ -51,13 +51,13 @@
  * the point where the other thread will continue to retry. Increasing the msg 
  * queue size of hdlc's thread may also increase stability. Since this test can
  * easily stress the system, carefully picking the transmission rates (see below)
- * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
+ * and tuning the HDLC_RTRY_TIMEO_USEC and HDLC_RETRANS_TIMEO_USEC timeouts in hdlc.h
  * may lead to different stability results. The following is one known stable
  * set of values for running this test:
  *
  * -100ms interpacket intervals in xtimer_usleep() below
- * -RTRY_TIMEO_USEC = 100000
- * -RETRANSMIT_TIMEO_USEC 50000
+ * -HDLC_RTRY_TIMEO_USEC = 100000
+ * -HDLC_RETRANS_TIMEO_USEC 50000
  *
  */
 
@@ -180,7 +180,7 @@ void _mqtt_thread()
                                 Thread::wait(10);
                             }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            msg2->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
                             msg2->source_mailbox = &mqtt_thread_mailbox;
                             mqtt_thread_mailbox.put(msg2);
@@ -346,7 +346,7 @@ int main(void)
                                 Thread::wait(10);
                             }
                             msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                            msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                            msg2->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                             msg2->sender_pid = osThreadGetId();
                             msg2->source_mailbox = &main_thr_mailbox;
                             main_thr_mailbox.put(msg2);

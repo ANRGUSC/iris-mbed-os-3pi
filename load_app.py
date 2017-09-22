@@ -37,7 +37,6 @@ else:
 
 print m3pi_path
 
-
 os.remove(app_path)
 os.remove(m3pi_path)
 
