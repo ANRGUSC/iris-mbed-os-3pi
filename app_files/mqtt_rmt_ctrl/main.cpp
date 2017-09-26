@@ -73,13 +73,26 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
 
+#define SPEED               0.15
+#define DELTA_T             100
+#define DELTA_T_ANGULAR     50
+
 /* the only instance of pc -- debug statements in other files depend on it */
 Serial      pc(USBTX,USBRX,115200);
 DigitalOut  myled(LED1);
 
 m3pi    m3pi;
 
-int movement(char command, float speed, int delta_t)
+/**
+ * @brief      controls movement of the 3pi
+ *
+ * @param[in]  command  The movement command
+ * @param[in]  speed    The speed of the movement
+ * @param[in]  delta_t  The time for each movement
+ *
+ * @return     { void }
+ */
+void movement(char command, float speed, int delta_t)
 {
     if (command == 's')
     {
@@ -110,25 +123,27 @@ int movement(char command, float speed, int delta_t)
 
 int main(void)
 {
+    //initialization of the hdlc thread
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
+    //initialization of the mqtt thread
     Mail<msg_t, HDLC_MAILBOX_SIZE> *mqtt_thread_mailbox;
     mqtt_thread_mailbox = mqtt_init(osPriorityNormal);
 
-    char *rmt_ctrl_command ;
-    char move_command;
-
-
-    float speed = 0.15;
-    int delta_t = 100;
-    int delta_t_angular = 50;
+    //receives the rmt control message from the mqtt thread
+    char *rmt_ctrl_command;
+    
+    //assigning the speed and time for movements
+    float speed = SPEED;
+    int delta_t = DELTA_T;
+    int delta_t_angular = DELTA_T_ANGULAR;
 
     msg_t *msg;
 
-    osEvent evt;
-   
+    osEvent evt;   
     myled = 1;
+
     while(1)
     {
         myled =! myled;
@@ -139,16 +154,15 @@ int main(void)
             switch (msg->type)
             {
                 case INTER_THREAD:
-                    rmt_ctrl_command = (char *)msg->content.ptr ;
-                    move_command = rmt_ctrl_command[0];                    
-                    PRINTF("rmt_ctrl_thread: %c\n", move_command);
-                    if (move_command == 's' || 'w')
+                    rmt_ctrl_command = (char *)msg->content.ptr ; 
+                    PRINTF("rmt_ctrl_thread: %c\n", rmt_ctrl_command[0]);
+                    if (rmt_ctrl_command[0] == 's' || 'w')
                     {
-                        movement(move_command, speed, delta_t);
+                        movement(rmt_ctrl_command[0], speed, delta_t);
                     }
-                    else if (move_command == 'a' || 'd')
+                    else if (rmt_ctrl_command[0] == 'a' || 'd')
                     {
-                        movement(move_command, speed, delta_t_angular);
+                        movement(rmt_ctrl_command[0], speed, delta_t_angular);
                     }
                     break;
                 default :
