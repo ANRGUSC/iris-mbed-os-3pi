@@ -84,9 +84,10 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
         if(time_diffs->status == 2){
             angle = get_angle(dist_b, dist_a);
         }
-        else{
+        else if(time_diffs->status == 1){
             angle = get_angle(dist_a, dist_b);
         }
+
         PRINTF("Distance: %.2f\n", dist);
         PRINTF("Angle : %.2f\n", angle);
     }
@@ -303,19 +304,20 @@ range_data_t range_node(range_params_t params){
 range_data_t lock_on_anchor(int8_t node_id){
     range_data_t raw_data; 
     dist_angle_t conv_data;
-    float angle;
+    float angle = -361;
 
     if(!init_minimu()){
         PRINTF("Failed to init minimu");
         return {0,0,0,node_id};
     }
 
+    PRINTF("Calibrating compass");
     calibrate_compass();
 
-    while(angle > 5 && angle < -5){
+    while(angle > 5 || angle < -5){
         
         raw_data = range_node({node_id, TWO_SENSOR_MODE});
-        if(raw_data.tdoa = 0){
+        if(raw_data.tdoa < 10){
             PRINTF("Locking failed: Anchor node unavailable\n");
             return {0,0,0,node_id};
         }
@@ -323,14 +325,36 @@ range_data_t lock_on_anchor(int8_t node_id){
         angle = conv_data.angle;
 
         if(angle == -361){
-            rotate_degrees(180,40);
+            if(raw_data.status > 2){
+                if(MISSED_PIN_UNMASK - raw_data.status == 1){
+                    rotate_degrees(90,40);
+                }
+                else if(MISSED_PIN_UNMASK - raw_data.status == 2){
+                    rotate_degrees(-90,40);
+                }
+                else{
+                    rotate_degrees(180,40);
+                }
+            }
+            else{
+                if(raw_data.status == 1){
+                    rotate_degrees(-90,40);
+                }
+                else if(raw_data.status == 2){
+                    rotate_degrees(90,40);
+                }
+                else{
+                    rotate_degrees(180,40);
+                }
+            }
+            
         }
         else{
             if(angle < 75 && angle > -75){
-                rotate_parts(angle);
+                rotate_parts(-angle);
             }
             else{
-                rotate_degrees(angle,40);
+                rotate_degrees(-angle,40);
             }
         }
     }
@@ -389,6 +413,7 @@ void _range_thread(){
                 }
                 else{
                     if(range_params.ranging_mode == TWO_SENSOR_MODE){
+                        PRINTF("Starting lock on anchor routine\n");
                         range_data = lock_on_anchor(range_params.node_id);
                     }
                     else{
