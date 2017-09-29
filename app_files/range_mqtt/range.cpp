@@ -17,7 +17,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 Thread range_thr;
 
 node_t get_node(range_data_t data){
-    return {data.node_id, data.tdoa};
+    return (node_t){data.node_id, data.tdoa};
 }
 
 
@@ -38,11 +38,11 @@ void clear_data(char *buff, int buff_size){
 }
 
 dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
-    int tdoa_a;
-    int tdoa_b;
-    float dist_a;
-    float dist_b;
-    float dist;
+    int tdoa_a = 0;
+    int tdoa_b = 0;
+    float dist_a = 0;
+    float dist_b = 0;
+    float dist = 0;
     float angle = -361;
 
     dist_angle_t return_val;
@@ -67,13 +67,13 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
             {
                 tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
                 dist_b = get_dist(tdoa_b);
-                PRINTF("OD = %lu\n", time_diffs-> orient_diff);
+                PRINTF("OD = %d\n", time_diffs-> orient_diff);
             }
             break;
         case XOR_SENSOR_MODE:
             tdoa_b = time_diffs->tdoa + time_diffs->orient_diff;
             dist_b = get_dist(tdoa_b);
-            PRINTF("OD = %lu\n", time_diffs->orient_diff);
+            PRINTF("OD = %d\n", time_diffs->orient_diff);
             break;
         case OMNI_SENSOR_MODE:
             dist = dist_a;
@@ -113,8 +113,8 @@ range_data_t get_range_data(range_params_t params){
     int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(range_params_t);
     char send_data[pkt_size];
 
-    msg_t *msg, *msg2;
-    hdlc_buf_t *buf;
+    msg_t *msg = NULL, *msg2 = NULL;
+    hdlc_buf_t *buf = NULL;
     hdlc_pkt_t pkt;
     
     uart_pkt_hdr_t recv_hdr;
@@ -144,7 +144,7 @@ range_data_t get_range_data(range_params_t params){
     }
     else{
         PRINTF("range_thread: failed to send pkt no\n"); 
-        return {0,0,0,params.node_id};
+        return range_data_t{0,0,0,params.node_id};
     }
     //recieving data
     while(!exit)
@@ -179,7 +179,7 @@ range_data_t get_range_data(range_params_t params){
                             Thread::wait(10);
                         }
                         msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                        msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                        msg2->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                         msg2->sender_pid = osThreadGetId();
                         msg2->source_mailbox = &range_thr_mailbox;
                         range_thr_mailbox.put(msg2);
@@ -220,7 +220,7 @@ range_data_t get_range_data(range_params_t params){
                             PRINTF ("%d:\n", i);
                             /* Displaying results. */
                             
-                            PRINTF("TDoA = %lu\n", time_diffs->tdoa);
+                            PRINTF("TDoA = %d\n", time_diffs->tdoa);
 
                             switch (params.ranging_mode)
                             {
@@ -232,12 +232,12 @@ range_data_t get_range_data(range_params_t params){
                                         printf("Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs->status); 
                                     } 
                                     else{
-                                        PRINTF("OD = %lu\n", time_diffs->orient_diff);
+                                        PRINTF("OD = %d\n", time_diffs->orient_diff);
                                     }
                                     PRINTF("Two Sensor Mode^\n");
                                     break;
                                 case XOR_SENSOR_MODE:
-                                    PRINTF("OD = %lu\n", time_diffs->orient_diff);
+                                    PRINTF("OD = %d\n", time_diffs->orient_diff);
                                     PRINTF("Xor Sensor Mode^\n");
                                     break;
                                 case OMNI_SENSOR_MODE:
@@ -407,7 +407,7 @@ void _range_thread(){
                     printf("****************Discovery mode***************\n");
                     printf("Nodes reached:\n");
                     for(i=0; i<num_nodes_reached; i++){
-                        printf("Node %d: %lu\n", nodes_reached[i].node_id, nodes_reached[i].tdoa);
+                        printf("Node %d: %d\n", nodes_reached[i].node_id, nodes_reached[i].tdoa);
                     }
                     printf("*********************************************\n");
                 }
@@ -427,8 +427,8 @@ void _range_thread(){
                     pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
                     
                     //for some reason it will only publish if you include a print statement here
-                    printf("tdoa = %lu\n",range_data.tdoa);
-                    printf("node_id = %lu\n",range_data.node_id);
+                    printf("tdoa = %d\n",range_data.tdoa);
+                    printf("node_id = %d\n",range_data.node_id);
                     PRINTF("range_thread: range_routine done. publishing data now\n");
 
                     if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){

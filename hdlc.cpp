@@ -535,7 +535,7 @@ int hdlc_send_command_wo_resp(hdlc_pkt_t *pkt, Mail<msg_t, HDLC_MAILBOX_SIZE> *s
                         }
                         /* TODO: this doesn't seem right... */
                         msg2->type = HDLC_RESP_RETRY_W_TIMEO;
-                        msg2->content.value = (uint32_t) RTRY_TIMEO_USEC;
+                        msg2->content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                         msg2->sender_pid = osThreadGetId();
                         msg2->source_mailbox = sender_mailbox;
                         sender_mailbox->put(msg2);

@@ -59,7 +59,6 @@ float get_dist(int tdoa){
  * @return     The angle at which the two sensors are facing the transmitter in degrees
  */
 float get_angle(float a, float b){
-    float ans;
     float x = get_mid_dist(a,b);
     float ratio = (b * b - a * a) / (2 * SEPARATION_DIST * x);
     

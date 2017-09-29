@@ -93,7 +93,7 @@ void _mqtt_thread()
 {
     int             pub_length;
     char            mqtt_thread_frame_no = 0;
-    msg_t           *msg, *msg2;
+    msg_t           *msg = NULL, *msg2 = NULL;
     char            send_data[32];
     hdlc_pkt_t      pkt;
     range_params_t  params;
@@ -106,7 +106,7 @@ void _mqtt_thread()
     mqtt_data_t     mqtt_recv_data;
 
     uart_pkt_hdr_t  send_hdr = { 0, 0, 0};
-    hdlc_buf_t      *buf;
+    hdlc_buf_t      *buf = NULL;
     uart_pkt_hdr_t  recv_hdr;
     
     int             exit = 0;
