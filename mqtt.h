@@ -115,7 +115,7 @@ typedef enum {
 typedef enum {
     SERVER_ACK            = 0,
     SERVER_REQUEST        = 1,
-    SERVER_SEND_RSSI      = 2,    
+    SERVER_SEND_RSSI      = 2,   
 } type_server_msg_type;
 
 /**

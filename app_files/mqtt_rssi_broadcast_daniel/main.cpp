@@ -109,11 +109,13 @@ int main(void)
     hdlc_register(&main_thr);
 
     char src_rssi_addr[IPV6_ADDR_MAX_STR_LEN];
+    char src_rssi_addr_shrt[9];
 
     char data_pub[32];
     mqtt_pkt_t  mqtt_send;
     bool recv_rssi = 0;
     int  exit = 0;
+    int i = 1, count = 7;
 
     osEvent  evt;
     myled = 1;
@@ -125,8 +127,8 @@ int main(void)
 
     get_node_id(self_node_id);
 
-    sprintf(data_pub,"%d",SERVER_SEND_RSSI);
-    strcat(data_pub, self_node_id);   
+    //sprintf(data_pub,"%d",SERVER_SEND_RSSI);
+    //strcat(data_pub, self_node_id);   
 
   
     /**
@@ -186,13 +188,36 @@ int main(void)
                             /** TO DO :
                              *  send rssi data to ROMANO script
                              */ 
+                                i = 1;
+                                count = 7;
                                 PRINTF("RSSI received\n"); 
-                                rssi_value = (int8_t)(buf->data[5]);      
+                                rssi_value = (int8_t)(buf->data[5]); 
+                                sprintf(data_pub,"%d",RSSI_DATA);
+                                data_pub[1] = (char) rssi_value;
+                                data_pub[2] = '\0';
+                                strcat(data_pub, self_node_id);
                                 rssi_value -= 73;                                
                                 PRINTF("rssi_value: %d\n", rssi_value);
                                 strcpy(src_rssi_addr, buf->data + UART_PKT_HDR_LEN + 1);
                                 src_rssi_addr[IPV6_ADDR_MAX_STR_LEN-1] = '\0';
-                                PRINTF("rssi_addr: %s\n", src_rssi_addr);                        
+
+                                while (count > -1){
+                                    if (src_rssi_addr[strlen(src_rssi_addr) - i] != ':'){
+                                        src_rssi_addr_shrt[count] = src_rssi_addr[strlen(src_rssi_addr)-i];
+                                        count--;
+                                    }
+                                    i++;
+                                }
+                                src_rssi_addr_shrt[8] = '\0';
+                                PRINTF("rssi_thread: The short ID is %s\n", src_rssi_addr_shrt);
+
+                                PRINTF("rssi_thread: The src_addr %s\n", src_rssi_addr);  
+                                strcat(data_pub,src_rssi_addr_shrt);  
+                                build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
+                                if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt))
+                                    PRINTF("rssi_thread: sending pkt no %d \n", frame_no); 
+                                else
+                                    PRINTF("rssi_thread: failed to send pkt no\n");                   
                                 recv_rssi = 0; 
                                 // Thread::wait(1000);                              
                                 break;
