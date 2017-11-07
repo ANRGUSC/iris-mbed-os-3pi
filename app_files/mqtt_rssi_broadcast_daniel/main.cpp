@@ -98,11 +98,7 @@ int main(void)
     
     char self_node_id[9];
 
-    int8_t rssi_value;
-    char rssi_str_value;
-
-    int8_t src_addr_len;
-    char* src_rssi_addr;  
+    int8_t rssi_value;  
 
 
     hdlc_buf_t *buf;
@@ -111,7 +107,9 @@ int main(void)
 
     hdlc_entry_t main_thr = { NULL, RSSI_MBED_DUMP_PORT, &main_thr_mailbox };
     hdlc_register(&main_thr);
-    
+
+    char src_rssi_addr[IPV6_ADDR_MAX_STR_LEN];
+
     char data_pub[32];
     mqtt_pkt_t  mqtt_send;
     bool recv_rssi = 0;
@@ -120,19 +118,21 @@ int main(void)
     osEvent  evt;
     myled = 1;
 
-    while ( get_mqtt_state() != MQTT_GOT_CLIENTS )
+    while ( get_mqtt_state() != MQTT_MBED_INIT_DONE )
     {
         Thread::wait(100);
     }
 
     get_node_id(self_node_id);
+
     sprintf(data_pub,"%d",SERVER_SEND_RSSI);
     strcat(data_pub, self_node_id);   
+
   
-    Thread::wait(5000);  
     /**
      * Initiate the UDP RSSI Ping Pong Process
      */
+    /*
     if (strcmp(self_node_id, PRIORITY_NODE) == 0)
     {
         PRINTF("rssi_thread: Inittiating the PING PONG.\n");
@@ -143,10 +143,11 @@ int main(void)
             PRINTF("rssi_thread: failed to send pkt no\n");
         frame_no++;
     }
-  
+    */
+
     while (1) 
     {
-        // PRINTF("In mqtt_thread");
+        PRINTF("In rssi_thread\n");
         myled =! myled;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
         pkt.length = HDLC_MAX_PKT_SIZE;        
@@ -185,15 +186,14 @@ int main(void)
                             /** TO DO :
                              *  send rssi data to ROMANO script
                              */ 
-                                                         
-                                rssi_value = (int8_t)(* ((char *)uart_pkt_get_data(buf->data, sizeof(char))));
-                                rssi_value = rssi_value - 73;
-                                PRINTF("rssi_thread: RSSI is %d\n", rssi_value); 
-                                src_addr_len = (int8_t)(* ((char *)uart_pkt_get_data(buf->data+1, sizeof(char))));
-                                src_rssi_addr = (char *)uart_pkt_get_data(buf->data+2, src_addr_len);
-                                PRINTF("rssi_thread: The src address is %s\n", src_rssi_addr);
-
-                                recv_rssi = 1; 
+                                PRINTF("RSSI received\n"); 
+                                rssi_value = (int8_t)(buf->data[5]);      
+                                rssi_value -= 73;                                
+                                PRINTF("rssi_value: %d\n", rssi_value);
+                                strcpy(src_rssi_addr, buf->data + UART_PKT_HDR_LEN + 1);
+                                src_rssi_addr[IPV6_ADDR_MAX_STR_LEN-1] = '\0';
+                                PRINTF("rssi_addr: %s\n", src_rssi_addr);                        
+                                recv_rssi = 0; 
                                 // Thread::wait(1000);                              
                                 break;
                             default:

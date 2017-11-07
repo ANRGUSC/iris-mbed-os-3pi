@@ -37,3 +37,5 @@ the new uint16_t port number */
 #define RANGE_GO_FLAG       0x56
 
 #define DEFAULT_ULTRASOUND_THRESH   25
+
+#define IPV6_ADDR_MAX_STR_LEN       24

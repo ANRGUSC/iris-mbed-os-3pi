@@ -312,6 +312,7 @@ void _mqtt_thread()
                                         }
                                         //send rssi_send to the rssi thread in RIOT
                                         break;
+
                                 }
                                 // Mbed send a pub message to the broker                        
                                 break;
@@ -323,6 +324,7 @@ void _mqtt_thread()
                                 PRINTF("mqtt_thread: PUB ACK message received\n");
                                 break;
                             default:
+                                PRINTF("it hit the default\n");
                                 mqtt_thread_mailbox.free(msg);
                                 /* error */
                                 break;
