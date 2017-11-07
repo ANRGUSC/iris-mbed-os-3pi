@@ -32,4 +32,6 @@ the new uint16_t port number */
 
 #define DEFAULT_ULTRASOUND_THRESH   25
 
+#define ID_LENGTH       			9
+
 #endif

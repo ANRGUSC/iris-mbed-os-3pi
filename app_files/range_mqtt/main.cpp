@@ -135,6 +135,7 @@ void _mqtt_thread()
                 uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
                 if (recv_hdr.pkt_type == MQTT_GO){
                     mqtt_go = 1;
+                    range_load_id(buf);
                     PRINTF("mqtt_thread: the node is conected to the broker \n");
                     mqtt_thread_mailbox.free(msg);
                     hdlc_pkt_release(buf);  

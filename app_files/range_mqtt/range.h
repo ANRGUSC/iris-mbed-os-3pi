@@ -7,6 +7,7 @@
 #include "rtos.h"
 #include "hdlc.h"
 #include "uart_pkt.h"
+#include "main-conf.h"
 
 #define RANGE_TOPIC   ("range_info")
 
@@ -25,14 +26,19 @@
 #define START_RANGE_THR 139
 
 #define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
-#define MAX_NUM_ANCHORS 20     
+#define MAX_NUM_ANCHORS   10     
 #define DATA_STRING_SIZE  9
 
 #define MISSED_PIN_UNMASK   13
-#define RF_MISSED         20
-#define ULTRSND_MISSED    21
+#define RF_MISSED           20
+#define ULTRSND_MISSED      21
 
 #define MBED_RANGE_PORT 5678
+
+#define NODE_DATA_FLAG 0
+#define NODE_DISC_FLAG 1
+
+#define LOAD_DISC_NODE_LENG 3
 
 /**
  * @brief Structure holding metrics measured by ultrasound ranging
@@ -74,7 +80,12 @@ typedef struct __attribute__((packed)) {
     uint16_t       tdoa;                  
 } node_t;
 
-static uint8_t num_nodes_to_pub;
+/**
+ * @brief      Loads the emcute_id to the buffer in range so it can be identified when publishing data
+ *
+ * @param      buff  The buffer containing the emcute_id
+ */
+void range_load_id(hdlc_buf_t *buff);
 
 /**
  * @brief      Returns range data as a node_t
@@ -86,6 +97,27 @@ static uint8_t num_nodes_to_pub;
 node_t get_node(range_data_t data);
 
 /**
+ * @brief      Loads a node data into a given buffer. Wrapper function for load_data.
+ *
+ * @param      buff       The buffer
+ * @param[in]  buff_size  The buffer size
+ * @param[in]  node       The node
+ *
+ * @return     { 0 if successful, -1 if not }
+ */
+int load_node_data(char *buff, int buff_size, node_t node);
+
+/**
+ * @brief      Loads all discovered nodes into a given buffer. Wrapper function for load_data.
+ *
+ * @param      buff       The buffer
+ * @param[in]  buff_size  The buffer size
+ *
+ * @return     { 0 if successful, -1 if not }
+ */
+int load_discovered_nodes(char *buff, int buff_size);
+
+/**
  * @brief      Loads data into a buffer for publishing.
  *
  * @param      buff       The data buffer
@@ -94,7 +126,7 @@ node_t get_node(range_data_t data);
  *
  * @return     returns 0 on success, otherwise returns -1 on failure
  */
-int load_data(char *buff, int buff_size, node_t node);
+int load_data(char *buff, int buff_size, node_t node, int flag);
 
 /**
  * @brief      clears the data in the data buffer
@@ -129,7 +161,7 @@ range_data_t get_range_data(range_params_t params);
  *
  * @param[in]  ranging_mode  The ranging mode
  */
-void range_all(uint8_t ranging_mode);
+void discover_nodes(uint8_t ranging_mode);
 
 /**
  * @brief      Looks for a specific node to range with based on what's given in params. This is a wrapper function for get range data.

@@ -12,24 +12,75 @@ static volatile bool ranging = 0;
 
 static node_t nodes_reached[MAX_NUM_ANCHORS];
 static uint8_t num_nodes_reached;
+static uint8_t num_nodes_to_pub;
+static char EMCUTE_ID[9];
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 Thread range_thr;
+
+void range_load_id(hdlc_buf_t *buff){
+    memcpy(EMCUTE_ID, &(buff->data) + UART_PKT_HDR_LEN, ID_LENGTH);
+    PRINTF("ID: %s\n",EMCUTE_ID);
+}
 
 node_t get_node(range_data_t data){
     return (node_t){data.node_id, data.tdoa};
 }
 
+int load_node_data(char *buff, int buff_size, node_t node){
+    return load_data(buff, buff_size, node, NODE_DATA_FLAG);
+}
 
-int load_data(char *buff, int buff_size, node_t node){
-    if((num_nodes_to_pub + 1) * DATA_STRING_SIZE >= buff_size - 1){
-        PRINTF("Buffer is full\n");
+int load_discovered_nodes(char *buff, int buff_size){
+    return load_data(buff, buff_size, (node_t) {0,0}, NODE_DISC_FLAG);
+}
+
+int load_data(char *buff, int buff_size, node_t node, int flag){
+    if(flag == NODE_DATA_FLAG){
+        if(buff[9] == NODE_DISC_FLAG + 0x30){ 
+            PRINTF("Buffer is already being used for node discovery, you must clear the buffer first\n");
+            return -1;
+        }
+
+        if((num_nodes_to_pub + 1) * DATA_STRING_SIZE + ID_LENGTH + 1 >= buff_size - 1){
+            PRINTF("Buffer is full\n");
+            return -1;
+        }
+
+        if(num_nodes_to_pub == 0){
+            memcpy(buff, EMCUTE_ID, ID_LENGTH);
+            buff[ID_LENGTH] = flag+0x30;
+        }
+
+        snprintf(buff + (num_nodes_to_pub * DATA_STRING_SIZE) + ID_LENGTH + 1, buff_size - (num_nodes_to_pub * DATA_STRING_SIZE) - ID_LENGTH - 1, "%05d,%02d;", node.tdoa, node.node_id);
+        num_nodes_to_pub++;
+        PRINTF("# of nodes = %d\n",num_nodes_to_pub);
+        return 0;
+    }
+    else if(flag == NODE_DISC_FLAG){
+        int i;
+        if(buff[9] == NODE_DATA_FLAG + 0x30){
+            PRINTF("Buffer is already being used for node data, you must clear the buffer first\n");
+            return -1;
+        }
+
+        if((num_nodes_reached * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1 >= buff_size - 1){
+            PRINTF("Buffer is not big enough\n");
+            return -1;
+        }
+
+        memcpy(buff, EMCUTE_ID, ID_LENGTH);
+        buff[ID_LENGTH] = flag+0x30;
+
+        for(i=0; i < num_nodes_reached; i++){
+             snprintf(buff + (i * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1, buff_size - (i * LOAD_DISC_NODE_LENG) - ID_LENGTH - 1, "%02d,", nodes_reached[i].node_id);
+        }
+        PRINTF("# of nodes discovered = %d\n",num_nodes_reached);
+        return 0;
+    }
+    else{
         return -1;
     }
-    snprintf(buff + (num_nodes_to_pub * DATA_STRING_SIZE), buff_size - (num_nodes_to_pub * DATA_STRING_SIZE), "%05d,%02d;", node.tdoa, node.node_id);
-    num_nodes_to_pub++;
-    PRINTF("# of nodes = %d\n",num_nodes_to_pub);
-    return 0;
 }
 
 void clear_data(char *buff, int buff_size){
@@ -250,7 +301,7 @@ range_data_t get_range_data(range_params_t params){
                                 j++;
                                 if(j >= MAX_NUM_ANCHORS){
                                     printf("Exceeded max number of anchors\n");
-                                    return (range_data_t){0,0,0,params.node_id};
+                                    return (range_data_t){0,0,-1,params.node_id};
                                 }
                                 num_nodes_reached = j;
                             }
@@ -290,10 +341,16 @@ range_data_t get_range_data(range_params_t params){
     
     ranging = 0;
 
-    return *(time_diffs-1);
+    if(params.node_id == -1){
+        return (range_data_t){0,0,-1,params.node_id};
+    }
+    else{
+        return *(time_diffs-1);
+    }
+    
 }
 
-void range_all(uint8_t ranging_mode){
+void discover_nodes(uint8_t ranging_mode){
     get_range_data((range_params_t){-1, ranging_mode});
 }
 
@@ -319,7 +376,7 @@ range_data_t lock_on_anchor(int8_t node_id){
         raw_data = range_node({node_id, TWO_SENSOR_MODE});
         if(raw_data.tdoa < 10){
             PRINTF("Locking failed: Anchor node unavailable\n");
-            return {0,0,0,node_id};
+            return (range_data_t){0,0,0,node_id};
         }
         conv_data = get_dist_angle(&raw_data, TWO_SENSOR_MODE);
         angle = conv_data.angle;
@@ -403,13 +460,32 @@ void _range_thread(){
                 range_params = *(range_params_t*)(msg->content.ptr);
 
                 if(range_params.node_id == -1){
-                    range_all(range_params.ranging_mode);
+                    discover_nodes(range_params.ranging_mode);
                     printf("****************Discovery mode***************\n");
                     printf("Nodes reached:\n");
                     for(i=0; i<num_nodes_reached; i++){
                         printf("Node %d: %d\n", nodes_reached[i].node_id, nodes_reached[i].tdoa);
                     }
                     printf("*********************************************\n");
+                    clear_data(data_pub, 32);
+                    if(load_discovered_nodes(data_pub, 32) != -1){
+                        build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt); 
+                        pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
+                        
+                        //for some reason it will only publish if you include a print statement here
+                        PRINTF("range_thread: range_routine done. publishing data now\n");
+
+                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){
+                            PRINTF("mqtt_thread: sending pkt of size\n"); 
+                        }
+                        else{
+                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                        }
+                    }
+                    else{
+                        PRINTF ("Failed to load discovered nodes\n");
+                    }
+
                 }
                 else{
                     if(range_params.ranging_mode == TWO_SENSOR_MODE){
@@ -420,25 +496,27 @@ void _range_thread(){
                          range_data = range_node(range_params);
                     }
                     clear_data(data_pub, 32);
-                    load_data(data_pub, 32, get_node(range_data)); 
+                    if(load_node_data(data_pub, 32, get_node(range_data)) != -1){
 
+                        build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt); 
+                        pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
+                        
+                        //for some reason it will only publish if you include a print statement here
+                        printf("tdoa = %d\n",range_data.tdoa);
+                        printf("node_id = %d\n",range_data.node_id);
+                        PRINTF("range_thread: range_routine done. publishing data now\n");
 
-                    build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt); 
-                    pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
-                    
-                    //for some reason it will only publish if you include a print statement here
-                    printf("tdoa = %d\n",range_data.tdoa);
-                    printf("node_id = %d\n",range_data.node_id);
-                    PRINTF("range_thread: range_routine done. publishing data now\n");
+                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){
+                            PRINTF("mqtt_thread: sending pkt of size\n"); 
+                        }
+                        else{
 
-                    if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){
-                        PRINTF("mqtt_thread: sending pkt of size\n"); 
+                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                        }
                     }
                     else{
-
-                        PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                        PRINTF ("Failed to load node data\n");
                     }
-                    
                 }
                 
 
