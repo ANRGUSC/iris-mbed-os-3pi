@@ -59,6 +59,7 @@
 #include "mqtt.h"
 #include "mqtt_thread.h"
 #include "app-conf.h"
+#include <vector>
 //to reset the mbed
 extern "C" void mbed_reset();
 
