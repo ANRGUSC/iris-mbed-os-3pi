@@ -59,6 +59,7 @@
 #include "mqtt.h"
 #include "mqtt_thread.h"
 #include "app-conf.h"
+#include <vector>
 //to reset the mbed
 extern "C" void mbed_reset();
 
@@ -81,6 +82,10 @@ DigitalOut  myled(LED1);
 
 // m3pi m3pi;
 
+struct node{
+    char node_str[9];    
+};
+
 
 int main(void)
 {
@@ -99,7 +104,19 @@ int main(void)
     char self_node_id[9];
 
     int8_t rssi_value;  
+    //vector for node IDs using the struct
+    std::vector<node> node_array;
+    node node_id;
 
+    //vector for rssi
+    std::vector<int> rssi_array;
+
+    //vector for rssi weighted
+    std::vector<double> rssi_wt_array;
+
+    double alpha = 0.9;
+
+    int index = -1;
 
     hdlc_buf_t *buf;
     uart_pkt_hdr_t recv_hdr;
@@ -113,7 +130,6 @@ int main(void)
 
     char data_pub[32];
     mqtt_pkt_t  mqtt_send;
-    bool recv_rssi = 0;
     int  exit = 0;
     int i = 1, count = 7;
 
@@ -150,6 +166,7 @@ int main(void)
     while (1) 
     {
         PRINTF("In rssi_thread\n");
+        fflush(stdout);
         myled =! myled;
         uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
         pkt.length = HDLC_MAX_PKT_SIZE;        
@@ -217,9 +234,7 @@ int main(void)
                                 if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt))
                                     PRINTF("rssi_thread: sending pkt no %d \n", frame_no); 
                                 else
-                                    PRINTF("rssi_thread: failed to send pkt no\n");                   
-                                recv_rssi = 0; 
-                                // Thread::wait(1000);                              
+                                    PRINTF("rssi_thread: failed to send pkt no\n");                                
                                 break;
                             default:
                                 /* error */
@@ -254,6 +269,44 @@ int main(void)
             }
             */
             if(exit) {
+                //Add vectors here
+                strcpy(node_id.node_str,src_rssi_addr_shrt);
+                if(node_array.size() == 0)
+                {
+                    node_array.push_back(node_id);
+                    rssi_array.push_back(rssi_value);
+                    rssi_wt_array.push_back(rssi_value);
+                }
+                else
+                {
+                    for (int i = 0; i < node_array.size(); i++)
+                    {
+                        if (strcmp(node_array[i].node_str, src_rssi_addr_shrt) == 0)
+                        {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index == -1)
+                    {
+                        node_array.push_back(node_id);
+                        rssi_array.push_back(rssi_value);
+                        rssi_wt_array.push_back(rssi_value);
+                    }
+                    else
+                    {
+                        rssi_array[index] = rssi_value;
+                        rssi_wt_array[index] = (rssi_wt_array[index]*alpha) + (rssi_value*(1-alpha));
+                    }
+                    for(int i = 0; i < node_array.size(); i++)
+                    {
+                        PRINTF("rssi_thread: %f\n", rssi_wt_array[i]);
+                    }
+
+                }
+                index = -1;
+                PRINTF("rssi_thread: struct  %s\n", node_id.node_str);
+                
                 exit = 0;
                 break;
             }
