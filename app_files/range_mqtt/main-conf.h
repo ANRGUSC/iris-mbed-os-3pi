@@ -32,48 +32,6 @@ the new uint16_t port number */
 
 #define DEFAULT_ULTRASOUND_THRESH   25
 
-#define ONE_SENSOR_MODE       0x60 // 96
-#define TWO_SENSOR_MODE       0x61 // 97
-#define XOR_SENSOR_MODE       0x62 // 98
-#define OMNI_SENSOR_MODE      0x63 // 99
-
-#define RANGE_THR_START			0x63
-#define RANGE_THR_COMPLETE		0x64
-
-#define RANGE_DATA_LEN    6
-
-#define MISSED_PIN_UNMASK   13
-#define RF_MISSED         20
-#define ULTRSND_MISSED    21
-
-/**
- * @brief Structure holding metrics measured by ultrasound ranging
- *
- * This structure is supposed to hold the Time Difference of Arrival
- * (TDoA), Orientation Differential (OD) between the TDoA of two sensors,
- * and any an pin flag to indicate which pin came first and if a pin had missed a ping.
- *
- * It can be extended
- */
-typedef struct __attribute__((packed)){
-    uint16_t tdoa; //time difference of arrival
-    uint16_t orient_diff; //orientation differential
-    uint8_t status; //pin flag to indicate which pin came first and if a pin had missed a ping
-    int8_t node_id;
-} range_data_t;
-
-/**
- * @brief Structure holding parameters for ultrasound ranging
- *
- * This structure is supposed to be used to send and interpret
- * range request packets between mbed and openmote
- *
- * It can be extended
- */
-typedef struct __attribute__((packed)){
-    int8_t node_id;
-    uint8_t ranging_mode;
-    // add more options in the future?
-} range_params_t;
+#define ID_LENGTH       			9
 
 #endif
