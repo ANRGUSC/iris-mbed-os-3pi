@@ -27,22 +27,23 @@ node_t get_node(range_data_t data){
     return (node_t){data.node_id, data.tdoa};
 }
 
-int load_node_data(char *buff, int buff_size, node_t node){
+int load_node_data(char *buff, size_t buff_size, node_t node){
     return load_data(buff, buff_size, node, NODE_DATA_FLAG);
 }
 
-int load_discovered_nodes(char *buff, int buff_size){
+int load_discovered_nodes(char *buff, size_t buff_size){
     return load_data(buff, buff_size, (node_t) {0,0}, NODE_DISC_FLAG);
 }
 
-int load_data(char *buff, int buff_size, node_t node, int flag){
+int load_data(char *buff, size_t buff_size, node_t node, int flag){
     if(flag == NODE_DATA_FLAG){
         if(buff[9] == NODE_DISC_FLAG + 0x30){ 
             PRINTF("Buffer is already being used for node discovery, you must clear the buffer first\n");
             return -1;
         }
 
-        if((num_nodes_to_pub + 1) * DATA_STRING_SIZE + ID_LENGTH + 1 >= buff_size - 1){
+        //if((num_nodes_to_pub + 1) * DATA_STRING_SIZE + ID_LENGTH + 1 >= buff_size - 1){
+        if((num_nodes_to_pub + 1) * sizeof(node_t) + ID_LENGTH + 1 >= buff_size - 1){
             PRINTF("Buffer is full\n");
             return -1;
         }
@@ -52,7 +53,10 @@ int load_data(char *buff, int buff_size, node_t node, int flag){
             buff[ID_LENGTH] = flag+0x30;
         }
 
-        snprintf(buff + (num_nodes_to_pub * DATA_STRING_SIZE) + ID_LENGTH + 1, buff_size - (num_nodes_to_pub * DATA_STRING_SIZE) - ID_LENGTH - 1, "%05d,%02d;", node.tdoa, node.node_id);
+        //snprintf(buff + (num_nodes_to_pub * DATA_STRING_SIZE) + ID_LENGTH + 1, buff_size - (num_nodes_to_pub * DATA_STRING_SIZE) - ID_LENGTH - 1, "%05d,%02d;", node.tdoa, node.node_id);
+        buff[ID_LENGTH + 1] = num_nodes_to_pub + 1; 
+        memcpy(buff + (num_nodes_to_pub * sizeof(node_t)) + ID_LENGTH + 2, &node, sizeof(node_t));
+        
         num_nodes_to_pub++;
         PRINTF("# of nodes = %d\n",num_nodes_to_pub);
         return 0;
@@ -64,7 +68,8 @@ int load_data(char *buff, int buff_size, node_t node, int flag){
             return -1;
         }
 
-        if((num_nodes_reached * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1 >= buff_size - 1){
+        //if((num_nodes_reached * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1 >= buff_size - 1){
+        if((num_nodes_reached * sizeof(uint8_t)) + ID_LENGTH + 1 >= buff_size - 1){
             PRINTF("Buffer is not big enough\n");
             return -1;
         }
@@ -72,8 +77,11 @@ int load_data(char *buff, int buff_size, node_t node, int flag){
         memcpy(buff, EMCUTE_ID, ID_LENGTH);
         buff[ID_LENGTH] = flag+0x30;
 
+        buff[ID_LENGTH + 1] = num_nodes_reached; 
+
         for(i=0; i < num_nodes_reached; i++){
-             snprintf(buff + (i * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1, buff_size - (i * LOAD_DISC_NODE_LENG) - ID_LENGTH - 1, "%02d,", nodes_reached[i].node_id);
+            //snprintf(buff + (i * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1, buff_size - (i * LOAD_DISC_NODE_LENG) - ID_LENGTH - 1, "%02d,", nodes_reached[i].node_id);
+            buff [i * sizeof(uint8_t) + ID_LENGTH + 2] = nodes_reached[i].node_id;
         }
         PRINTF("# of nodes discovered = %d\n",num_nodes_reached);
         return 0;
@@ -83,7 +91,7 @@ int load_data(char *buff, int buff_size, node_t node, int flag){
     }
 }
 
-void clear_data(char *buff, int buff_size){
+void clear_data(char *buff, size_t buff_size){
     memset(buff,0,buff_size);
     num_nodes_to_pub = 0;
 }
@@ -301,7 +309,7 @@ range_data_t get_range_data(range_params_t params){
                                 j++;
                                 if(j >= MAX_NUM_ANCHORS){
                                     printf("Exceeded max number of anchors\n");
-                                    return (range_data_t){0,0,-1,params.node_id};
+                                    return (range_data_t){0,0,0,params.node_id};
                                 }
                                 num_nodes_reached = j;
                             }
