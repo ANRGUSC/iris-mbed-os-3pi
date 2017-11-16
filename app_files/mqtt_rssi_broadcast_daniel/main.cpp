@@ -143,25 +143,6 @@ int main(void)
 
     get_node_id(self_node_id);
 
-    //sprintf(data_pub,"%d",SERVER_SEND_RSSI);
-    //strcat(data_pub, self_node_id);   
-
-  
-    /**
-     * Initiate the UDP RSSI Ping Pong Process
-     */
-    /*
-    if (strcmp(self_node_id, PRIORITY_NODE) == 0)
-    {
-        PRINTF("rssi_thread: Inittiating the PING PONG.\n");
-        build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
-        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt))
-            PRINTF("rssi_thread: sending pkt no %d \n", frame_no); 
-        else
-            PRINTF("rssi_thread: failed to send pkt no\n");
-        frame_no++;
-    }
-    */
 
     while (1) 
     {
@@ -249,25 +230,7 @@ int main(void)
                         break;
                 }
             }
-            //Changing the control from the mbed to the ROMANO script
-            /*
-            if (evt.status == osEventTimeout || recv_rssi){
-
-                if (recv_rssi)
-                    PRINTF("rssi_thread: sending  SERVER_SEND_RSSI msg.\n");
-                else
-                    PRINTF("rssi_thread: sending periodic keep alive msg.\n");
-
-                recv_rssi = 0;
-                build_mqtt_pkt_pub(TEST_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);                        
-                if (send_hdlc_mail(msg2, HDLC_MSG_SND, &main_thr_mailbox, (void*) &pkt)){
-                    PRINTF("rssi_thread: sending pkt no %d \n", frame_no); 
-                }
-                else{
-                    PRINTF("rssi_thread: failed to send pkt no\n");
-                }                        
-            }
-            */
+           
             if(exit) {
                 //Add vectors here
                 strcpy(node_id.node_str,src_rssi_addr_shrt);
