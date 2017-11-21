@@ -46,7 +46,7 @@
 
 #include "mbed.h"
 #include "rtos.h"
-// #include "m3pi.h"
+#include "m3pi.h"
 #include "hdlc.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -63,8 +63,17 @@
 //to reset the mbed
 extern "C" void mbed_reset();
 
+#define MAX_SPEED   0.2
+#define MIN_SPEED   0
+#define P_TERM      1
+#define I_TERM      0
+#define D_TERM      20
+#define FORWARD     1
+#define BACKWARD    -1
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
+Mail<msg_t, HDLC_MAILBOX_SIZE> move_thr_mailbox;
+
 
 #define DEBUG   1
 #define TEST_TOPIC   ("init_info")
@@ -79,12 +88,121 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 Serial      pc(USBTX,USBRX,115200);
 DigitalOut  myled(LED1);
 
-
-// m3pi m3pi;
-
+volatile int move_complete = 1;
+m3pi m3pi;
+// structure to store the node ID
 struct node{
     char node_str[9];    
 };
+
+/**
+ * @brief      moves a fixed distance on either of two directions
+ * @param[in]  direction  The direction
+ */
+
+void movement(int direction) {
+
+    float right;
+    float left;
+    float current_pos_of_line = 0.0;
+    float previous_pos_of_line = 0.0;
+    float derivative, proportional, integral = 0;
+    float power;
+    float speed = MAX_SPEED;
+    int   move_count = 0;
+
+    if (direction == (-1)){
+        m3pi.rotate('B');
+    }
+    
+    while (move_count <= 200) 
+    {
+        // Get the position of the line.
+        current_pos_of_line = m3pi.line_position();        
+        proportional = current_pos_of_line;          
+        // Compute the derivative
+        derivative = current_pos_of_line - previous_pos_of_line;
+        
+        // Compute the integral
+        integral += proportional;
+        
+        // Remember the last position.
+        previous_pos_of_line = current_pos_of_line;
+        
+        // Compute the power
+        power = (proportional * P_TERM ) + (integral * I_TERM) + (derivative * D_TERM ) ;
+        
+        // Compute new speeds   
+        right = speed + power;
+        left  = speed - power;
+        
+        // limit checks
+        if (right < MIN_SPEED)
+            right = MIN_SPEED;
+        else if (right > MAX_SPEED)
+            right = MAX_SPEED;
+            
+        if (left < MIN_SPEED)
+            left = MIN_SPEED;
+        else if (left > MAX_SPEED)
+            left = MAX_SPEED;
+            
+       // set speed 
+        m3pi.left_motor(left);
+        m3pi.right_motor(right);
+        move_count++;
+    }
+
+    if (direction == (-1)){
+        m3pi.rotate('B');
+    }
+
+    m3pi.stop();
+    return;
+}
+
+void _move_thread(){
+
+    //calibrating the sensors
+    m3pi.sensor_auto_calibrate();
+
+    msg_t *msg;
+    int8_t rssi_value;
+
+    osEvent evt;
+
+    while(1)
+    {
+        evt = move_thr_mailbox.get();
+        if (evt.status == osEventMail)
+        {
+            msg = (msg_t*)evt.value.p;
+            switch (msg->type)
+            {
+                case INTER_THREAD:
+                    PRINTF("move_thr: Message received\n");
+                    rssi_value = (* (int8_t *)msg->content.ptr);
+                    //PRINTF("move_thr: the RSSI %d\n", rssi_value);
+                    
+                    //m3pi.locate(0,1);
+                    //m3pi.printf("%d\n", rssi_value);
+
+                    if ( rssi_value > RSSI_THR )  
+                        movement(FORWARD); 
+                    else
+                        movement(BACKWARD);
+   
+                    PRINTF("move_thr: Movement is complete\n");
+                    move_thr_mailbox.free(msg);
+                    move_complete = 1;
+                    break;
+                default:
+                    move_thr_mailbox.free(msg);
+                    break;
+            }
+        }
+    }
+}
 
 
 int main(void)
@@ -94,8 +212,13 @@ int main(void)
 
     Mail<msg_t, HDLC_MAILBOX_SIZE> *mqtt_thread_mailbox;
     mqtt_thread_mailbox = mqtt_init(osPriorityNormal);
+
+    Thread move_thr;
+    move_thr.start(_move_thread);
+
+    PRINTF("All Threads Running\n");
    
-    msg_t *msg, *msg2;
+    msg_t *msg, *msg2, *msg_move;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
     char recv_data[HDLC_MAX_PKT_SIZE];
@@ -135,7 +258,7 @@ int main(void)
 
     osEvent  evt;
     myled = 1;
-
+    PRINTF("In mqtt thread\n");
     while ( get_mqtt_state() != MQTT_MBED_INIT_DONE )
     {
         Thread::wait(100);
@@ -232,7 +355,7 @@ int main(void)
             }
            
             if(exit) {
-                //Add vectors here
+                //Add vectors here 
                 strcpy(node_id.node_str,src_rssi_addr_shrt);
                 if(node_array.size() == 0)
                 {
@@ -271,6 +394,21 @@ int main(void)
                 PRINTF("rssi_thread: struct  %s\n", node_id.node_str);
                 
                 exit = 0;
+
+                // Added send message to movement thread
+                if (move_complete == 1)
+                {
+                    msg_move = move_thr_mailbox.alloc();
+                    while(msg_move == NULL)
+                    {
+                        PRINTF("rssi_thread: retry send to movement thread\n");
+                        msg_move = move_thr_mailbox.alloc();
+                    }
+                    msg_move->type = INTER_THREAD;
+                    msg_move->content.ptr = &rssi_value;
+                    move_thr_mailbox.put(msg_move);
+                    move_complete = 0;
+                }
                 break;
             }
         }
