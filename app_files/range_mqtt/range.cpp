@@ -59,7 +59,7 @@ int load_data(char *buff, size_t buff_size, node_t node, int flag){
         
         num_nodes_to_pub++;
         PRINTF("# of nodes = %d\n",num_nodes_to_pub);
-        return 0;
+        return (num_nodes_to_pub * sizeof(node_t)) + ID_LENGTH + 2;
     }
     else if(flag == NODE_DISC_FLAG){
         int i;
@@ -84,7 +84,7 @@ int load_data(char *buff, size_t buff_size, node_t node, int flag){
             buff [i * sizeof(uint8_t) + ID_LENGTH + 2] = nodes_reached[i].node_id;
         }
         PRINTF("# of nodes discovered = %d\n",num_nodes_reached);
-        return 0;
+        return num_nodes_reached * sizeof(uint8_t) + ID_LENGTH + 2;
     }
     else{
         return -1;
@@ -264,6 +264,7 @@ range_data_t get_range_data(range_params_t params){
                         PRINTF("range_thread: received range pkt\n");
                         range_hdr = (range_hdr_t *)uart_pkt_get_data(buf->data, buf->length);
                         time_diffs = (range_data_t *)range_hdr->data;
+                        PRINTF("status: %d", time_diffs->status);
                         
                         data_per_pkt = (buf->length - sizeof(uart_pkt_hdr_t) - sizeof(uint8_t))/sizeof(range_data_t);
                         PRINTF("range_thread: There should be %d ranges in this pkt\n",data_per_pkt);
@@ -436,6 +437,8 @@ void _range_thread(){
     char            data_pub[32];
     hdlc_pkt_t      pkt;
 
+    size_t mqtt_data_len;
+
     int i = 0;
     
     pkt.data = data_pub;
@@ -476,9 +479,10 @@ void _range_thread(){
                     }
                     printf("*********************************************\n");
                     clear_data(data_pub, 32);
-                    if(load_discovered_nodes(data_pub, 32) != -1){
-                        build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt); 
-                        pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
+                    mqtt_data_len = load_discovered_nodes(data_pub, 32);
+                    printf("size: %d", mqtt_data_len);
+                    if(mqtt_data_len != -1){
+                        build_mqtt_pkt_npub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, mqtt_data_len, &pkt); 
                         
                         //for some reason it will only publish if you include a print statement here
                         PRINTF("range_thread: range_routine done. publishing data now\n");
@@ -504,10 +508,10 @@ void _range_thread(){
                          range_data = range_node(range_params);
                     }
                     clear_data(data_pub, 32);
-                    if(load_node_data(data_pub, 32, get_node(range_data)) != -1){
+                    mqtt_data_len = load_node_data(data_pub, 32, get_node(range_data));
+                    if(mqtt_data_len != -1){
 
-                        build_mqtt_pkt_pub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt); 
-                        pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
+                        build_mqtt_pkt_npub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, mqtt_data_len, &pkt); 
                         
                         //for some reason it will only publish if you include a print statement here
                         printf("tdoa = %d\n",range_data.tdoa);
