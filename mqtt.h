@@ -118,6 +118,19 @@ typedef enum {
 } type_server_msg_type;
 
 /**
+ * @brief constructs a mqtt pub packet **Deprecated as of 11/21/17**
+ * @details this function generates a hdlc mqtt pub packet
+ * 
+ * @param topic             mqtt topic name
+ * @param data              the data to be published    
+ * @param src_port          hdlc source port
+ * @param mqtt_send_pkt     pointer to the mqtt packet
+ * @param pkt               pointer to the hdlc packet
+ */
+void build_mqtt_pkt_pub(char topic[], char data[], uint16_t src_port, 
+                                    mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
+
+/**
  * @brief constructs a mqtt pub packet
  * @details this function generates a hdlc mqtt pub packet
  * 
@@ -127,7 +140,8 @@ typedef enum {
  * @param mqtt_send_pkt     pointer to the mqtt packet
  * @param pkt               pointer to the hdlc packet
  */
-void build_mqtt_pkt_pub(char topic[], char data[], uint16_t src_port,
+void build_mqtt_pkt_npub(char topic[], char data[], uint16_t src_port, 
+                                    mqtt_pkt_t *mqtt_send_pkt, size_t mqtt_data_len, hdlc_pkt_t *pkt);
 
 /**
  * @brief constructs a mqtt sub packet
@@ -137,7 +151,7 @@ void build_mqtt_pkt_pub(char topic[], char data[], uint16_t src_port,
  * @param src_port          hdlc source port
  * @param mqtt_send_pkt     pointer to the mqtt packet
  * @param pkt               pointer to the hdlc packet
- */                                    mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
+ */                                   
 void build_mqtt_pkt_sub(char topic[], uint16_t src_port,
                                     mqtt_pkt_t *mqtt_send_pkt, hdlc_pkt_t *pkt);
 /**

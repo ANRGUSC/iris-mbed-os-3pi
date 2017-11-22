@@ -105,7 +105,7 @@ node_t get_node(range_data_t data);
  *
  * @return     { 0 if successful, -1 if not }
  */
-int load_node_data(char *buff, int buff_size, node_t node);
+int load_node_data(char *buff, size_t buff_size, node_t node);
 
 /**
  * @brief      Loads all discovered nodes into a given buffer. Wrapper function for load_data.
@@ -115,7 +115,7 @@ int load_node_data(char *buff, int buff_size, node_t node);
  *
  * @return     { 0 if successful, -1 if not }
  */
-int load_discovered_nodes(char *buff, int buff_size);
+int load_discovered_nodes(char *buff, size_t buff_size);
 
 /**
  * @brief      Loads data into a buffer for publishing.
@@ -126,7 +126,7 @@ int load_discovered_nodes(char *buff, int buff_size);
  *
  * @return     returns 0 on success, otherwise returns -1 on failure
  */
-int load_data(char *buff, int buff_size, node_t node, int flag);
+int load_data(char *buff, size_t buff_size, node_t node, int flag);
 
 /**
  * @brief      clears the data in the data buffer
@@ -134,7 +134,7 @@ int load_data(char *buff, int buff_size, node_t node, int flag);
  * @param      buff       The data buffer
  * @param[in]  buff_size  The buffer size
  */
-void clear_data(char *buff, int buff_size);
+void clear_data(char *buff, size_t buff_size);
 
 /**
  * @brief      Gets the distance in feet and angle in degrees.

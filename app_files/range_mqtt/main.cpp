@@ -225,7 +225,7 @@ void _mqtt_thread()
                                         topic_pub[pub_length]='\0';
                                         PRINTF("The the topic_pub %s\n", topic_pub);
                                         PRINTF("The data_pub %s\n", data_pub);                                 
-                                        build_mqtt_pkt_pub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, &pkt);
+                                        build_mqtt_pkt_npub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, strlen(data_pub),&pkt);
                                         pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
                                         if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
