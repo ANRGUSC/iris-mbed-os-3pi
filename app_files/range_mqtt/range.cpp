@@ -10,10 +10,11 @@
 
 static volatile bool ranging = 0;
 
-static node_t nodes_reached[MAX_NUM_ANCHORS];
-static uint8_t num_nodes_reached;
+static node_t nodes_discovered[MAX_NUM_ANCHORS];
+static uint8_t num_nodes_discovered;
 static uint8_t num_nodes_to_pub;
 static char EMCUTE_ID[9];
+static uint8_t last_node_locked = 0;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 Thread range_thr;
@@ -55,6 +56,7 @@ int load_data(char *buff, size_t buff_size, node_t node, int flag){
 
         //snprintf(buff + (num_nodes_to_pub * DATA_STRING_SIZE) + ID_LENGTH + 1, buff_size - (num_nodes_to_pub * DATA_STRING_SIZE) - ID_LENGTH - 1, "%05d,%02d;", node.tdoa, node.node_id);
         buff[ID_LENGTH + 1] = num_nodes_to_pub + 1; 
+        PRINTF("%d - %d\n", node.node_id, node.tdoa);
         memcpy(buff + (num_nodes_to_pub * sizeof(node_t)) + ID_LENGTH + 2, &node, sizeof(node_t));
         
         num_nodes_to_pub++;
@@ -68,8 +70,8 @@ int load_data(char *buff, size_t buff_size, node_t node, int flag){
             return -1;
         }
 
-        //if((num_nodes_reached * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1 >= buff_size - 1){
-        if((num_nodes_reached * sizeof(uint8_t)) + ID_LENGTH + 1 >= buff_size - 1){
+        //if((num_nodes_discovered * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1 >= buff_size - 1){
+        if((num_nodes_discovered * sizeof(uint8_t)) + ID_LENGTH + 1 >= buff_size - 1){
             PRINTF("Buffer is not big enough\n");
             return -1;
         }
@@ -77,14 +79,14 @@ int load_data(char *buff, size_t buff_size, node_t node, int flag){
         memcpy(buff, EMCUTE_ID, ID_LENGTH);
         buff[ID_LENGTH] = flag+0x30;
 
-        buff[ID_LENGTH + 1] = num_nodes_reached; 
+        buff[ID_LENGTH + 1] = num_nodes_discovered; 
 
-        for(i=0; i < num_nodes_reached; i++){
-            //snprintf(buff + (i * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1, buff_size - (i * LOAD_DISC_NODE_LENG) - ID_LENGTH - 1, "%02d,", nodes_reached[i].node_id);
-            buff [i * sizeof(uint8_t) + ID_LENGTH + 2] = nodes_reached[i].node_id;
+        for(i=0; i < num_nodes_discovered; i++){
+            //snprintf(buff + (i * LOAD_DISC_NODE_LENG) + ID_LENGTH + 1, buff_size - (i * LOAD_DISC_NODE_LENG) - ID_LENGTH - 1, "%02d,", nodes_discovered[i].node_id);
+            buff [i * sizeof(uint8_t) + ID_LENGTH + 2] = nodes_discovered[i].node_id;
         }
-        PRINTF("# of nodes discovered = %d\n",num_nodes_reached);
-        return num_nodes_reached * sizeof(uint8_t) + ID_LENGTH + 2;
+        PRINTF("# of nodes discovered = %d\n",num_nodes_discovered);
+        return num_nodes_discovered * sizeof(uint8_t) + ID_LENGTH + 2;
     }
     else{
         return -1;
@@ -264,7 +266,7 @@ range_data_t get_range_data(range_params_t params){
                         PRINTF("range_thread: received range pkt\n");
                         range_hdr = (range_hdr_t *)uart_pkt_get_data(buf->data, buf->length);
                         time_diffs = (range_data_t *)range_hdr->data;
-                        PRINTF("status: %d", time_diffs->status);
+                        PRINTF("status: %d\n", time_diffs->status);
                         
                         data_per_pkt = (buf->length - sizeof(uart_pkt_hdr_t) - sizeof(uint8_t))/sizeof(range_data_t);
                         PRINTF("range_thread: There should be %d ranges in this pkt\n",data_per_pkt);
@@ -306,13 +308,13 @@ range_data_t get_range_data(range_params_t params){
                             }
 
                             if(params.node_id == -1){
-                                nodes_reached[j] = (node_t) {time_diffs->node_id, time_diffs->tdoa};
+                                nodes_discovered[j] = (node_t) {time_diffs->node_id, time_diffs->tdoa};
                                 j++;
                                 if(j >= MAX_NUM_ANCHORS){
                                     printf("Exceeded max number of anchors\n");
                                     return (range_data_t){0,0,0,params.node_id};
                                 }
-                                num_nodes_reached = j;
+                                num_nodes_discovered = j;
                             }
                             time_diffs++;
                         }
@@ -351,7 +353,7 @@ range_data_t get_range_data(range_params_t params){
     ranging = 0;
 
     if(params.node_id == -1){
-        return (range_data_t){0,0,-1,params.node_id};
+        return (range_data_t){0,0,0,params.node_id};
     }
     else{
         return *(time_diffs-1);
@@ -379,6 +381,7 @@ range_data_t lock_on_anchor(int8_t node_id){
 
     PRINTF("Calibrating compass");
     calibrate_compass();
+    last_node_locked = node_id;
 
     while(angle > 5 || angle < -5){
         
@@ -424,6 +427,7 @@ range_data_t lock_on_anchor(int8_t node_id){
             }
         }
     }
+
     return raw_data;
 }
 
@@ -437,7 +441,7 @@ void _range_thread(){
     char            data_pub[32];
     hdlc_pkt_t      pkt;
 
-    size_t mqtt_data_len;
+    int mqtt_data_len;
 
     int i = 0;
     
@@ -474,8 +478,8 @@ void _range_thread(){
                     discover_nodes(range_params.ranging_mode);
                     printf("****************Discovery mode***************\n");
                     printf("Nodes reached:\n");
-                    for(i=0; i<num_nodes_reached; i++){
-                        printf("Node %d: %d\n", nodes_reached[i].node_id, nodes_reached[i].tdoa);
+                    for(i=0; i<num_nodes_discovered; i++){
+                        printf("Node %d: %d\n", nodes_discovered[i].node_id, nodes_discovered[i].tdoa);
                     }
                     printf("*********************************************\n");
                     clear_data(data_pub, 32);
@@ -502,7 +506,14 @@ void _range_thread(){
                 else{
                     if(range_params.ranging_mode == TWO_SENSOR_MODE){
                         PRINTF("Starting lock on anchor routine\n");
-                        range_data = lock_on_anchor(range_params.node_id);
+
+                        if(range_params.node_id != get_last_lock()){
+                            range_data = lock_on_anchor(range_params.node_id);
+                        }
+                        else{
+                            range_data = range_node(range_params);
+                        }
+
                     }
                     else{
                          range_data = range_node(range_params);
@@ -564,10 +575,14 @@ bool is_ranging(){
     return ranging;
 }
 
-node_t* get_nodes_reached(){
-    return nodes_reached;
+node_t* get_nodes_discovered(){
+    return nodes_discovered;
 }
 
-uint8_t get_num_nodes_reached(){
-    return num_nodes_reached;
+uint8_t get_num_nodes_discovered(){
+    return num_nodes_discovered;
+}
+
+uint8_t get_last_lock(){
+    return last_node_locked;
 }

@@ -96,7 +96,7 @@ void build_mqtt_pkt_npub(char* topic, char* data, uint16_t src_port,
     send_hdr.src_port = src_port;
         
     strcpy(mqtt_send_pkt->topic, topic);
-    strcpy(mqtt_send_pkt->data, data);
+    strncpy(mqtt_send_pkt->data, data, mqtt_data_len);
 
     pkt->length = uart_pkt_cpy_data(pkt->data, HDLC_MAX_PKT_SIZE, mqtt_send_pkt, MQTT_TOPIC_LEN + mqtt_data_len);
     uart_pkt_insert_hdr(pkt->data, HDLC_MAX_PKT_SIZE, &send_hdr);      

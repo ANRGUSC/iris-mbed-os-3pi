@@ -171,12 +171,55 @@ void discover_nodes(uint8_t ranging_mode);
  * @return     the range data
  */
 range_data_t range_node(range_params_t params);
+
+/**
+ * @brief      Locks on to a specific node and returns its range data
+ *
+ * @param[in]  node_id  The node identifier
+ *
+ * @return     the range data
+ */
 range_data_t lock_on_anchor(int8_t node_id);
 
+/**
+ * @brief      initializes the range_thread
+ */
 void init_range_thread();
+
+/**
+ * @brief      triggers the range routine defined in the range_thread 
+ *
+ * @param      params  The ranging parameters
+ * @param      msg     msg pointer used for triggering
+ */
 void trigger_range_routine(range_params_t *params, msg_t *msg);
+
+/**
+ * @brief      Determines if the thread is currently ranging.
+ *
+ * @return     True if ranging, False otherwise.
+ */
 bool is_ranging();
-node_t* get_nodes_reached();
-uint8_t get_num_nodes_reached();
+
+/**
+ * @brief      Gets the nodes that were discovered.
+ *
+ * @return     The pointer to an array of node ids.
+ */
+node_t* get_nodes_discovered();
+
+/**
+ * @brief      Gets the number nodes discovered.
+ *
+ * @return     The number of nodes discovered.
+ */
+uint8_t get_num_nodes_discovered();
+
+/**
+ * @brief      Gets the last node that was locked on.
+ *
+ * @return     The node_id.
+ */
+uint8_t get_last_lock();
 
 #endif
