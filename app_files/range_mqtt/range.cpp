@@ -546,14 +546,17 @@ void _range_thread(){
                 //*************************************************
             }
             else{
+                range_thr_mailbox.free(msg);
                 PRINTF("range_thread: Recieved something other than start message\n");
                 continue;
             }
         } 
         else{
+            range_thr_mailbox.free(msg);
             printf("range_thread: Didn't get mail: %02x\n",evt.status);
             continue;
         }  
+        range_thr_mailbox.free(msg);
     }
     
 }
