@@ -47,12 +47,12 @@ mbed target LPC1768
 2. Install python packages: `pip install -r requirements.txt`
 3. Install python, libusb and libncursus (i386 to be compatible with arm-none-eabi-gdb)
     
-    sudo apt-get install python libusb-1.0-0-dev libncurses5:i386
+        sudo apt-get install python libusb-1.0-0-dev libncurses5:i386
 
 4. It might be necessary to update your USB settings to get non-root access to DAP:
 
-    sudo sh -c 'echo SUBSYSTEM==\"usb\", ATTR{idVendor}==\"0d28\", ATTR{idProduct}==\"0204\", MODE:=\"666\" > /etc/udev/rules.d/mbed.rules'
-    sudo /etc/init.d/udev restart
+        sudo sh -c 'echo SUBSYSTEM==\"usb\", ATTR{idVendor}==\"0d28\", ATTR{idProduct}==\"0204\", MODE:=\"666\" > /etc/udev/rules.d/mbed.rules' 
+        sudo /etc/init.d/udev restart   
 
 # Run Instructions:
 
