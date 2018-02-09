@@ -35,7 +35,7 @@ elif args.m3pi == '1':
 else:
     m3pi_path = 'm3pi/original/.mbedignore'
 
-print m3pi_path
+print(m3pi_path)
 
 os.remove(app_path)
 os.remove(m3pi_path)
