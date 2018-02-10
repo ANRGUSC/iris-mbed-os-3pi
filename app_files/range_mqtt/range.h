@@ -1,7 +1,6 @@
 #ifndef RANGE_H
 #define RANGE_H
 
-#include "m3pi/modified/mbed_movement.h"
 #include "data_conv.h"
 #include "mqtt.h"
 #include "rtos.h"
@@ -172,14 +171,7 @@ void discover_nodes(uint8_t ranging_mode);
  */
 range_data_t range_node(range_params_t params);
 
-/**
- * @brief      Locks on to a specific node and returns its range data
- *
- * @param[in]  node_id  The node identifier
- *
- * @return     the range data
- */
-range_data_t lock_on_anchor(int8_t node_id);
+
 
 /**
  * @brief      initializes the range_thread
@@ -214,12 +206,5 @@ node_t* get_nodes_discovered();
  * @return     The number of nodes discovered.
  */
 uint8_t get_num_nodes_discovered();
-
-/**
- * @brief      Gets the last node that was locked on.
- *
- * @return     The node_id.
- */
-uint8_t get_last_lock();
 
 #endif
