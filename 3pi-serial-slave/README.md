@@ -7,11 +7,8 @@ Atmega328p in the 3pi base.
 
     sudo apt-get install gcc-avr avr-libc binutils-avr avrdude
 
-Clone https://github.com/pololu/libpololu-avr and read the top-level README in
-the section "Installation using 'make install'" to compile and install the
-pololu library. Example instructions:
-    
-    git clone https://github.com/pololu/libpololu-avr
-    make show_prefix  #double check these are the right directories and they exist
-    make
-    sudo make install #permissions needed
+In order to make the necessary modifications, we imported all the relevant
+.cpp and .h files from the https://github.com/pololu/libpololu-avr directly into
+this repository. By doing this, we are able to repurpose some GPIO lines for
+additional sensors. For example, we removed the LCD to clear up pins for the
+Pololu magnetic wheel encoders.

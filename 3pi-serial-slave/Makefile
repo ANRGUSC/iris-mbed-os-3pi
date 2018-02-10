@@ -1,6 +1,6 @@
-DEVICE ?= atmega168
-MCU ?= atmega168
-AVRDUDE_DEVICE ?= m168
+DEVICE ?= atmega328p
+MCU ?= atmega328p
+AVRDUDE_DEVICE ?= atmega328p
 
 CFLAGS=-g -Wall -mcall-prologues -mmcu=$(MCU) $(DEVICE_SPECIFIC_CFLAGS) -Os
 CC=avr-gcc

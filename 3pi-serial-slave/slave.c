@@ -213,6 +213,22 @@ void send_battery_millivolts()
     serial_send_blocking((char *)message, 2);
 }
 
+// Sends current left wheel encoder count
+void send_left_encoder_count()
+{
+    int message[1];
+    message[0] = 0;
+    serial_send_blocking((char *)message, 2);
+}
+
+// Sends current right wheel encoder count
+void send_right_encoder_count()
+{
+    int message[1];
+    message[0] = 0;
+    serial_send_blocking((char *)message, 2);
+}
+
 // Drives m1 forward.
 void m1_forward()
 {
@@ -461,6 +477,12 @@ int main()
             break;
         case (char)0xC6:
             m2_backward();
+            break;
+        case (char)0xD1:
+            send_left_encoder_count();
+            break;
+        case (char)0xD2
+            send_right_encoder_count();
             break;
 
         default:
