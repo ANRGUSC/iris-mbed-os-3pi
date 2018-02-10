@@ -243,7 +243,6 @@ void _mqtt_thread()
                                 PRINTF("mqtt_thread: PUB ACK message received\n");
                                 break;
                             default:
-                                mqtt_thread_mailbox.free(msg);
                                 /* error */
                                 break;
 

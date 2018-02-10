@@ -168,7 +168,6 @@ dist_angle_t get_dist_angle(range_data_t *time_diffs, uint8_t ranging_mode){
 
 range_data_t get_range_data(range_params_t params){
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr = get_hdlc_mailbox();
-    ranging = 1;
  
     int exit = 0;
     int pkt_size = sizeof(uart_pkt_hdr_t) + sizeof(range_params_t);
@@ -272,7 +271,6 @@ range_data_t get_range_data(range_params_t params){
                         PRINTF("range_thread: There should be %d ranges in this pkt\n",data_per_pkt);
 
                         if(data_per_pkt == 0){
-                            ranging = 0;
                             hdlc_pkt_release(buf);
                             range_thr_mailbox.free(msg);
                             return (range_data_t){0,0,0,params.node_id};
@@ -373,6 +371,7 @@ range_data_t lock_on_anchor(int8_t node_id){
     range_data_t raw_data; 
     dist_angle_t conv_data;
     float angle = -361;
+    int failcount = 0;
 
     if(!init_minimu()){
         PRINTF("Failed to init minimu");
@@ -386,10 +385,6 @@ range_data_t lock_on_anchor(int8_t node_id){
     while(angle > 5 || angle < -5){
         
         raw_data = range_node({node_id, TWO_SENSOR_MODE});
-        if(raw_data.tdoa < 10){
-            PRINTF("Locking failed: Anchor node unavailable\n");
-            return (range_data_t){0,0,0,node_id};
-        }
         conv_data = get_dist_angle(&raw_data, TWO_SENSOR_MODE);
         angle = conv_data.angle;
 
@@ -397,12 +392,19 @@ range_data_t lock_on_anchor(int8_t node_id){
             if(raw_data.status > 2){
                 if(MISSED_PIN_UNMASK - raw_data.status == 1){
                     rotate_degrees(90,40);
+                    failcount = 0;
                 }
                 else if(MISSED_PIN_UNMASK - raw_data.status == 2){
                     rotate_degrees(-90,40);
+                    failcount = 0;
                 }
                 else{
-                    rotate_degrees(180,40);
+                    if(raw_data.status == 20 || failcount == 4){
+                        return {0,0,0,node_id};
+                    } //rf ping missed
+
+                    rotate_degrees(90,40);
+                    failcount++;
                 }
             }
             else{
@@ -413,8 +415,9 @@ range_data_t lock_on_anchor(int8_t node_id){
                     rotate_degrees(90,40);
                 }
                 else{
-                    rotate_degrees(180,40);
+                    rotate_degrees(18,40);
                 }
+                failcount = 0;
             }
             
         }
@@ -468,7 +471,7 @@ void _range_thread(){
             PRINTF("range_thread: got mail\n");
             msg = (msg_t*)evt.value.p;
             if(msg->type == START_RANGE_THR){ 
-
+                ranging = 1;
                 //***This is where the range routine will go*****
                 
                 PRINTF("range_thread: got range init message, starting routine\n");
@@ -541,13 +544,14 @@ void _range_thread(){
                         PRINTF ("Failed to load node data\n");
                     }
                 }
-                
+                ranging = 0;
 
                 //*************************************************
             }
             else{
+                PRINTF("range_thread: Recieved something other than start message: %d\n", msg->type);
                 range_thr_mailbox.free(msg);
-                PRINTF("range_thread: Recieved something other than start message\n");
+                
                 continue;
             }
         } 
@@ -566,16 +570,23 @@ void init_range_thread(){
 }
 
 void trigger_range_routine(range_params_t *params, msg_t *msg){
-    msg = range_thr_mailbox.alloc();
-    msg->type = START_RANGE_THR;
-    msg->content.ptr = params;
-    msg->sender_pid = osThreadGetId();
-    msg->source_mailbox = &range_thr_mailbox;
-    range_thr_mailbox.put(msg);
+    if(!ranging){
+        msg = range_thr_mailbox.alloc();
+        msg->type = START_RANGE_THR;
+        msg->content.ptr = params;
+        msg->sender_pid = osThreadGetId();
+        msg->source_mailbox = &range_thr_mailbox;
+        range_thr_mailbox.put(msg);
+    }
 }
 
 bool is_ranging(){
-    return ranging;
+    if(ranging){
+        return 1;
+    }
+    else{
+        return 0;
+    }
 }
 
 node_t* get_nodes_discovered(){
