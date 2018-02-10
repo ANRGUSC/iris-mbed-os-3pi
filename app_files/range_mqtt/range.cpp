@@ -367,73 +367,6 @@ range_data_t range_node(range_params_t params){
     return get_range_data(params);
 }
 
-range_data_t lock_on_anchor(int8_t node_id){
-    range_data_t raw_data; 
-    dist_angle_t conv_data;
-    float angle = -361;
-    int failcount = 0;
-
-    if(!init_minimu()){
-        PRINTF("Failed to init minimu");
-        return {0,0,0,node_id};
-    }
-
-    PRINTF("Calibrating compass");
-    calibrate_compass();
-    last_node_locked = node_id;
-
-    while(angle > 5 || angle < -5){
-        
-        raw_data = range_node({node_id, TWO_SENSOR_MODE});
-        conv_data = get_dist_angle(&raw_data, TWO_SENSOR_MODE);
-        angle = conv_data.angle;
-
-        if(angle == -361){
-            if(raw_data.status > 2){
-                if(MISSED_PIN_UNMASK - raw_data.status == 1){
-                    rotate_degrees(90,40);
-                    failcount = 0;
-                }
-                else if(MISSED_PIN_UNMASK - raw_data.status == 2){
-                    rotate_degrees(-90,40);
-                    failcount = 0;
-                }
-                else{
-                    if(raw_data.status == 20 || failcount == 4){
-                        return {0,0,0,node_id};
-                    } //rf ping missed
-
-                    rotate_degrees(90,40);
-                    failcount++;
-                }
-            }
-            else{
-                if(raw_data.status == 1){
-                    rotate_degrees(-90,40);
-                }
-                else if(raw_data.status == 2){
-                    rotate_degrees(90,40);
-                }
-                else{
-                    rotate_degrees(18,40);
-                }
-                failcount = 0;
-            }
-            
-        }
-        else{
-            if(angle < 75 && angle > -75){
-                rotate_parts(-angle);
-            }
-            else{
-                rotate_degrees(-angle,40);
-            }
-        }
-    }
-
-    return raw_data;
-}
-
 /**
  * @brief      This is the range thread that triggers the range routine for localization.
  *             To trigger localization, a msg of type START_RANGE_THR must be sent to the
@@ -507,20 +440,17 @@ void _range_thread(){
 
                 }
                 else{
-                    if(range_params.ranging_mode == TWO_SENSOR_MODE){
-                        PRINTF("Starting lock on anchor routine\n");
-
-                        if(range_params.node_id != get_last_lock()){
-                            range_data = lock_on_anchor(range_params.node_id);
-                        }
-                        else{
-                            range_data = range_node(range_params);
-                        }
+                    range_data = range_node(range_params);
+                    
+                    /*if(range_params.ranging_mode == TWO_SENSOR_MODE){
+                        
+                        //Lock on anchor code goes here
 
                     }
                     else{
                          range_data = range_node(range_params);
-                    }
+                    }*/
+                    
                     clear_data(data_pub, 32);
                     mqtt_data_len = load_node_data(data_pub, 32, get_node(range_data));
                     if(mqtt_data_len != -1){
@@ -595,8 +525,4 @@ node_t* get_nodes_discovered(){
 
 uint8_t get_num_nodes_discovered(){
     return num_nodes_discovered;
-}
-
-uint8_t get_last_lock(){
-    return last_node_locked;
 }
