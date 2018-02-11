@@ -3,7 +3,7 @@ MCU ?= atmega328p
 AVRDUDE_DEVICE ?= atmega328p
 
 CFLAGS=-g -Wall -mcall-prologues -mmcu=$(MCU) $(DEVICE_SPECIFIC_CFLAGS) -Os
-CC=avr-g++
+CPP=avr-g++
 OBJ2HEX=avr-objcopy 
 LDFLAGS=-Wl,-gc-sections -Wl,-relax
 
@@ -20,16 +20,16 @@ clean:
 	rm -f *.o *.hex *.obj *.hex
 
 %.o: %.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -c $<
+	$(CPP) $(CFLAGS) $(LDFLAGS) -c $<
 
 %.o: %.cpp
-	$(CC) $(CFLAGS) $(LDFLAGS) -c $<
+	$(CPP) $(CFLAGS) $(LDFLAGS) -c $<
 
 %.hex: %.obj
 	$(OBJ2HEX) -R .eeprom -O ihex $< $@
 
 %.obj: $(OBJECT_FILES)
-	$(CC) $(CFLAGS) $(OBJECT_FILES) $(LDFLAGS) -o $@
+	$(CPP) $(CFLAGS) $(OBJECT_FILES) $(LDFLAGS) -o $@
 
 program: $(TARGET).hex
 	$(AVRDUDE) -p $(AVRDUDE_DEVICE) -c avrisp2 -P $(PORT) -U flash:w:$(TARGET).hex
