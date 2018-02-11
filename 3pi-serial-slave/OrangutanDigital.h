@@ -47,7 +47,7 @@
 #ifndef OrangutanDigital_h
 #define OrangutanDigital_h
 
-#include "../OrangutanResources/include/OrangutanModel.h"
+#include "OrangutanModel.h"
 #include <avr/io.h>
 
 #define INPUT 				0

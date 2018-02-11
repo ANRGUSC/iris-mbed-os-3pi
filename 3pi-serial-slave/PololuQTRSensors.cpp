@@ -49,10 +49,10 @@
 #define QTR_RC		0
 #define QTR_A		1
 
-#include "../OrangutanDigital/OrangutanDigital.h" // provides pin definitions
+#include "OrangutanDigital.h" // provides pin definitions
 
 #ifndef ARDUINO
-#include "../OrangutanTime/OrangutanTime.h"		// provides access to delay routines
+#include "OrangutanTime.h"		// provides access to delay routines
 #else
 #include <Arduino.h> // provides access to delay() and delayMicroseconds()
 #endif

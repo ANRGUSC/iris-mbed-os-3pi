@@ -28,8 +28,8 @@
 #include <stdlib.h>
 #include <pololu/orangutan.h>
 #include "PololuMagneticEncoders.h"
-#include "../OrangutanDigital/OrangutanDigital.h"       // digital I/O routines
-#include "../OrangutanResources/include/OrangutanModel.h"
+#include "OrangutanDigital.h"       // digital I/O routines
+#include "OrangutanModel.h"
 
 
 extern "C" void encoders_init(unsigned char m1a, unsigned char m1b, unsigned char m2a, unsigned char m2b)
@@ -184,7 +184,7 @@ void PololuMagneticEncoders::init(unsigned char m1a, unsigned char m1b, unsigned
     global_m2b = m2b;
 
     // disable interrupts while initializing
-    cli()
+    cli();
 
     enable_interrupts_for_pin(m1a);
     enable_interrupts_for_pin(m1b);

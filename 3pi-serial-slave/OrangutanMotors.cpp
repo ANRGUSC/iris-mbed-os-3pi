@@ -33,8 +33,8 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include "OrangutanMotors.h"
-#include "../OrangutanDigital/OrangutanDigital.h"
-#include "../OrangutanResources/include/OrangutanModel.h"
+#include "OrangutanDigital.h"
+#include "OrangutanModel.h"
 #ifdef _ORANGUTAN_X2
 #include "../OrangutanX2/OrangutanX2.h"
 #endif

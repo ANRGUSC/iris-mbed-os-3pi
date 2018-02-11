@@ -35,7 +35,7 @@
 #define PololuQTRSensors_h
 
 #ifdef __cplusplus
-#include "../OrangutanResources/include/OrangutanModel.h"
+#include "OrangutanModel.h"
 #endif
 
 #define QTR_EMITTERS_OFF 0

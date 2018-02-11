@@ -26,10 +26,8 @@
 #endif
 
 #include "OrangutanSerial.h"
-#include "../OrangutanTime/OrangutanTime.h"
-#include "../OrangutanSVP/OrangutanSVP.h"
-#include "../OrangutanX2/OrangutanX2.h"
-#include "../OrangutanResources/include/OrangutanModel.h"
+#include "OrangutanTime.h"
+#include "OrangutanModel.h"
 
 #include <avr/io.h>
 #include <avr/interrupt.h>

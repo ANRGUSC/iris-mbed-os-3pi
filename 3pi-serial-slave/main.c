@@ -8,7 +8,7 @@
  * http://forum.pololu.com
  * 
  */
-#include <pololu/3pi.h>
+#include "Pololu3pi.h"
 
 
 // PID constants
@@ -79,7 +79,6 @@ char read_next_byte()
 {
     while(serial_get_received_bytes() == read_index)
     {
-        play_check();
 
         // pid_check takes some time; only run it if we don't have more bytes to process
         if(serial_get_received_bytes() == read_index)
@@ -123,12 +122,7 @@ char check_data_byte(char byte)
     if(is_data(byte))
         return 0;
 
-    play("o3c");
 
-    clear();
-    print("Bad data");
-    lcd_goto_xy(0,1);
-    print_hex_byte(byte);
 
     previous_byte();
     return 1;
@@ -146,7 +140,8 @@ char check_data_byte(char byte)
 // useful as an initial command.
 void send_signature()
 {
-    serial_send_blocking("3pi1.1", 6);
+    char str[] = "3pi1.1";
+    serial_send_blocking(str, 6);
     set_motors(0,0);
     pid_enabled = 0;
 }
@@ -273,79 +268,10 @@ void m2_backward()
     set_m2_speed(byte == 127 ? -255 : -byte*2);
 }
 
-// A buffer to store the music that will play in the background.
-char music_buffer[100];
-
-// Plays a musical sequence.
-void do_play()
-{
-    unsigned char tune_length = read_next_byte();
-
-    if(check_data_byte(tune_length))
-        return;
-
-    unsigned char i;
-    for(i=0;i<tune_length;i++)
-    {
-        if(i > sizeof(music_buffer)) // avoid overflow
-            return;
-
-        music_buffer[i] = read_next_byte();
-
-        if(check_data_byte(music_buffer[i]))
-            return;
-    }
-
-    // add the end of string character 0
-    music_buffer[i] = 0;
-    
-    play(music_buffer);
-}
-
-// Clears the LCD
-void do_clear()
-{
-    clear();
-}
-
-// Displays data to the screen
-void do_print()
-{
-    unsigned char string_length = read_next_byte();
-    
-    if(check_data_byte(string_length))
-        return;
-
-    unsigned char i;
-    for(i=0;i<string_length;i++)
-    {
-        unsigned char character;
-        character = read_next_byte();
-
-        if(check_data_byte(character))
-            return;
-
-        print_character(character);
-    }
-}
-
-// Goes to the x,y coordinates on the lcd specified by the two data bytes
-void do_lcd_goto_xy()
-{
-    unsigned char x = read_next_byte();
-    if(check_data_byte(x))
-        return;
-
-    unsigned char y = read_next_byte();
-    if(check_data_byte(y))
-        return;
-
-    lcd_goto_xy(x,y);
-}
-
 // Runs through an automatic calibration sequence
 void auto_calibrate()
 {
+    char str[] = "c";
     time_reset();
     set_motors(60, -60);  
     while(get_ms() < 250)  
@@ -358,7 +284,7 @@ void auto_calibrate()
         calibrate_line_sensors(IR_EMITTERS_ON);  
     set_motors(0, 0); 
     
-    serial_send_blocking("c",1); 
+    serial_send_blocking(str, 1); 
 }
 
 // Turns on PID according to the supplied PID constants
@@ -398,12 +324,14 @@ void stop_pid()
 int main()
 {
     pololu_3pi_init(2000);  
-    play_mode(PLAY_CHECK);
-    clear();
 
     // start receiving data at 115.2 kbaud
     serial_set_baud_rate(115200);
     serial_receive_ring(buffer, 100);
+
+    /* test succesful flash by turning on green LED */ 
+    DDRD |= 1 << 7;
+    PORTD |= 1 << 7;
 
     while(1)
     {
@@ -426,7 +354,7 @@ int main()
             send_raw_sensor_values();
             break;
         case (char)0x87:
-            send_calibrated_sensor_values(1);
+            send_calibrated_sensor_values();
             break;
         case (char)0xB0:
             send_trimpot();
@@ -434,12 +362,12 @@ int main()
         case (char)0xB1:
             send_battery_millivolts();
             break;
-        case (char)0xB3:
-            do_play();
-            break;
+        // case (char)0xB3:
+        //     do_play();
+        //     break;
         case (char)0xB4:
             calibrate_line_sensors(IR_EMITTERS_ON);
-            send_calibrated_sensor_values(1);
+            send_calibrated_sensor_values();
             break;
         case (char)0xB5:
             line_sensors_reset_calibration();
@@ -447,15 +375,15 @@ int main()
         case (char)0xB6:
             send_line_position();
             break;
-        case (char)0xB7:
-            do_clear();
-            break;
-        case (char)0xB8:
-            do_print();
-            break;
-        case (char)0xB9:
-            do_lcd_goto_xy();
-            break;
+        // case (char)0xB7:
+        //     do_clear();
+        //     break;
+        // case (char)0xB8:
+        //     do_print();
+        //     break;
+        // case (char)0xB9:
+        //     do_lcd_goto_xy();
+        //     break;
         case (char)0xBA:
             auto_calibrate();
             break;
@@ -481,17 +409,11 @@ int main()
         case (char)0xD1:
             send_left_encoder_count();
             break;
-        case (char)0xD2
+        case (char)0xD2:
             send_right_encoder_count();
             break;
 
         default:
-            clear();
-            print("Bad cmd");
-            lcd_goto_xy(0,1);
-            print_hex_byte(command);
-
-            play("o7l16crc");
             continue; // bad command
         }
     }

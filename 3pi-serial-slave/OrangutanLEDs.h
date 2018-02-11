@@ -24,8 +24,8 @@
  
 #ifndef OrangutanLEDs_h
 #define OrangutanLEDs_h
-#include "../OrangutanDigital/OrangutanDigital.h"
-#include "../OrangutanResources/include/OrangutanModel.h"
+#include "OrangutanDigital.h"
+#include "OrangutanModel.h"
 
 #ifdef _ORANGUTAN_X2
 #define RED_LED		IO_C7
