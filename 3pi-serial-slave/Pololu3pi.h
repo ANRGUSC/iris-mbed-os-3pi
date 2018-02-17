@@ -37,6 +37,7 @@
 #include "OrangutanSerial.h"
 // #include "OrangutanServos.h"
 // #include "PololuWheelEncoders.h"
+#include "PololuWheelEncoders.h"
 #include "OrangutanResources.h"
 #include "OrangutanDigital.h"
 // #include "OrangutanPulseIn.h"

@@ -12,15 +12,14 @@ AVRDUDE=avrdude
 
 TARGET=slave
 SOURCE_FILES := $(wildcard *cpp)
-OBJECT_FILES=main.o OrangutanAnalog.o OrangutanDigital.o OrangutanLEDs.o OrangutanMotors.o OrangutanResources.o OrangutanSerial.o OrangutanTime.o Pololu3pi.o PololuMagneticEncoders.o PololuQTRSensors.o
+OBJECT_FILES = main.o OrangutanAnalog.o OrangutanDigital.o OrangutanLEDs.o 
+OBJECT_FILES += OrangutanMotors.o OrangutanResources.o OrangutanSerial.o 
+OBJECT_FILES += OrangutanTime.o Pololu3pi.o PololuWheelEncoders.o PololuQTRSensors.o
 
 all: $(TARGET).hex
 
 clean:
 	rm -f *.o *.hex *.obj *.hex
-
-%.o: %.c
-	$(CPP) $(CFLAGS) $(LDFLAGS) -c $<
 
 %.o: %.cpp
 	$(CPP) $(CFLAGS) $(LDFLAGS) -c $<

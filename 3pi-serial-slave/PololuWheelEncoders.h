@@ -1,5 +1,5 @@
 /*
-  PololuMagneticEncoders.h - Library for using Pololu Wheel Encoders.
+  PololuWheelEncoders.h - Library for using Pololu Wheel Encoders.
 */
     
 /*
@@ -20,18 +20,18 @@
  * to be responsible for all resulting costs and damages.
  */
 
-#ifndef PololuMagneticEncoders_h
-#define PololuMagneticEncoders_h
+#ifndef PololuWheelEncoders_h
+#define PololuWheelEncoders_h
 
 #ifdef __cplusplus
 
-class PololuMagneticEncoders
+class PololuWheelEncoders
 {
   public:
     /*
      * Constructor: does nothing.
      */
-    PololuMagneticEncoders() { }
+    PololuWheelEncoders() { }
 
     /*
      * Initializes the wheel encoders.  The four arguments are the

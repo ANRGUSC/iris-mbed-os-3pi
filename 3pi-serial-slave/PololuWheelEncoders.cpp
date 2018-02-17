@@ -1,5 +1,5 @@
 /*
-  PololuMagneticEncoders.cpp - Library for using Pololu Magnetic Wheel Encoders.
+  PololuWheelEncoders.cpp - Library for using Pololu Magnetic Wheel Encoders.
 */
     
 /*
@@ -26,45 +26,44 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdlib.h>
-#include <pololu/orangutan.h>
-#include "PololuMagneticEncoders.h"
+#include "PololuWheelEncoders.h"
 #include "OrangutanDigital.h"       // digital I/O routines
 #include "OrangutanModel.h"
 
 
 extern "C" void encoders_init(unsigned char m1a, unsigned char m1b, unsigned char m2a, unsigned char m2b)
 {
-    PololuMagneticEncoders::init(m1a,m1b,m2a,m2b);
+    PololuWheelEncoders::init(m1a,m1b,m2a,m2b);
 }
 
 extern "C" int encoders_get_counts_m1()
 {
-    return PololuMagneticEncoders::getCountsM1();
+    return PololuWheelEncoders::getCountsM1();
 }
 
 extern "C" int encoders_get_counts_m2()
 {
-    return PololuMagneticEncoders::getCountsM2();
+    return PololuWheelEncoders::getCountsM2();
 }
 
 extern "C" int encoders_get_counts_and_reset_m1()
 {
-    return PololuMagneticEncoders::getCountsAndResetM1();
+    return PololuWheelEncoders::getCountsAndResetM1();
 }
 
 extern "C" int encoders_get_counts_and_reset_m2()
 {
-    return PololuMagneticEncoders::getCountsAndResetM2();
+    return PololuWheelEncoders::getCountsAndResetM2();
 }
 
 extern "C" int encoders_check_error_m1()
 {
-    return PololuMagneticEncoders::checkErrorM1();
+    return PololuWheelEncoders::checkErrorM1();
 }
 
 extern "C" int encoders_check_error_m2()
 {
-    return PololuMagneticEncoders::checkErrorM2();
+    return PololuWheelEncoders::checkErrorM2();
 }
 
 
@@ -176,7 +175,7 @@ static void enable_interrupts_for_pin(unsigned char p)
     PCICR = 0xFF;
 }
 
-void PololuMagneticEncoders::init(unsigned char m1a, unsigned char m1b, unsigned char m2a, unsigned char m2b)
+void PololuWheelEncoders::init(unsigned char m1a, unsigned char m1b, unsigned char m2a, unsigned char m2b)
 {
     global_m1a = m1a;
     global_m1b = m1b;
@@ -211,7 +210,7 @@ void PololuMagneticEncoders::init(unsigned char m1a, unsigned char m1b, unsigned
     sei();
 }
 
-int PololuMagneticEncoders::getCountsM1()
+int PololuWheelEncoders::getCountsM1()
 {
     cli();
     int tmp = global_counts_m1;
@@ -219,7 +218,7 @@ int PololuMagneticEncoders::getCountsM1()
     return tmp;
 }
 
-int PololuMagneticEncoders::getCountsM2()
+int PololuWheelEncoders::getCountsM2()
 {
     cli();
     int tmp = global_counts_m2;
@@ -227,7 +226,7 @@ int PololuMagneticEncoders::getCountsM2()
     return tmp;
 }
 
-int PololuMagneticEncoders::getCountsAndResetM1()
+int PololuWheelEncoders::getCountsAndResetM1()
 {
     cli();
     int tmp = global_counts_m1;
@@ -236,7 +235,7 @@ int PololuMagneticEncoders::getCountsAndResetM1()
     return tmp;
 }
 
-int PololuMagneticEncoders::getCountsAndResetM2()
+int PololuWheelEncoders::getCountsAndResetM2()
 {
     cli();
     int tmp = global_counts_m2;
@@ -245,14 +244,14 @@ int PololuMagneticEncoders::getCountsAndResetM2()
     return tmp;
 }
 
-unsigned char PololuMagneticEncoders::checkErrorM1()
+unsigned char PololuWheelEncoders::checkErrorM1()
 {
     unsigned char tmp = global_error_m1;
     global_error_m1 = 0;
     return tmp;
 }
 
-unsigned char PololuMagneticEncoders::checkErrorM2()
+unsigned char PololuWheelEncoders::checkErrorM2()
 {
     unsigned char tmp = global_error_m2;
     global_error_m2 = 0;
