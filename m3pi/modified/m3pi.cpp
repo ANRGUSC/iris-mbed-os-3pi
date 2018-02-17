@@ -24,6 +24,7 @@
 #include "mbed.h"
 #include "m3pi.h"
 #include <stdio.h>
+#include <stdint.h>
 
 #define DEBUG   0
 
@@ -169,18 +170,7 @@ void m3pi::leds(int val) {
 }
 
 
-void m3pi::locate(int x, int y) {
-    _ser.putc(DO_LCD_GOTO_XY);
-    _ser.putc(x);
-    _ser.putc(y);
-}
-
-void m3pi::cls(void) {
-    _ser.putc(DO_CLEAR);
-}
-
 int m3pi::print (char* text, int length) {
-    _ser.putc(DO_PRINT);  
     _ser.putc(length);       
     for (int i = 0 ; i < length ; i++) {
         _ser.putc(text[i]); 
@@ -189,7 +179,6 @@ int m3pi::print (char* text, int length) {
 }
 
 int m3pi::_putc (int c) {
-    _ser.putc(DO_PRINT);  
     _ser.putc(0x1);       
     _ser.putc(c);         
     wait (0.001);
@@ -209,8 +198,21 @@ int m3pi::getc (void) {
     return(_ser.getc());
 }
 
+int16_t m3pi::m1_encoder_count() {
+    _ser.putc(SEND_LEFT_ENCODER_COUNT);
+    char lowbyte = _ser.getc();
+    char hibyte  = _ser.getc();
+    int16_t left_cnt = lowbyte + (hibyte << 8);
+    return(left_cnt);
+}
 
-
+int16_t m3pi::m2_encoder_count() {
+    _ser.putc(SEND_RIGHT_ENCODER_COUNT);
+    char lowbyte = _ser.getc();
+    char hibyte  = _ser.getc();
+    int16_t right_cnt = lowbyte + (hibyte << 8);
+    return(right_cnt);
+}
 
 
 #ifdef MBED_RPC

@@ -1,3 +1,4 @@
+#if 0
 #include "mbed_movement.h"
 
 #define DEBUG   0
@@ -638,3 +639,4 @@ void drive_forward(uint16_t time)
 	run_timer.stop();
 	loop_timer.stop();
 }
+#endif

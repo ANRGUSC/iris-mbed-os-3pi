@@ -8,8 +8,35 @@
  * http://forum.pololu.com
  * 
  */
+#include <stdint.h>
 #include "Pololu3pi.h"
 
+#define SEND_SIGNATURE 0x81
+#define SEND_RAW_SENSOR_VALUES 0x86
+#define SEND_TRIMPOT 0xB0
+#define SEND_BATTERY_MILLIVOLTS 0xB1
+#define PI_CALIBRATE 0xB4
+#define LINE_SENSORS_RESET_CALIBRATION 0xB5
+#define SEND_LINE_POSITION 0xB6
+#define AUTO_CALIBRATE 0xBA
+#define SET_PID 0xBB
+#define STOP_PID 0xBC
+
+/* Left Motor */
+#define M1_FORWARD 0xC1
+#define M1_BACKWARD 0xC2
+
+/* Right Motor */
+#define M2_FORWARD 0xC5
+#define M2_BACKWARD 0xC6
+
+/* Left Motor */
+#define SEND_M1_ENCODER_COUNT 0xD1
+
+/* Right Motor */
+#define SEND_M2_ENCODER_COUNT 0xD2
+
+#define MOVE_STRAIGHT_DISTANCE 0xE1
 
 // PID constants
 unsigned int pid_enabled = 0;
@@ -73,8 +100,8 @@ char buffer[100];
 // A pointer to where we are reading from.
 unsigned char read_index = 0;
 
-// Waits for the next byte and returns it.  Runs play_check to keep
-// the music playing and calls pid_check() to keep following the line.
+// Waits for the next byte and returns it.  Runs pid_check() to keep following 
+// the line.
 char read_next_byte()
 {
     while(serial_get_received_bytes() == read_index)
@@ -121,8 +148,6 @@ char check_data_byte(char byte)
 {
     if(is_data(byte))
         return 0;
-
-
 
     previous_byte();
     return 1;
@@ -208,23 +233,7 @@ void send_battery_millivolts()
     serial_send_blocking((char *)message, 2);
 }
 
-// Sends current left wheel encoder count
-void send_left_encoder_count()
-{
-    int message[1];
-    message[0] = 0;
-    serial_send_blocking((char *)message, 2);
-}
-
-// Sends current right wheel encoder count
-void send_right_encoder_count()
-{
-    int message[1];
-    message[0] = 0;
-    serial_send_blocking((char *)message, 2);
-}
-
-// Drives m1 forward.
+// Drives m1 (left motor) forward.
 void m1_forward()
 {
     char byte = read_next_byte();
@@ -235,7 +244,7 @@ void m1_forward()
     set_m1_speed(byte == 127 ? 255 : byte*2);
 }
 
-// Drives m2 forward.
+// Drives m2 (right motor) forward.
 void m2_forward()
 {
     char byte = read_next_byte();
@@ -246,7 +255,7 @@ void m2_forward()
     set_m2_speed(byte == 127 ? 255 : byte*2);
 }
 
-// Drives m1 backward.
+// Drives m1 (left motor) backward.
 void m1_backward()
 {
     char byte = read_next_byte();
@@ -257,7 +266,7 @@ void m1_backward()
     set_m1_speed(byte == 127 ? -255 : -byte*2);
 }
 
-// Drives m2 backward.
+// Drives m2 (right motor) backward.
 void m2_backward()
 {
     char byte = read_next_byte();
@@ -309,14 +318,35 @@ void set_pid()
     d_den = constants[4];
 
     // enable pid
-    pid_enabled = 1;
-}
+    pid_enabled = 1;}
+
 
 // Turns off PID
 void stop_pid()
 {
     set_motors(0,0);
     pid_enabled = 0;
+}
+
+// Sends current left wheel encoder count
+void send_m1_encoder_count()
+{
+    int16_t message[1];
+    message[0] = PololuWheelEncoders::getCountsM1();
+    serial_send_blocking((char *)message, 2);
+}
+
+// Sends current right wheel encoder count
+void send_m2_encoder_count()
+{
+    int16_t message[1];
+    message[0] = PololuWheelEncoders::getCountsM2();
+    serial_send_blocking((char *)message, 2);
+}
+
+void move_straight_distance()
+{
+    //Not yet implemented
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -329,9 +359,12 @@ int main()
     serial_set_baud_rate(115200);
     serial_receive_ring(buffer, 100);
 
-    /* test succesful flash by turning on green LED */ 
-    DDRD |= 1 << 7;
-    PORTD |= 1 << 7;
+    /**PD2 PB0 PD4 PD7: note PD7 is connected to the green LED underneath. PD2
+     * and PB0 will be for the left motor (m1) and PD4/PD7 will be for the right
+     * motor (m2)
+     */
+    PololuWheelEncoders encoder;
+    encoder.init(IO_D2, IO_B0, IO_D7, IO_D4);
 
     while(1)
     {
@@ -341,80 +374,70 @@ int main()
         // The list of commands is below: add your own simply by
         // choosing a command byte and introducing another case
         // statement.
+
         switch(command)
         {
-        case (char)0x00:
-            // silent error - probable master resetting
-            break;
-
-        case (char)0x81:
-            send_signature();
-            break;
-        case (char)0x86:
-            send_raw_sensor_values();
-            break;
-        case (char)0x87:
-            send_calibrated_sensor_values();
-            break;
-        case (char)0xB0:
-            send_trimpot();
-            break;
-        case (char)0xB1:
-            send_battery_millivolts();
-            break;
-        // case (char)0xB3:
-        //     do_play();
-        //     break;
-        case (char)0xB4:
-            calibrate_line_sensors(IR_EMITTERS_ON);
-            send_calibrated_sensor_values();
-            break;
-        case (char)0xB5:
-            line_sensors_reset_calibration();
-            break;
-        case (char)0xB6:
-            send_line_position();
-            break;
-        // case (char)0xB7:
-        //     do_clear();
-        //     break;
-        // case (char)0xB8:
-        //     do_print();
-        //     break;
-        // case (char)0xB9:
-        //     do_lcd_goto_xy();
-        //     break;
-        case (char)0xBA:
-            auto_calibrate();
-            break;
-        case (char)0xBB:
-            set_pid();
-            break;
-        case (char)0xBC:
-            stop_pid();
-            break;
-
-        case (char)0xC1:
-            m1_forward();
-            break;
-        case (char)0xC2:
-            m1_backward();
-            break;
-        case (char)0xC5:
-            m2_forward();
-            break;
-        case (char)0xC6:
-            m2_backward();
-            break;
-        case (char)0xD1:
-            send_left_encoder_count();
-            break;
-        case (char)0xD2:
-            send_right_encoder_count();
-            break;
-
-        default:
-            continue; // bad command
+            case (char)0x00:
+                // silent error - probable master resetting
+                break;
+                case (char)SEND_SIGNATURE:
+                send_signature();
+                break;
+            case (char)SEND_RAW_SENSOR_VALUES:
+                send_raw_sensor_values();
+                break;
+            case (char)0x87:
+                send_calibrated_sensor_values();
+                break;
+            case (char)0xB0:
+                send_trimpot();
+                break;
+            case (char)SEND_BATTERY_MILLIVOLTS:
+                send_battery_millivolts();
+                break;
+            case (char)PI_CALIBRATE:
+                calibrate_line_sensors(IR_EMITTERS_ON);
+                send_calibrated_sensor_values();
+                break;
+            case (char)LINE_SENSORS_RESET_CALIBRATION:
+                line_sensors_reset_calibration();
+                break;
+            case (char)SEND_LINE_POSITION:
+                send_line_position();
+                break;
+            case (char)AUTO_CALIBRATE:
+                auto_calibrate();
+                break;
+            case (char)SET_PID:
+                set_pid();
+                break;
+            case (char)STOP_PID:
+                stop_pid();
+                break;
+            case (char)M1_FORWARD:
+                m1_forward();
+                break;
+            case (char)M1_BACKWARD:
+                m1_backward();
+                break;
+            case (char)M2_FORWARD:
+                m2_forward();
+                break;
+            case (char)M2_BACKWARD:
+                m2_backward();
+                break;
+            case (char)SEND_M1_ENCODER_COUNT:
+                send_m1_encoder_count();
+                break;
+            case (char)SEND_M2_ENCODER_COUNT:
+                send_m2_encoder_count();
+                break;
+            case (char)MOVE_STRAIGHT_DISTANCE:
+                move_straight_distance();
+            // case (char)ROTATE_DEGREES:
+            //     rotate_degrees();
+            default:
+                continue; // bad command
         }
     }
 }

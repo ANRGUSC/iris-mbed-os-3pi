@@ -34,11 +34,7 @@
 #define SEND_RAW_SENSOR_VALUES 0x86
 #define SEND_TRIMPOT 0xB0
 #define SEND_BATTERY_MILLIVOLTS 0xB1
-#define DO_PLAY 0xB3
 #define PI_CALIBRATE 0xB4
-#define DO_CLEAR 0xB7
-#define DO_PRINT 0xB8
-#define DO_LCD_GOTO_XY 0xB9
 #define LINE_SENSORS_RESET_CALIBRATION 0xB5
 #define SEND_LINE_POSITION 0xB6
 #define AUTO_CALIBRATE 0xBA
@@ -55,7 +51,6 @@
 #define MIN_SPEED 0
 #define MAX_SPEED 127
 #define MAX_REVERSE -127
-
 
 
 /** m3pi control class
@@ -199,18 +194,6 @@ public:
      */
     void leds(int val);
 
-    /** Locate the cursor on the 8x2 LCD
-     *
-     * @param x The horizontal position, from 0 to 7
-     * @param y The vertical position, from 0 to 1
-     */
-    void locate(int x, int y);
-
-    /** Clear the LCD
-     *
-     */
-    void cls(void);
-
     /** Send a character directly to the 3pi serial interface
      * @param c The character to send to the 3pi
      */
@@ -226,6 +209,16 @@ public:
      * @param int The character to send to the 3pi
      */
     int print(char* text, int length);
+
+    /** Get M1 (left motor) encoder count
+     * @returns count as a int16_t
+     */
+    int16_t m1_encoder_count();
+
+    /** Get M2 (right motor) encoder count
+     * @returns count as a int16_t
+     */
+    int16_t m2_encoder_count();
 
 #ifdef MBED_RPC
     virtual const struct rpc_method *get_rpc_methods();
