@@ -36,6 +36,9 @@
 /* Right Motor */
 #define SEND_M2_ENCODER_COUNT 0xD2
 
+#define SEND_M1_ENCODER_ERROR 0xD3
+#define SEND_M2_ENCODER_ERROR 0xD4
+
 #define MOVE_STRAIGHT_DISTANCE 0xE1
 
 // PID constants
@@ -47,6 +50,8 @@ unsigned char d_num = 0;
 unsigned char d_den = 0;
 unsigned int last_proportional = 0;
 unsigned int sensors[5];
+
+PololuWheelEncoders encoders;
 
 // This routine will be called repeatedly to keep the PID algorithm running
 void pid_check()
@@ -106,11 +111,9 @@ char read_next_byte()
 {
     while(serial_get_received_bytes() == read_index)
     {
-
-        // pid_check takes some time; only run it if we don't have more bytes to process
-        if(serial_get_received_bytes() == read_index)
-            pid_check();
-        
+    //     // pid_check takes some time; only run it if we don't have more bytes to process
+    //     if(serial_get_received_bytes() == read_index)
+    //         pid_check();
     }
     char ret = buffer[read_index];
     read_index ++;
@@ -331,17 +334,106 @@ void stop_pid()
 // Sends current left wheel encoder count
 void send_m1_encoder_count()
 {
-    int16_t message[1];
-    message[0] = PololuWheelEncoders::getCountsM1();
+    int message[1];
+    message[0] = encoders.getCountsM1();
     serial_send_blocking((char *)message, 2);
 }
 
 // Sends current right wheel encoder count
 void send_m2_encoder_count()
 {
-    int16_t message[1];
-    message[0] = PololuWheelEncoders::getCountsM2();
+    int message[1];
+    message[0] = encoders.getCountsM2();
     serial_send_blocking((char *)message, 2);
+}
+
+void send_m1_encoder_error()
+{
+    char message = encoders.checkErrorM1();
+    serial_send_blocking(&message, 1);  
+}
+
+// Sends current right wheel encoder count
+void send_m2_encoder_error()
+{
+    char message = encoders.checkErrorM2();
+    serial_send_blocking(&message, 1);
+}
+
+typedef struct
+{
+    double dState; // Last position input
+    double iState; // Integrator state
+    double iMax, iMin; // Maximum and minimum allowable integrator state
+    double iGain, // integral gain
+           pGain, // proportional gain
+           dGain; // derivative gain
+} PID_t;
+
+double UpdatePID(PID_t *pid, double error, double position)
+{
+    double pTerm, dTerm, iTerm;
+    pTerm = pid->pGain * error; // calculate the proportional term
+
+    // calculate the integral state with appropriate limiting
+    pid->iState += error;
+    if (pid->iState > pid->iMax) pid->iState = pid->iMax;
+    else if (pid->iState < pid->iMin) pid->iState = pid->iMin;
+
+    iTerm = pid->iGain * pid->iState; // calculate the integral term
+
+    dTerm = pid->dGain * (pid->dState - position);
+    pid->dState = position;
+
+    return pTerm + dTerm + iTerm;
+}
+
+unsigned char kp_num = 0;
+unsigned char kp_den = 0;
+unsigned char kd_num = 0;
+unsigned char kd_den = 0;
+unsigned int last_prop = 0;
+unsigned int initial_speed = 0;
+
+void drive_straight_pid_loop() 
+{
+    // Do nothing if the denominator of any constant is zero.
+    if(kp_den == 0 || kd_den == 0)
+    {
+        set_motors(0,0);
+        return;
+    }   
+
+    // Read diff between wheel encoders
+    int proportional = encoders.getCountsAndResetM1() - encoders.getCountsAndResetM2();
+
+    int speed_diff = proportional * kp_num / kp_den;
+
+
+    // Compute the derivative (change) of the position.
+    // int derivative = proportional - last_proportional;
+
+    // Remember the last position.
+    // last_proportional = proportional;
+
+    // Compute the difference between the two motor power settings,
+    // m1 - m2.  If this is a positive number the robot will turn
+    // to the right.  If it is a negative number, the robot will
+    // turn to the left, and the magnitude of the number determines
+    // the sharpness of the turn.
+    // int power_difference = proportional*p_num/kp_den + derivative*d_num/kd_den;
+
+    // Compute the actual motor settings.  We never set either motor
+    // to a negative value.
+    if(speed_diff > max_speed)
+        speed_diff = max_speed;
+    if(speed_diff < -max_speed)
+        speed_diff = -max_speed;
+
+    if(speed_diff < 0)
+        set_motors(initial_speed + speed_diff, initial_speed);
+    else
+        set_motors(initial_speed, initial_speed - speed_diff);
 }
 
 void move_straight_distance()
@@ -356,6 +448,7 @@ int main()
     pololu_3pi_init(2000);  
 
     // start receiving data at 115.2 kbaud
+    set_digital_input(IO_D0, PULL_UP_ENABLED);
     serial_set_baud_rate(115200);
     serial_receive_ring(buffer, 100);
 
@@ -363,8 +456,23 @@ int main()
      * and PB0 will be for the left motor (m1) and PD4/PD7 will be for the right
      * motor (m2)
      */
-    PololuWheelEncoders encoder;
-    encoder.init(IO_D2, IO_B0, IO_D7, IO_D4);
+    OrangutanDigital::setInput(IO_D2, PULL_UP_ENABLED);
+    OrangutanDigital::setInput(IO_B0, PULL_UP_ENABLED);
+    OrangutanDigital::setInput(IO_D4, PULL_UP_ENABLED);
+    OrangutanDigital::setInput(IO_D7, PULL_UP_ENABLED);
+    encoders.init(IO_B0, IO_D2, IO_D4, IO_D7);
+
+    kp_num = 1;
+    kp_den = 5;
+    kd_num = 0;
+    kd_den = 1;
+    last_prop = 0;
+    initial_speed = 50;
+
+    while(1)
+    {
+        drive_straight_pid_loop();
+    }
 
     while(1)
     {
@@ -380,7 +488,7 @@ int main()
             case (char)0x00:
                 // silent error - probable master resetting
                 break;
-                case (char)SEND_SIGNATURE:
+            case (char)SEND_SIGNATURE:
                 send_signature();
                 break;
             case (char)SEND_RAW_SENSOR_VALUES:
@@ -432,8 +540,15 @@ int main()
             case (char)SEND_M2_ENCODER_COUNT:
                 send_m2_encoder_count();
                 break;
+            case (char)SEND_M1_ENCODER_ERROR:
+                send_m1_encoder_error();
+                break;
+            case (char)SEND_M2_ENCODER_ERROR:
+                send_m2_encoder_error();
+                break;
             case (char)MOVE_STRAIGHT_DISTANCE:
                 move_straight_distance();
+                break;
             // case (char)ROTATE_DEGREES:
             //     rotate_degrees();
             default:

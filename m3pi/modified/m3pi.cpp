@@ -199,7 +199,7 @@ int m3pi::getc (void) {
 }
 
 int16_t m3pi::m1_encoder_count() {
-    _ser.putc(SEND_LEFT_ENCODER_COUNT);
+    _ser.putc(SEND_M1_ENCODER_COUNT);
     char lowbyte = _ser.getc();
     char hibyte  = _ser.getc();
     int16_t left_cnt = lowbyte + (hibyte << 8);
@@ -207,11 +207,21 @@ int16_t m3pi::m1_encoder_count() {
 }
 
 int16_t m3pi::m2_encoder_count() {
-    _ser.putc(SEND_RIGHT_ENCODER_COUNT);
+    _ser.putc(SEND_M2_ENCODER_COUNT);
     char lowbyte = _ser.getc();
     char hibyte  = _ser.getc();
     int16_t right_cnt = lowbyte + (hibyte << 8);
     return(right_cnt);
+}
+
+char m3pi::m1_encoder_error() {
+    _ser.putc(SEND_M1_ENCODER_ERROR);
+    return(_ser.getc());
+}
+
+char m3pi::m2_encoder_error() {
+    _ser.putc(SEND_M2_ENCODER_ERROR);
+    return(_ser.getc());
 }
 
 

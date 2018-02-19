@@ -45,8 +45,10 @@
 #define M2_FORWARD 0xC5
 #define M2_BACKWARD 0xC6
 
-#define SEND_LEFT_ENCODER_COUNT 0xD1
-#define SEND_RIGHT_ENCODER_COUNT 0xD2
+#define SEND_M1_ENCODER_COUNT 0xD1
+#define SEND_M2_ENCODER_COUNT 0xD2
+#define SEND_M1_ENCODER_ERROR 0xD3
+#define SEND_M2_ENCODER_ERROR 0xD4
 
 #define MIN_SPEED 0
 #define MAX_SPEED 127
@@ -219,6 +221,16 @@ public:
      * @returns count as a int16_t
      */
     int16_t m2_encoder_count();
+
+    /** Get M1 (left motor) encoder error
+     * @returns count as a char
+     */
+    char m1_encoder_error();
+
+    /** Get M2 (right motor) encoder count
+     * @returns count as a char
+     */
+    char m2_encoder_error();
 
 #ifdef MBED_RPC
     virtual const struct rpc_method *get_rpc_methods();
