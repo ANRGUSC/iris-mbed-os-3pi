@@ -50,6 +50,10 @@
 #define SEND_M1_ENCODER_ERROR 0xD3
 #define SEND_M2_ENCODER_ERROR 0xD4
 
+#define DRIVE_STRAIGHT 0xE1
+#define DRIVE_STRAIGHT_DISTANCE 0xE2
+#define ROTATE_DEGREES 0xE3
+
 #define MIN_SPEED 0
 #define MAX_SPEED 127
 #define MAX_REVERSE -127
@@ -231,6 +235,10 @@ public:
      * @returns count as a char
      */
     char m2_encoder_error();
+
+    void rotate_degrees(unsigned char degrees, char direction, char speed); 
+
+    void move_straight_distance(char speed, uint16_t distance);
 
 #ifdef MBED_RPC
     virtual const struct rpc_method *get_rpc_methods();

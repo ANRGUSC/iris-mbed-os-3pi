@@ -45,7 +45,6 @@ m3pi::m3pi() :  Stream("m3pi"), _nrst(p23), _ser(p13, p14)  {
     reset();
 }
 
-
 void m3pi::reset () {
     _nrst = 0;
     wait (0.01);
@@ -222,6 +221,20 @@ char m3pi::m1_encoder_error() {
 char m3pi::m2_encoder_error() {
     _ser.putc(SEND_M2_ENCODER_ERROR);
     return(_ser.getc());
+}
+
+void m3pi::rotate_degrees(unsigned char degrees, char direction, char speed) {
+    _ser.putc(ROTATE_DEGREES);
+    _ser.putc(degrees);
+    _ser.putc(direction); 
+    _ser.putc(speed);
+}
+
+void m3pi::move_straight_distance(char speed, uint16_t distance) {
+    _ser.putc(DRIVE_STRAIGHT_DISTANCE);
+    _ser.putc(speed);
+    _ser.putc((char)(distance & 0xFF));
+    _ser.putc((char)(distance >> 8));
 }
 
 

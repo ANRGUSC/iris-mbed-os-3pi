@@ -10,6 +10,8 @@
  */
 #include <stdint.h>
 #include "Pololu3pi.h"
+#define ABS(x) ((x)>0?(x):-(x))
+
 
 #define SEND_SIGNATURE 0x81
 #define SEND_RAW_SENSOR_VALUES 0x86
@@ -39,11 +41,13 @@
 #define SEND_M1_ENCODER_ERROR 0xD3
 #define SEND_M2_ENCODER_ERROR 0xD4
 
-#define MOVE_STRAIGHT_DISTANCE 0xE1
+#define DRIVE_STRAIGHT 0xE1
+#define DRIVE_STRAIGHT_DISTANCE 0xE2
+#define ROTATE_DEGREES 0xE3
 
 // PID constants
 unsigned int pid_enabled = 0;
-unsigned char max_speed = 255;
+unsigned char maxSpeed = 100;
 unsigned char p_num = 0;
 unsigned char p_den = 0;
 unsigned char d_num = 0;
@@ -87,15 +91,15 @@ void pid_check()
 
     // Compute the actual motor settings.  We never set either motor
     // to a negative value.
-    if(power_difference > max_speed)
-        power_difference = max_speed;
-    if(power_difference < -max_speed)
-        power_difference = -max_speed;
+    if(power_difference > maxSpeed)
+        power_difference = maxSpeed;
+    if(power_difference < -maxSpeed)
+        power_difference = -maxSpeed;
 
     if(power_difference < 0)
-        set_motors(max_speed+power_difference, max_speed);
+        set_motors(maxSpeed+power_difference, maxSpeed);
     else
-        set_motors(max_speed, max_speed-power_difference);
+        set_motors(maxSpeed, maxSpeed-power_difference);
 }
 
 // A global ring buffer for data coming in.  This is used by the
@@ -312,7 +316,7 @@ void set_pid()
     }
 
     // make the max speed 2x of the first one, so that it can reach 255
-    max_speed = (constants[0] == 127 ? 255 : constants[0]*2);
+    maxSpeed = (constants[0] == 127 ? 255 : constants[0]*2);
 
     // set the other parameters directly
     p_num = constants[1];
@@ -368,17 +372,20 @@ typedef struct
     double iGain, // integral gain
            pGain, // proportional gain
            dGain; // derivative gain
-} PID_t;
+} FloatPID;
 
-double UpdatePID(PID_t *pid, double error, double position)
+double FloatUpdatePID(FloatPID *pid, double error, double position)
 {
     double pTerm, dTerm, iTerm;
     pTerm = pid->pGain * error; // calculate the proportional term
 
     // calculate the integral state with appropriate limiting
     pid->iState += error;
-    if (pid->iState > pid->iMax) pid->iState = pid->iMax;
-    else if (pid->iState < pid->iMin) pid->iState = pid->iMin;
+
+    if (pid->iState > pid->iMax) 
+        pid->iState = pid->iMax;
+    else if (pid->iState < pid->iMin) 
+        pid->iState = pid->iMin;
 
     iTerm = pid->iGain * pid->iState; // calculate the integral term
 
@@ -388,57 +395,226 @@ double UpdatePID(PID_t *pid, double error, double position)
     return pTerm + dTerm + iTerm;
 }
 
-unsigned char kp_num = 0;
-unsigned char kp_den = 0;
-unsigned char kd_num = 0;
-unsigned char kd_den = 0;
-unsigned int last_prop = 0;
-unsigned int initial_speed = 0;
-
-void drive_straight_pid_loop() 
+typedef struct
 {
-    // Do nothing if the denominator of any constant is zero.
-    if(kp_den == 0 || kd_den == 0)
+    int dState;
+    int iState;
+    int iMax, iMin;
+    int pGainNum, pGainDen; //proportional gain numerator and denom (for integer controller)
+    int iGainNum, iGainDen; //integral gain
+    int dGainNum, dGainDen; //derivative gain
+} PID_t;
+
+void InitializePID(PID_t *pid)
+{
+    char constants[10];
+
+    for(unsigned int i = 0; i < sizeof(constants); i++)
     {
-        set_motors(0,0);
-        return;
-    }   
+        constants[i] = read_next_byte();
+        if(check_data_byte(constants[i]))
+            return;
+    }
 
-    // Read diff between wheel encoders
-    int proportional = encoders.getCountsAndResetM1() - encoders.getCountsAndResetM2();
-
-    int speed_diff = proportional * kp_num / kp_den;
-
-
-    // Compute the derivative (change) of the position.
-    // int derivative = proportional - last_proportional;
-
-    // Remember the last position.
-    // last_proportional = proportional;
-
-    // Compute the difference between the two motor power settings,
-    // m1 - m2.  If this is a positive number the robot will turn
-    // to the right.  If it is a negative number, the robot will
-    // turn to the left, and the magnitude of the number determines
-    // the sharpness of the turn.
-    // int power_difference = proportional*p_num/kp_den + derivative*d_num/kd_den;
-
-    // Compute the actual motor settings.  We never set either motor
-    // to a negative value.
-    if(speed_diff > max_speed)
-        speed_diff = max_speed;
-    if(speed_diff < -max_speed)
-        speed_diff = -max_speed;
-
-    if(speed_diff < 0)
-        set_motors(initial_speed + speed_diff, initial_speed);
-    else
-        set_motors(initial_speed, initial_speed - speed_diff);
+    pid->dState = constants[0];
+    pid->iState = constants[1];
+    pid->iMax = constants[2];
+    pid->iMin = constants[3];
+    pid->pGainNum = constants[4];
+    pid->pGainDen = constants[5];
+    pid->iGainNum = constants[6];
+    pid->iGainDen = constants[7];
+    pid->dGainNum = constants[8];
+    pid->dGainDen = constants[9];
 }
 
-void move_straight_distance()
+int UpdatePID(PID_t *pid, int error, int position) 
 {
-    //Not yet implemented
+    // Do nothing if the denominator of any constant is zero.
+    if(pid->pGainDen == 0 || pid->iGainDen == 0 || pid->dGainDen == 0)
+    {
+        return 0;
+    }   
+
+    int pTerm, dTerm, iTerm;
+
+    /* calculate the proportional term */   
+    pTerm = error * pid->pGainNum / pid->pGainDen; 
+
+    /* calculate the integral state with appropriate limiting */
+    pid->iState += error;
+
+    if (pid->iState > pid->iMax) 
+        pid->iState = pid->iMax;
+    else if (pid->iState < pid->iMin) 
+        pid->iState = pid->iMin;
+
+    iTerm = pid->iState * pid->iGainNum / pid->iGainDen; // calculate the integral term
+
+    dTerm = (pid->dState - position) * pid->dGainNum / pid->dGainDen ;
+    pid->dState = position;
+
+    return pTerm + dTerm + iTerm;
+}
+
+void DriveStraight(PID_t *pid)
+{
+    //get initial speed from mbed
+    int init_speed = 50; //read_next_byte();
+
+    int right_speed = init_speed;
+
+    int encoder_diff_error;
+
+    while(1) 
+    {
+        encoder_diff_error = encoders.getCountsAndResetM1() - encoders.getCountsAndResetM2();
+        int speed_diff = UpdatePID(pid, encoder_diff_error, 0); 
+
+        // Compute the actual motor settings.  We never set either motor
+        // to a negative value.
+        if(speed_diff > maxSpeed)
+            speed_diff = maxSpeed;
+        if(speed_diff < -maxSpeed)
+            speed_diff = -maxSpeed;
+
+        if(speed_diff > 0) {
+            right_speed = right_speed + speed_diff;
+            set_motors(init_speed, right_speed);
+        }
+        else {
+            right_speed = right_speed - speed_diff;
+            set_motors(init_speed, right_speed);
+        }
+    }
+}
+
+void DriveStraightDistance(PID_t *pid)
+{
+    //get speed from mbed
+    char init_speed = read_next_byte();
+    //get distance from mbed in ***number of ticks***
+    uint16_t distanceLowByte = read_next_byte();
+    uint16_t distanceHighByte = read_next_byte();
+
+    // char init_speed = 50;
+    // uint16_t distanceLowByte = 4476 & 0xFF;
+    // uint16_t distanceHighByte = 4476 >> 8;
+    int m1Count, m2Count;
+
+    int right_speed = init_speed;
+    int encoder_diff_error;
+
+    uint16_t distance = distanceLowByte + (distanceHighByte << 8);
+
+    int m1CountOld = 0;
+    int m2CountOld = 0;
+    while(1) 
+    {
+        m1Count = encoders.getCountsM1();
+        m2Count = encoders.getCountsM2();
+
+        if (m1Count > distance)
+            break;
+
+        /* for some reason the controller is unstable when you don't reset the values */
+        encoder_diff_error = (m1Count - m1CountOld) - (m2Count - m2CountOld); 
+
+        m1CountOld = m1Count;
+        m2CountOld = m2Count;
+        int speed_diff = UpdatePID(pid, encoder_diff_error, 0); 
+
+        // Compute the actual motor settings.  We never set either motor
+        // to a negative value.
+        if(speed_diff > maxSpeed)
+            speed_diff = maxSpeed;
+        if(speed_diff < -maxSpeed)
+            speed_diff = -maxSpeed;
+
+        if(speed_diff > 0) {
+            right_speed = right_speed + speed_diff;
+            set_motors(init_speed, right_speed + speed_diff);
+        }
+        else {
+            right_speed = right_speed - speed_diff;
+            set_motors(init_speed, right_speed);
+        }
+    }
+
+    set_motors(0,0);
+    encoders.getCountsAndResetM1();
+    encoders.getCountsAndResetM2();
+}
+
+void RotateDegrees(PID_t *rotate_pid)
+{
+    unsigned char degrees = read_next_byte();
+    char direction = read_next_byte();
+    char init_speed = read_next_byte();
+    char right_speed; 
+    int encoder_diff;
+
+    /* does not accept angles larger than 180 degrees */
+    if (degrees > 180)
+        return;
+
+    if (direction > 0) {
+        right_speed = init_speed;
+        set_motors(-init_speed, right_speed);
+    } else {
+        right_speed = -init_speed;
+        set_motors(init_speed, right_speed);
+    }
+
+    /**
+     * [2 * b * pi / (180 * dist_per_rotary_tick_in_mm)] = 0.223402 mm
+     * b = distance between wheels = 98 mm 
+     */
+    int target_diff = direction * (int)(15.3125 * (float)degrees);
+
+    while(1)
+    {
+        /* right count minus left count */
+        encoder_diff = encoders.getCountsM2() - encoders.getCountsM1();
+
+        if (direction > 0)  {
+            if(encoder_diff > target_diff) //target ticks
+                break;
+        } else {
+            if(encoder_diff < target_diff) //target ticks
+                break;
+        }
+
+        int speed_diff = UpdatePID(rotate_pid, -(encoders.getCountsM1()) - 
+                  (encoders.getCountsM2()), 0);
+
+        if(speed_diff > maxSpeed)
+            speed_diff = maxSpeed;
+        if(speed_diff < -maxSpeed)
+            speed_diff = -maxSpeed;
+
+        if (direction > 0) {
+            if (speed_diff > 0)
+                right_speed += speed_diff;
+            else
+                right_speed -= speed_diff;
+
+            set_motors(-init_speed, right_speed);
+        } else {
+            if (speed_diff > 0)
+                right_speed -= speed_diff;
+            else
+                right_speed += speed_diff;
+
+            set_motors(init_speed, right_speed);
+        }
+
+
+    }
+
+    set_motors(0, 0);
+    encoders.getCountsAndResetM1();
+    encoders.getCountsAndResetM2();
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -447,7 +623,7 @@ int main()
 {
     pololu_3pi_init(2000);  
 
-    // start receiving data at 115.2 kbaud
+    /* start receiving data at 115.2 kbaud */
     set_digital_input(IO_D0, PULL_UP_ENABLED);
     serial_set_baud_rate(115200);
     serial_receive_ring(buffer, 100);
@@ -462,17 +638,40 @@ int main()
     OrangutanDigital::setInput(IO_D7, PULL_UP_ENABLED);
     encoders.init(IO_B0, IO_D2, IO_D4, IO_D7);
 
-    kp_num = 1;
-    kp_den = 5;
-    kd_num = 0;
-    kd_den = 1;
-    last_prop = 0;
-    initial_speed = 50;
+    /* each encoder tick is 0.223402 mm in distance traveled. 32767 ticks is 
+    about 7.320 meters so make sure to reset the counts accordingly. dist
+    between the two wheels is approximately 98mm  */
 
-    while(1)
-    {
-        drive_straight_pid_loop();
-    }
+
+    PID_t drive_straight_pid;
+    PID_t rotate_pid;
+    PID_t drive_straight_dist_pid;
+
+    drive_straight_pid.pGainNum = 1;
+    drive_straight_pid.pGainDen = 5;
+    drive_straight_pid.iGainNum = 0;
+    drive_straight_pid.iGainDen = 1;
+    drive_straight_pid.dGainNum = 0;
+    drive_straight_pid.dGainDen = 1;
+    // DriveStraight(&drive_straight_pid);
+    
+
+    /* NOT WORKING YET */
+    rotate_pid.pGainNum = 0;
+    rotate_pid.pGainDen = 5;
+    rotate_pid.iGainNum = 0;
+    rotate_pid.iGainDen = 1;
+    rotate_pid.dGainNum = 0;
+    rotate_pid.dGainDen = 1;
+
+    /* NOT YET WORKING */
+    drive_straight_dist_pid.pGainNum = 0;
+    drive_straight_dist_pid.pGainDen = 5;
+    drive_straight_dist_pid.iGainNum = 0;
+    drive_straight_dist_pid.iGainDen = 1;
+    drive_straight_dist_pid.dGainNum = 0;
+    drive_straight_dist_pid.dGainDen = 1;
+
 
     while(1)
     {
@@ -546,11 +745,18 @@ int main()
             case (char)SEND_M2_ENCODER_ERROR:
                 send_m2_encoder_error();
                 break;
-            case (char)MOVE_STRAIGHT_DISTANCE:
-                move_straight_distance();
+            // case (char)INITIALIZE_DRIVE_PID:
+            //     InitializePID(&drive_straight_pid);
+            //     break;
+            case (char)DRIVE_STRAIGHT:
+                DriveStraight(&drive_straight_pid);
                 break;
-            // case (char)ROTATE_DEGREES:
-            //     rotate_degrees();
+            case (char)ROTATE_DEGREES:
+                RotateDegrees(&rotate_pid);
+                break;
+            case (char)DRIVE_STRAIGHT_DISTANCE:
+                DriveStraightDistance(&drive_straight_dist_pid);
+                break;
             default:
                 continue; // bad command
         }
