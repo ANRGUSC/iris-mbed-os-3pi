@@ -44,6 +44,8 @@
 #define DRIVE_STRAIGHT 0xE1
 #define DRIVE_STRAIGHT_DISTANCE 0xE2
 #define ROTATE_DEGREES 0xE3
+#define DRIVE_STRAIGHT_DISTANCE_BLOCKING 0xE4
+#define ROTATE_DEGREES_BLOCKING 0xE5
 
 // PID constants
 unsigned int pid_enabled = 0;
@@ -621,6 +623,8 @@ void RotateDegrees(PID_t *rotate_pid)
 
 int main()
 {
+    char message = 0;
+    char message2 = 0;
     pololu_3pi_init(2000);  
 
     /* start receiving data at 115.2 kbaud */
@@ -756,6 +760,26 @@ int main()
                 break;
             case (char)DRIVE_STRAIGHT_DISTANCE:
                 DriveStraightDistance(&drive_straight_dist_pid);
+                break;
+            case (char)DRIVE_STRAIGHT_DISTANCE_BLOCKING:
+                if(encoders.getCountsM2() == 0){
+                    message = 5;
+                }
+                else{
+                    message = 6;
+                }
+                DriveStraightDistance(&drive_straight_dist_pid);
+                serial_send_blocking(&message, 1);
+                break;
+            case (char)ROTATE_DEGREES_BLOCKING:
+                if(encoders.getCountsM2() == 0){
+                    message2 = 5;
+                }
+                else{
+                    message2 = 6;
+                }
+                RotateDegrees(&drive_straight_dist_pid);
+                serial_send_blocking(&message2, 1);
                 break;
             default:
                 continue; // bad command

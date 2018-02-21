@@ -54,6 +54,9 @@
 #define DRIVE_STRAIGHT_DISTANCE 0xE2
 #define ROTATE_DEGREES 0xE3
 
+#define DRIVE_STRAIGHT_DISTANCE_BLOCKING 0xE4
+#define ROTATE_DEGREES_BLOCKING 0xE5
+
 #define MIN_SPEED 0
 #define MAX_SPEED 127
 #define MAX_REVERSE -127
@@ -238,7 +241,11 @@ public:
 
     void rotate_degrees(unsigned char degrees, char direction, char speed); 
 
+    void rotate_degrees_blocking(unsigned char degrees, char direction, char speed); 
+
     void move_straight_distance(char speed, uint16_t distance);
+
+    void move_straight_distance_blocking(char speed, uint16_t distance);
 
 #ifdef MBED_RPC
     virtual const struct rpc_method *get_rpc_methods();

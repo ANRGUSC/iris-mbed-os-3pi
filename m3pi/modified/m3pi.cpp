@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define DEBUG   0
+#define DEBUG   1
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -230,11 +230,31 @@ void m3pi::rotate_degrees(unsigned char degrees, char direction, char speed) {
     _ser.putc(speed);
 }
 
+void m3pi::rotate_degrees_blocking(unsigned char degrees, char direction, char speed) {
+    PRINTF("Rotate degrees blocking:\n");
+    _ser.putc(ROTATE_DEGREES);
+    _ser.putc(degrees);
+    _ser.putc(direction); 
+    _ser.putc(speed);
+    PRINTF("%c\n",(char)(_ser.getc() + 0x30));
+}
+
+
 void m3pi::move_straight_distance(char speed, uint16_t distance) {
     _ser.putc(DRIVE_STRAIGHT_DISTANCE);
     _ser.putc(speed);
     _ser.putc((char)(distance & 0xFF));
     _ser.putc((char)(distance >> 8));
+}
+
+void m3pi::move_straight_distance_blocking(char speed, uint16_t distance) {
+    PRINTF("Moving straight blocking:\n");
+    _ser.putc(DRIVE_STRAIGHT_DISTANCE_BLOCKING);
+    _ser.putc(speed);
+    _ser.putc((char)(distance & 0xFF));
+    _ser.putc((char)(distance >> 8));
+    
+    PRINTF("%c\n",(char)(_ser.getc() + 0x30));
 }
 
 

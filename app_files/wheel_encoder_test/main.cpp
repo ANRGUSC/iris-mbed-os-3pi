@@ -17,16 +17,30 @@ int main() {
 
     pc.printf("Pololu Magnetic Encoder Test\n");
 
-    m3pi.rotate_degrees(90, 1, 50);
-    wait(3);
-    m3pi.rotate_degrees(90, -1, 50);
-    wait(3);
+    // m3pi.rotate_degrees(90, 1, 50);
+    // wait(3);
+    // m3pi.rotate_degrees(90, -1, 50);
+    // wait(3);
     
     /* 2 * 4476 is equal to 1 meter. The multiply by 2 is a fix that doesn't 
     make sense yet. To get 4476, you take 1000mm, which equals 1 meter, and divide
     it by 0.223402mm, which should be how much the robot travels after one
     encoder tick. */
-    m3pi.move_straight_distance(50, 2 * 4476);
+    pc.printf("A\n");
+    m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    // m3pi.rotate_degrees_blocking(90, 1, 50);
+    pc.printf("A2\n");
+    m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    // m3pi.rotate_degrees_blocking(90, 1, 50);
+    pc.printf("B\n");
+    wait(3);
+    pc.printf("C\n");
+    m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    // m3pi.rotate_degrees_blocking(90, 1, 50);
+    pc.printf("C2\n");
+    m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    // m3pi.rotate_degrees_blocking(90, 1, 50);
+    pc.printf("D\n");
 
     while(1) {
         int16_t m1_count = m3pi.m1_encoder_count();

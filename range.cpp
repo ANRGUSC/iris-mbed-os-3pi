@@ -367,6 +367,7 @@ range_data_t range_node(range_params_t params){
     return get_range_data(params);
 }
 
+
 /**
  * @brief      This is the range thread that triggers the range routine for localization.
  *             To trigger localization, a msg of type START_RANGE_THR must be sent to the
@@ -512,6 +513,18 @@ void trigger_range_routine(range_params_t *params, msg_t *msg){
         msg->source_mailbox = &range_thr_mailbox;
         range_thr_mailbox.put(msg);
     }
+}
+
+void trigger_range_routine_blocking(range_params_t *params, msg_t *msg){
+    if(!ranging){
+        msg = range_thr_mailbox.alloc();
+        msg->type = START_RANGE_THR;
+        msg->content.ptr = params;
+        msg->sender_pid = osThreadGetId();
+        msg->source_mailbox = &range_thr_mailbox;
+        range_thr_mailbox.put(msg);
+    }
+    while (is_ranging()){};
 }
 
 bool is_ranging(){
