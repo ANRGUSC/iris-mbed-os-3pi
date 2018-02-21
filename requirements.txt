@@ -1,0 +1,4 @@
+pyocd
+prettytable
+configparser
+jinja2
