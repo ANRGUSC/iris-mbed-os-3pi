@@ -2,3 +2,4 @@ pyocd
 prettytable
 configparser
 jinja2
+pyserial

@@ -34,11 +34,7 @@
 #define SEND_RAW_SENSOR_VALUES 0x86
 #define SEND_TRIMPOT 0xB0
 #define SEND_BATTERY_MILLIVOLTS 0xB1
-#define DO_PLAY 0xB3
 #define PI_CALIBRATE 0xB4
-#define DO_CLEAR 0xB7
-#define DO_PRINT 0xB8
-#define DO_LCD_GOTO_XY 0xB9
 #define LINE_SENSORS_RESET_CALIBRATION 0xB5
 #define SEND_LINE_POSITION 0xB6
 #define AUTO_CALIBRATE 0xBA
@@ -49,10 +45,21 @@
 #define M2_FORWARD 0xC5
 #define M2_BACKWARD 0xC6
 
+#define SEND_M1_ENCODER_COUNT 0xD1
+#define SEND_M2_ENCODER_COUNT 0xD2
+#define SEND_M1_ENCODER_ERROR 0xD3
+#define SEND_M2_ENCODER_ERROR 0xD4
+
+#define DRIVE_STRAIGHT 0xE1
+#define DRIVE_STRAIGHT_DISTANCE 0xE2
+#define ROTATE_DEGREES 0xE3
+
+#define DRIVE_STRAIGHT_DISTANCE_BLOCKING 0xE4
+#define ROTATE_DEGREES_BLOCKING 0xE5
+
 #define MIN_SPEED 0
 #define MAX_SPEED 127
 #define MAX_REVERSE -127
-
 
 
 /** m3pi control class
@@ -196,18 +203,6 @@ public:
      */
     void leds(int val);
 
-    /** Locate the cursor on the 8x2 LCD
-     *
-     * @param x The horizontal position, from 0 to 7
-     * @param y The vertical position, from 0 to 1
-     */
-    void locate(int x, int y);
-
-    /** Clear the LCD
-     *
-     */
-    void cls(void);
-
     /** Send a character directly to the 3pi serial interface
      * @param c The character to send to the 3pi
      */
@@ -223,6 +218,34 @@ public:
      * @param int The character to send to the 3pi
      */
     int print(char* text, int length);
+
+    /** Get M1 (left motor) encoder count
+     * @returns count as a int16_t
+     */
+    int16_t m1_encoder_count();
+
+    /** Get M2 (right motor) encoder count
+     * @returns count as a int16_t
+     */
+    int16_t m2_encoder_count();
+
+    /** Get M1 (left motor) encoder error
+     * @returns count as a char
+     */
+    char m1_encoder_error();
+
+    /** Get M2 (right motor) encoder count
+     * @returns count as a char
+     */
+    char m2_encoder_error();
+
+    void rotate_degrees(unsigned char degrees, char direction, char speed); 
+
+    void rotate_degrees_blocking(unsigned char degrees, char direction, char speed); 
+
+    void move_straight_distance(char speed, uint16_t distance);
+
+    void move_straight_distance_blocking(char speed, uint16_t distance);
 
 #ifdef MBED_RPC
     virtual const struct rpc_method *get_rpc_methods();

@@ -1,3 +1,4 @@
+#if 0
 //Sets up MINIMU-9 and allows for m3pi movement guided by MINIMU-9 sensors
 
 #ifndef MBED_MOVEMENT_H

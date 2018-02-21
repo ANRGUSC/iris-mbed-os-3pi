@@ -24,8 +24,9 @@
 #include "mbed.h"
 #include "m3pi.h"
 #include <stdio.h>
+#include <stdint.h>
 
-#define DEBUG   0
+#define DEBUG   1
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -43,7 +44,6 @@ m3pi::m3pi() :  Stream("m3pi"), _nrst(p23), _ser(p13, p14)  {
     _ser.baud(115200);
     reset();
 }
-
 
 void m3pi::reset () {
     _nrst = 0;
@@ -169,18 +169,7 @@ void m3pi::leds(int val) {
 }
 
 
-void m3pi::locate(int x, int y) {
-    _ser.putc(DO_LCD_GOTO_XY);
-    _ser.putc(x);
-    _ser.putc(y);
-}
-
-void m3pi::cls(void) {
-    _ser.putc(DO_CLEAR);
-}
-
 int m3pi::print (char* text, int length) {
-    _ser.putc(DO_PRINT);  
     _ser.putc(length);       
     for (int i = 0 ; i < length ; i++) {
         _ser.putc(text[i]); 
@@ -189,7 +178,6 @@ int m3pi::print (char* text, int length) {
 }
 
 int m3pi::_putc (int c) {
-    _ser.putc(DO_PRINT);  
     _ser.putc(0x1);       
     _ser.putc(c);         
     wait (0.001);
@@ -209,8 +197,65 @@ int m3pi::getc (void) {
     return(_ser.getc());
 }
 
+int16_t m3pi::m1_encoder_count() {
+    _ser.putc(SEND_M1_ENCODER_COUNT);
+    char lowbyte = _ser.getc();
+    char hibyte  = _ser.getc();
+    int16_t left_cnt = lowbyte + (hibyte << 8);
+    return(left_cnt);
+}
+
+int16_t m3pi::m2_encoder_count() {
+    _ser.putc(SEND_M2_ENCODER_COUNT);
+    char lowbyte = _ser.getc();
+    char hibyte  = _ser.getc();
+    int16_t right_cnt = lowbyte + (hibyte << 8);
+    return(right_cnt);
+}
+
+char m3pi::m1_encoder_error() {
+    _ser.putc(SEND_M1_ENCODER_ERROR);
+    return(_ser.getc());
+}
+
+char m3pi::m2_encoder_error() {
+    _ser.putc(SEND_M2_ENCODER_ERROR);
+    return(_ser.getc());
+}
+
+void m3pi::rotate_degrees(unsigned char degrees, char direction, char speed) {
+    _ser.putc(ROTATE_DEGREES);
+    _ser.putc(degrees);
+    _ser.putc(direction); 
+    _ser.putc(speed);
+}
+
+void m3pi::rotate_degrees_blocking(unsigned char degrees, char direction, char speed) {
+    PRINTF("Rotate degrees blocking:\n");
+    _ser.putc(ROTATE_DEGREES);
+    _ser.putc(degrees);
+    _ser.putc(direction); 
+    _ser.putc(speed);
+    PRINTF("%c\n",(char)(_ser.getc() + 0x30));
+}
 
 
+void m3pi::move_straight_distance(char speed, uint16_t distance) {
+    _ser.putc(DRIVE_STRAIGHT_DISTANCE);
+    _ser.putc(speed);
+    _ser.putc((char)(distance & 0xFF));
+    _ser.putc((char)(distance >> 8));
+}
+
+void m3pi::move_straight_distance_blocking(char speed, uint16_t distance) {
+    PRINTF("Moving straight blocking:\n");
+    _ser.putc(DRIVE_STRAIGHT_DISTANCE_BLOCKING);
+    _ser.putc(speed);
+    _ser.putc((char)(distance & 0xFF));
+    _ser.putc((char)(distance >> 8));
+    
+    PRINTF("%c\n",(char)(_ser.getc() + 0x30));
+}
 
 
 #ifdef MBED_RPC
