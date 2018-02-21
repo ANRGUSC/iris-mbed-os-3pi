@@ -38,6 +38,7 @@
 #define NODE_DISC_FLAG 1
 
 #define LOAD_DISC_NODE_LENG 3
+#define ID_LENGTH           9
 
 /**
  * @brief Structure holding metrics measured by ultrasound ranging
@@ -185,6 +186,15 @@ void init_range_thread();
  * @param      msg     msg pointer used for triggering
  */
 void trigger_range_routine(range_params_t *params, msg_t *msg);
+
+
+/**
+ * @brief      triggers the range routine defined in the range_thread 
+ *
+ * @param      params  The ranging parameters
+ * @param      msg     msg pointer used for triggering
+ */
+void trigger_range_routine_blocking(range_params_t *params, msg_t *msg);
 
 /**
  * @brief      Determines if the thread is currently ranging.

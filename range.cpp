@@ -38,7 +38,7 @@ int load_discovered_nodes(char *buff, size_t buff_size){
 
 int load_data(char *buff, size_t buff_size, node_t node, int flag){
     if(flag == NODE_DATA_FLAG){
-        if(buff[9] == NODE_DISC_FLAG + 0x30){ 
+        if(buff[ID_LENGTH] == NODE_DISC_FLAG + 0x30){ 
             PRINTF("Buffer is already being used for node discovery, you must clear the buffer first\n");
             return -1;
         }
@@ -65,7 +65,7 @@ int load_data(char *buff, size_t buff_size, node_t node, int flag){
     }
     else if(flag == NODE_DISC_FLAG){
         int i;
-        if(buff[9] == NODE_DATA_FLAG + 0x30){
+        if(buff[ID_LENGTH] == NODE_DATA_FLAG + 0x30){
             PRINTF("Buffer is already being used for node data, you must clear the buffer first\n");
             return -1;
         }
@@ -367,6 +367,7 @@ range_data_t range_node(range_params_t params){
     return get_range_data(params);
 }
 
+
 /**
  * @brief      This is the range thread that triggers the range routine for localization.
  *             To trigger localization, a msg of type START_RANGE_THR must be sent to the
@@ -412,14 +413,18 @@ void _range_thread(){
 
                 if(range_params.node_id == -1){
                     discover_nodes(range_params.ranging_mode);
+                    clear_data(data_pub, 32);
+
                     printf("****************Discovery mode***************\n");
                     printf("Nodes reached:\n");
                     for(i=0; i<num_nodes_discovered; i++){
                         printf("Node %d: %d\n", nodes_discovered[i].node_id, nodes_discovered[i].tdoa);
+                        mqtt_data_len = load_node_data(data_pub, 32, nodes_discovered[i]); 
                     }
                     printf("*********************************************\n");
-                    clear_data(data_pub, 32);
-                    mqtt_data_len = load_discovered_nodes(data_pub, 32);
+                    
+                    //mqtt_data_len = load_discovered_nodes(data_pub, 32); //loads only node_id
+                    
                     printf("size: %d", mqtt_data_len);
                     if(mqtt_data_len != -1){
                         build_mqtt_pkt_npub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, mqtt_data_len, &pkt); 
@@ -508,6 +513,18 @@ void trigger_range_routine(range_params_t *params, msg_t *msg){
         msg->source_mailbox = &range_thr_mailbox;
         range_thr_mailbox.put(msg);
     }
+}
+
+void trigger_range_routine_blocking(range_params_t *params, msg_t *msg){
+    if(!ranging){
+        msg = range_thr_mailbox.alloc();
+        msg->type = START_RANGE_THR;
+        msg->content.ptr = params;
+        msg->sender_pid = osThreadGetId();
+        msg->source_mailbox = &range_thr_mailbox;
+        range_thr_mailbox.put(msg);
+    }
+    while (is_ranging()){};
 }
 
 bool is_ranging(){
