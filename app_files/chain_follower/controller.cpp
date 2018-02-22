@@ -25,7 +25,7 @@ Thread c_thread(osPriorityNormal, (uint32_t) DEFAULT_STACK_SIZE/2);
     // (uint32_t) DEFAULT_STACK_SIZE/2, (unsigned char *)CONT_THREAD_STACK); 
 
 char speed = ROBOT_MAX_SPEED;
-static float dist_state = 5;
+static float dist_past = 5;
 static float dist_thr = 10;
 
 /**
@@ -59,9 +59,10 @@ void _c_thread()
             float b_kalman =  0.6180;
             // float c_LQG =  0.6180;
 
-            float dist_k = a_kalman * dist_state + b_kalman * dist_e;  
+            float dist_k = a_kalman * dist_past + b_kalman * dist_e;  
+            
             dist_to_travel = (uint16_t) fabs(dist_thr - dist_k);
-            dist_state = dist_thr;
+            dist_past = dist_thr;
 
             angle_to_rotate = (uint16_t) angle_e;
 

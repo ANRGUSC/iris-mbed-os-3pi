@@ -287,15 +287,37 @@ int main(void)
     PRINTF("Started controller thread\n");
 
     myled = 1;
+
+    float dist_e = 10, angle_e =10;
     while(1)
     {
         myled =! myled;
-        Thread::wait(1000);
-        int a  = start_movement(NORMAL_MOV, 10,10);
-        Thread::wait(1000);
-        a  = start_movement(SCANNING_MOV, 10,10);
 
-        PRINTF("Success %d\n", a);
+        // Wait for instruction from the leader node.
+        
+        // Awake the range thread to do ranging.
+
+
+        // If Ranging done, send message to the leader to stop transmitting
+
+        Thread::wait(100);
+
+        // Communicate with the follow to start their range thread
+
+
+        // Start Beaconing
+
+        // Wait for ack from follow node
+
+
+        Thread::wait(100);
+        // Execute the movement based on the ranging data. 
+        int a  = start_movement(NORMAL_MOV, dist_e, angle_e);
+
+        // Thread::wait(1000);
+        // a  = start_movement(SCANNING_MOV, 10,10);
+
+        // PRINTF("Success %d\n", a);
     }
 
     PRINTF("Reached Exit");
