@@ -61,6 +61,7 @@
 #include "mqtt.h"
 #include "range.h"
 #include "controller.h"
+#include "m3pi.h"
 
 #define TEST_TOPIC   ("test/trial")
 
@@ -288,10 +289,11 @@ int main(void)
     {
         myled =! myled;
         Thread::wait(1000);
-        PRINTF("sending data\n");
+        int a  = start_movement(NORMAL_MOV, 10,10);
+        Thread::wait(1000);
+        a  = start_movement(SCANNING_MOV, 10,10);
 
-        int a  = start_movement(10,10);
-        PRINTF("Success %d\n", a);
+        // PRINTF("Success %d\n", a);
     }
 
     PRINTF("Reached Exit");

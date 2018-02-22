@@ -3,6 +3,8 @@
 #include <mbed.h>
 #include <rtos.h> 
 #include "controller.h"
+#include "m3pi.h"
+#include "main-conf.h"
 
 #define DEBUG   1
 
@@ -15,11 +17,13 @@
 
 MemoryPool<cmessage_t, 16> c_pool;
 Queue<cmessage_t, 16> c_queue;
-
+m3pi m3pi(p23, p9, p10);
+ 
 static unsigned char CONT_THREAD_STACK[DEFAULT_STACK_SIZE];
 Thread c_thread(osPriorityNormal, 
     (uint32_t) DEFAULT_STACK_SIZE, (unsigned char *)CONT_THREAD_STACK); 
 
+char speed = ROBOT_MAX_SPEED;
 /**
  * @brief      controller thread
  */
@@ -35,11 +39,30 @@ void _c_thread()
         }
  
         cmessage_t *est = (cmessage_t*)evt.value.p;
-        float dist_e = est->distance;
-        float angle_e = est->angle;
+        int type = est->type;
+        uint16_t dist_e = est->distance;
+        uint16_t angle_e = est->angle;
 
         c_pool.free(est);
-        PRINTF("Distance = %f, Angle = %f\n", dist_e, angle_e);
+        PRINTF("Type = %d, Distance = %d, Angle = %d\n", type, dist_e, angle_e);
+        
+        uint16_t dist_to_travel, angle_to_rotate;
+
+        if (type == NORMAL_MOV){
+            PRINTF("Received a Normal Movement Request\n");
+
+            // TODO? Controller decides how much to travel and how much to rotate
+
+        }
+        else if (type == SCANNING_MOV){
+            PRINTF("Received a Scanning Movement Request\n");
+            dist_to_travel = dist_e;
+            angle_to_rotate = angle_e;
+        }
+
+        // TODO? Use slave m3pi functions for actual movements
+        // m3pi.rotate_degrees_blocking(angle_to_rotate, 1, speed);
+        // m3pi.move_straight_distance_blocking(speed, dist_to_travel);
 
     }
 }
@@ -60,10 +83,12 @@ void controller_init(osPriority priority)
  *
  * @return     { status }
  */
-int start_movement (float dist_e, float angle_e){
+int start_movement (int type, uint16_t dist_e, uint16_t angle_e)
+{
     cmessage_t *message = c_pool.alloc();
     if (message != NULL)
     {
+        message->type = type;
         message->distance = dist_e; 
         message->angle = angle_e;          
         c_queue.put(message);

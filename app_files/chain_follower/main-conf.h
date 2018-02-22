@@ -34,4 +34,5 @@ the new uint16_t port number */
 
 #define ID_LENGTH       			9
 
+#define ROBOT_MAX_SPEED  50
 #endif
