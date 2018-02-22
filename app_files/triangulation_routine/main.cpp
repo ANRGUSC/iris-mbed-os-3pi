@@ -93,14 +93,16 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 m3pi m3pi(p23, p9, p10);
 
+
+static char            data_pub[32];
+
+static hdlc_pkt_t    triangulation_pkt = {data_pub, 32};
+static mqtt_pkt_t      mqtt_send2;
+
+
 int triangulate_and_pub(){
-    char            data_pub[32];
-    hdlc_pkt_t      pkt;
+    
 
-    pkt.data = data_pub;
-    pkt.length = 32;
-
-    mqtt_pkt_t      mqtt_send;
     msg_t           *msg = NULL;
 
     node_t* nodes_discovered;
@@ -114,17 +116,24 @@ int triangulate_and_pub(){
     nodes_discovered = get_nodes_discovered();
 
     for(i=0; i<get_num_nodes_discovered(); i++){
-        printf("Node %d: %d\n", nodes_discovered[i].node_id, nodes_discovered[i].tdoa);
-        mqtt_data_len = load_node_data(data_pub, 32, nodes_discovered[i]); 
+        //printf("Node %d: %d\n", nodes_discovered[i].node_id, nodes_discovered[i].tdoa);
+        mqtt_data_len = load_node_data(data_pub, 32, nodes_discovered[i]);
+
     }
+    int j = 0;
+    for(j = 0; j < 10; j++){
+        PRINTF("%02X", data_pub[j]);
+    }
+    PRINTF("\n");
+    
 
     if(mqtt_data_len != -1){
-        build_mqtt_pkt_npub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, mqtt_data_len, &pkt); 
+        build_mqtt_pkt_npub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send2, mqtt_data_len, &triangulation_pkt); 
         
         //for some reason it will only publish if you include a print statement here
         PRINTF("range_thread: range_routine done. publishing data now\n");
 
-        if (send_hdlc_mail(msg, HDLC_MSG_SND, NULL, (void*) &pkt)){
+        if (send_hdlc_mail(msg, HDLC_MSG_SND, NULL, (void*) &triangulation_pkt)){
             PRINTF("mqtt_thread: sending pkt\n");
             success = 1; 
 
@@ -330,7 +339,7 @@ int main(void)
     mqtt_thr.start(_mqtt_thread);
 
     PRINTF("Starting range thread\n");
-    init_range(0);
+    init_range(1);
 
     hdlc_entry_t    main_thread = { NULL, MAIN_THREAD_PORT, &main_thr_mailbox };
     hdlc_register(&main_thread);
@@ -363,28 +372,26 @@ int main(void)
 
 
     PRINTF("A\n");
-    // m3pi.move_straight_distance_blocking(50, 2 * 2238);
-    // m3pi.rotate_degrees_blocking(90, 1, 50);
+    m3pi.move_straight_distance_blocking(50, 2 * 2238);
     PRINTF("A2\n");
-    if(triangulate_and_pub()){
-        PRINTF("TRIANGULATE SUCCESS");
-    }
-    else{
-        PRINTF("TRIANGULATE FAILED");
-    }
+    m3pi.rotate_degrees_blocking(90, 1, 50);
+    PRINTF("A3\n");
+    range_params_t a = {-1, OMNI_SENSOR_MODE};
+    trigger_range_routine_blocking(&a, msg);
     PRINTF("B\n");
-    wait(1);
+    // wait(1);
     
     m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    PRINTF("B2\n");
     m3pi.rotate_degrees_blocking(180, 1, 50);
-    triangulate_and_pub();
+    trigger_range_routine_blocking(&a, msg);
     PRINTF("C\n");
-    wait(1);
+    // wait(1);
     
     m3pi.move_straight_distance_blocking(50, 2 * 4476);
-    triangulate_and_pub();
+    trigger_range_routine_blocking(&a, msg);
     PRINTF("D\n");
-    wait(1);
+    // wait(1);
 
     myled = 1;
     

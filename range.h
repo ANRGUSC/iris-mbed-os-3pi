@@ -192,6 +192,16 @@ void init_range(int flag);
 int trigger_range_routine(range_params_t *params, msg_t *msg);
 
 /**
+ * @brief      triggers the range routine defined in the range_thread 
+ *
+ * @param      params  The ranging parameters
+ * @param      msg     msg pointer used for triggering
+ * 
+ * @return     1 if success, 0 if fail
+ */
+int trigger_range_routine_blocking(range_params_t *params, msg_t *msg);
+
+/**
  * @brief      Determines if the thread is currently ranging.
  *
  * @return     True if ranging, False otherwise.

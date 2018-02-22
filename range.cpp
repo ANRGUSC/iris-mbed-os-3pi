@@ -17,9 +17,12 @@ static char EMCUTE_ID[9];
 static uint8_t last_node_locked = 0;
 static char hdlc_initialized = 0;
 static char thread_initialized = 0;
+static Thread thread;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 Thread range_thr;
+
+hdlc_entry_t range_thread = { NULL, MBED_RANGE_PORT, &range_thr_mailbox };
 
 void range_load_id(hdlc_buf_t *buff){
     memcpy(EMCUTE_ID, &(buff->data) + UART_PKT_HDR_LEN, ID_LENGTH);
@@ -394,6 +397,9 @@ void _range_thread(){
     range_data_t range_data;
     range_params_t range_params;
 
+    // hdlc_entry_t range_thread = { NULL, MBED_RANGE_PORT, &range_thr_mailbox };
+    // hdlc_register(&range_thread);
+
     thread_initialized = 1;
 
     while(1)
@@ -482,7 +488,8 @@ void _range_thread(){
                     }
                 }
                 ranging = 0;
-
+                // thread.signal_set(0x1);
+                PRINTF("SETTING SIGNAL\n");
                 //*************************************************
             }
             else{
@@ -504,8 +511,8 @@ void _range_thread(){
 
 void init_range(int flag){
     if(hdlc_initialized == 0){
-        hdlc_entry_t range_thread = { NULL, MBED_RANGE_PORT, &range_thr_mailbox };
         hdlc_register(&range_thread);
+        PRINTF("Registering range_thread");
         if (flag == 1){
             range_thr.start(_range_thread);
         }
@@ -526,6 +533,26 @@ int trigger_range_routine(range_params_t *params, msg_t *msg){
         return 0;
     }
 
+    return 1;
+}
+
+int trigger_range_routine_blocking(range_params_t *params, msg_t *msg){
+    if(!ranging && thread_initialized){
+        msg = range_thr_mailbox.alloc();
+        msg->type = START_RANGE_THR;
+        msg->content.ptr = params;
+        msg->sender_pid = osThreadGetId();
+        msg->source_mailbox = &range_thr_mailbox;
+        range_thr_mailbox.put(msg);
+        ranging = 1;
+    }
+    else{
+        return 0;
+    }
+    PRINTF("******RANGE BLOCKING********\n");
+    // Thread::signal_wait(0x1);
+    while(ranging){Thread::wait(100);};
+    PRINTF("***********DONE*************\n");
     return 1;
 }
 
