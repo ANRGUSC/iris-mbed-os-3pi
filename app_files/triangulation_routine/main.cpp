@@ -194,6 +194,7 @@ void _mqtt_thread()
                     mqtt_go = 1;
                     range_load_id(buf);
                     PRINTF("mqtt_thread: the node is conected to the broker \n");
+                    main_thr_mailbox.put(msg);
                     mqtt_thread_mailbox.free(msg);
                     hdlc_pkt_release(buf);  
                     break;
@@ -317,13 +318,75 @@ void _mqtt_thread()
 int main(void)
 {
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
+
+    msg_t           *msg = NULL;
+    osEvent         evt;
+    hdlc_buf_t      *buf = NULL;
+    uart_pkt_hdr_t  recv_hdr;
+    
    
     PRINTF("Starting mqtt thread\n");
     Thread mqtt_thr;
     mqtt_thr.start(_mqtt_thread);
 
     PRINTF("Starting range thread\n");
-    init_range(1);
+    init_range(0);
+
+    hdlc_entry_t    main_thread = { NULL, MAIN_THREAD_PORT, &main_thr_mailbox };
+    hdlc_register(&main_thread);
+
+     while(1)
+    {
+        PRINTF("Waiting for input...\n");
+        evt = main_thr_mailbox.get();
+        PRINTF("GOT SOMETHING...\n");
+        if (evt.status == osEventMail) 
+        {
+            msg = (msg_t*)evt.value.p;
+            if (msg->type == HDLC_PKT_RDY)
+            {
+                buf = (hdlc_buf_t *) msg->content.ptr;   
+                uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                if (recv_hdr.pkt_type == MQTT_GO){
+                    mqtt_go = 1;
+                    range_load_id(buf);
+                    PRINTF("main_thread: the node is conected to the broker \n");
+                    main_thr_mailbox.free(msg);
+                    hdlc_pkt_release(buf);  
+                    break;
+                }
+            }
+            main_thr_mailbox.free(msg);
+            hdlc_pkt_release(buf);  
+        }
+    }
+
+
+    PRINTF("A\n");
+    // m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    // m3pi.rotate_degrees_blocking(90, 1, 50);
+    PRINTF("A2\n");
+    if(triangulate_and_pub()){
+        PRINTF("TRIANGULATE SUCCESS");
+    }
+    else{
+        PRINTF("TRIANGULATE FAILED");
+    }
+    PRINTF("B\n");
+    wait(1);
+    
+    m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    m3pi.rotate_degrees_blocking(180, 1, 50);
+    triangulate_and_pub();
+    PRINTF("C\n");
+    wait(1);
+    
+    m3pi.move_straight_distance_blocking(50, 2 * 4476);
+    triangulate_and_pub();
+    PRINTF("D\n");
+    wait(1);
+
+    myled = 1;
     
     myled = 1;
     while(1)
@@ -336,55 +399,7 @@ int main(void)
     /* should be never reached */
 
 
-    // hdlc_entry_t    main_thread = { NULL, MAIN_THREAD_PORT, &main_thread_mailbox };
-    // hdlc_register(&main_thread);
-
-     // while(1)
-    // {
-    //     PRINTF("Waiting for input...\n");
-    //     evt = main_thread_mailbox.get();
-    //     PRINTF("GOT SOMETHING...\n");
-    //     if (evt.status == osEventMail) 
-    //     {
-    //         msg = (msg_t*)evt.value.p;
-    //         if (msg->type == HDLC_PKT_RDY)
-    //         {
-    //             buf = (hdlc_buf_t *) msg->content.ptr;   
-    //             uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-    //             if (recv_hdr.pkt_type == MQTT_GO){
-    //                 mqtt_go = 1;
-    //                 range_load_id(buf);
-    //                 PRINTF("main_thread: the node is conected to the broker \n");
-    //                 main_thread_mailbox.free(msg);
-    //                 hdlc_pkt_release(buf);  
-    //                 break;
-    //             }
-    //         }
-    //         main_thread_mailbox.free(msg);
-    //         hdlc_pkt_release(buf);  
-    //     }
-    // }
-
-
-    // PRINTF("A\n");
-    // m3pi.move_straight_distance_blocking(50, 2 * 2238);
-    // m3pi.rotate_degrees_blocking(90, 1, 50);
-    // triangulate_and_pub();
-    // PRINTF("B\n");
-    // wait(1);
     
-    // m3pi.move_straight_distance_blocking(50, 2 * 2238);
-    // m3pi.rotate_degrees_blocking(180, 1, 50);
-    // triangulate_and_pub();
-    // PRINTF("C\n");
-    // wait(1);
-    
-    // m3pi.move_straight_distance_blocking(50, 2 * 4476);
-    // triangulate_and_pub();
-    // PRINTF("D\n");
-    // wait(1);
-
-    // myled = 1;
 
     return 0;
 }

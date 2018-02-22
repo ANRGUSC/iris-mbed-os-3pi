@@ -278,7 +278,7 @@ int main(void)
     mqtt_thr.start(_mqtt_thread);
 
     PRINTF("Starting range thread\n");
-    init_range(0);
+    init_range(1);
     
     myled = 1;
     while(1)
