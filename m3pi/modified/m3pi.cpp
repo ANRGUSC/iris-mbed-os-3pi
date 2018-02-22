@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define DEBUG   1
+#define DEBUG   0
 
 #if (DEBUG) 
 #define PRINTF(...) pc.printf(__VA_ARGS__)
@@ -94,14 +94,14 @@ void m3pi::motor (int motor, signed char speed) {
     char opcode = 0x0;
     if (speed > 0) {
         if (motor==1)
-            opcode = M1_FORWARD;
-        else
             opcode = M2_FORWARD;
+        else
+            opcode = M1_FORWARD;
     } else {
         if (motor==1)
-            opcode = M1_BACKWARD;
-        else
             opcode = M2_BACKWARD;
+        else
+            opcode = M1_BACKWARD;
     }
     unsigned char arg = abs(speed);
     PRINTF("%d\n", speed);

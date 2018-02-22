@@ -50,10 +50,11 @@
 #define ROTATE_DEGREES 0xE3
 #define DRIVE_STRAIGHT_DISTANCE_BLOCKING 0xE4
 #define ROTATE_DEGREES_BLOCKING 0xE5
+#define SET_PID_PARAMS 0xE6
 
 // PID constants
 unsigned int pid_enabled = 0;
-unsigned char maxSpeed = 100;
+unsigned char max_speed = 70;
 unsigned char p_num = 0;
 unsigned char p_den = 0;
 unsigned char d_num = 0;
@@ -62,6 +63,30 @@ unsigned int last_proportional = 0;
 unsigned int sensors[5];
 
 PololuWheelEncoders encoders;
+
+typedef struct
+{
+    int dState;
+    int iState;
+    int iMax, iMin;
+    int pGainNum, pGainDen; //proportional gain numerator and denom (for integer controller)
+    int iGainNum, iGainDen; //integral gain
+    int dGainNum, dGainDen; //derivative gain
+} PID_t;
+
+#define NUM_PID_CONTROLLERS
+PID_t drive_straight_pid;
+PID_t rotate_pid;
+PID_t drive_straight_left_pid;
+PID_t drive_straight_right_pid;
+
+PID_t *pid_list[NUM_PID_CONTROLLERS] = {
+    &drive_straight_pid,
+    &rotate_pid,
+    &drive_straight_left_pid,
+    &drive_straight_right_pid
+};
+
 
 // This routine will be called repeatedly to keep the PID algorithm running
 void pid_check()
@@ -97,15 +122,15 @@ void pid_check()
 
     // Compute the actual motor settings.  We never set either motor
     // to a negative value.
-    if(power_difference > maxSpeed)
-        power_difference = maxSpeed;
-    if(power_difference < -maxSpeed)
-        power_difference = -maxSpeed;
+    if(power_difference > max_speed)
+        power_difference = max_speed;
+    if(power_difference < -max_speed)
+        power_difference = -max_speed;
 
     if(power_difference < 0)
-        set_motors(maxSpeed+power_difference, maxSpeed);
+        set_motors(max_speed+power_difference, max_speed);
     else
-        set_motors(maxSpeed, maxSpeed-power_difference);
+        set_motors(max_speed, max_speed-power_difference);
 }
 
 // A global ring buffer for data coming in.  This is used by the
@@ -322,7 +347,7 @@ void set_pid()
     }
 
     // make the max speed 2x of the first one, so that it can reach 255
-    maxSpeed = (constants[0] == 127 ? 255 : constants[0]*2);
+    max_speed = (constants[0] == 127 ? 255 : constants[0]*2);
 
     // set the other parameters directly
     p_num = constants[1];
@@ -401,18 +426,14 @@ double FloatUpdatePID(FloatPID *pid, double error, double position)
     return pTerm + dTerm + iTerm;
 }
 
-typedef struct
-{
-    int dState;
-    int iState;
-    int iMax, iMin;
-    int pGainNum, pGainDen; //proportional gain numerator and denom (for integer controller)
-    int iGainNum, iGainDen; //integral gain
-    int dGainNum, dGainDen; //derivative gain
-} PID_t;
 
-void InitializePID(PID_t *pid)
+
+void SetPIDParms()
 {
+    int pid_number = read_next_byte();
+
+    PID_t *pid = pid_list[pid_number];
+
     char constants[10];
 
     for(unsigned int i = 0; i < sizeof(constants); i++)
@@ -445,7 +466,7 @@ int UpdatePID(PID_t *pid, int error, int position)
     int pTerm, dTerm, iTerm;
 
     /* calculate the proportional term */   
-    pTerm = error * pid->pGainNum / pid->pGainDen; 
+    pTerm = (error * pid->pGainNum) / pid->pGainDen; 
 
     /* calculate the integral state with appropriate limiting */
     pid->iState += error;
@@ -466,10 +487,8 @@ int UpdatePID(PID_t *pid, int error, int position)
 void DriveStraight(PID_t *pid)
 {
     //get initial speed from mbed
-    int init_speed = 50; //read_next_byte();
-
+    int init_speed = read_next_byte();
     int right_speed = init_speed;
-
     int encoder_diff_error;
 
     while(1) 
@@ -479,10 +498,10 @@ void DriveStraight(PID_t *pid)
 
         // Compute the actual motor settings.  We never set either motor
         // to a negative value.
-        if(speed_diff > maxSpeed)
-            speed_diff = maxSpeed;
-        if(speed_diff < -maxSpeed)
-            speed_diff = -maxSpeed;
+        if(speed_diff > max_speed)
+            speed_diff = max_speed;
+        if(speed_diff < -max_speed)
+            speed_diff = -max_speed;
 
         if(speed_diff > 0) {
             right_speed = right_speed + speed_diff;
@@ -495,63 +514,65 @@ void DriveStraight(PID_t *pid)
     }
 }
 
-void DriveStraightDistance(PID_t *pid)
+void DriveStraightDistance(PID_t *left_pid, PID_t *right_pid)
 {
     //get speed from mbed
-    char init_speed = read_next_byte();
+    char speed = read_next_byte();
     //get distance from mbed in ***number of ticks***
-    uint16_t distanceLowByte = read_next_byte();
-    uint16_t distanceHighByte = read_next_byte();
+    uint16_t distance_low_byte = read_next_byte();
+    uint16_t distance_high_byte = read_next_byte();
 
-    // char init_speed = 50;
-    // uint16_t distanceLowByte = 4476 & 0xFF;
-    // uint16_t distanceHighByte = 4476 >> 8;
-    int m1Count, m2Count;
+    int left_speed_diff = 0;
+    int right_speed_diff = 0;
 
-    int right_speed = init_speed;
-    int encoder_diff_error;
+    int m1_count, m2_count;
+    int left_speed, right_speed;
+    left_speed = right_speed = speed;
 
-    uint16_t distance = distanceLowByte + (distanceHighByte << 8);
+    set_motors(speed, speed);
 
-    // int m1CountOld = 0; //ENABLE THIS FOR PID CONTROLLERS
-    // int m2CountOld = 0;
+    uint16_t dist_in_encoder_ticks = distance_low_byte + (distance_high_byte << 8);
+
     while(1) 
     {
-        m1Count = encoders.getCountsM1();
-        m2Count = encoders.getCountsM2();
+        m1_count = encoders.getCountsM1();
+        m2_count = encoders.getCountsM2();
 
-        if (m1Count > distance)
+        if (m1_count > (int) dist_in_encoder_ticks || m2_count > (int) dist_in_encoder_ticks)
             break;
 
-        /* for some reason the controller is unstable when you don't reset the values */
-        // encoder_diff_error = (m1Count - m1CountOld) - (m2Count - m2CountOld);
-        encoder_diff_error = m1Count - m2Count; 
+        int left_speed_diff = UpdatePID(left_pid, m2_count - m1_count, 0);
+        int right_speed_diff = UpdatePID(right_pid, m1_count - m2_count, 0);
 
-        // m1CountOld = m1Count;
-        // m2CountOld = m2Count;
-        int speed_diff = UpdatePID(pid, encoder_diff_error, 0); 
+        left_speed += left_speed_diff;
+        right_speed += right_speed_diff;
 
-        // Compute the actual motor settings.  We never set either motor
-        // to a negative value.
-        if(speed_diff > maxSpeed)
-            speed_diff = maxSpeed;
-        if(speed_diff < -maxSpeed)
-            speed_diff = -maxSpeed;
+        if(left_speed > speed + 10)
+            left_speed = speed + 10;
+        if(left_speed < speed - 10)
+            left_speed = speed - 10;
 
-        if(speed_diff > 0) {
-            right_speed = right_speed + speed_diff;
-            set_motors(init_speed, right_speed + speed_diff);
-        }
-        else {
-            right_speed = right_speed - speed_diff;
-            set_motors(init_speed, right_speed);
-        }
+        if(right_speed > speed + 10)
+            right_speed = speed + 10;
+        if(right_speed < speed - 10)
+            right_speed = speed - 10;
 
+        if(right_speed < 0)
+            right_speed = 0;
+        if(left_sleed < 0)
+            left_speed = 0;
+
+        // uncomment left speed if you want two independent PID controllers
+        // set_m1_speed(left_speed);
+        set_m2_speed(right_speed);
+
+        // slow loop down to make the controller less reactive
+        _delay_ms(100);
     }
 
     set_motors(0,0);
     /* give motors time to stop. also, without delays, sometimes UART comm breaks?*/
-    _delay_ms(100);
+    _delay_ms(200);
     encoders.getCountsAndResetM1();
     encoders.getCountsAndResetM2();
 }
@@ -560,20 +581,25 @@ void RotateDegrees(PID_t *rotate_pid)
 {
     unsigned char degrees = read_next_byte();
     char direction = read_next_byte();
-    char init_speed = read_next_byte();
+    char speed = read_next_byte();
     char right_speed; 
     int encoder_diff;
+    int speed_diff;
+    int m1_count, m2_count;
 
     /* does not accept angles larger than 180 degrees */
-    if (degrees > 180)
-        return;
+    // if (degrees > 180)
+        // return;
+
+    encoders.getCountsAndResetM1();
+    encoders.getCountsAndResetM2();
 
     if (direction > 0) {
-        right_speed = init_speed;
-        set_motors(-init_speed, right_speed);
+        right_speed = speed;
+        set_motors(-speed, right_speed);
     } else {
-        right_speed = -init_speed;
-        set_motors(init_speed, right_speed);
+        right_speed = -speed;
+        set_motors(speed, right_speed);
     }
 
     /**
@@ -584,46 +610,34 @@ void RotateDegrees(PID_t *rotate_pid)
 
     while(1)
     {
+        m1_count = encoders.getCountsM1();
+        m2_count = encoders.getCountsM2();
         /* right count minus left count */
-        encoder_diff = encoders.getCountsM2() - encoders.getCountsM1();
+        encoder_diff = m2_count - m1_count;
 
         if (direction > 0)  {
+            speed_diff = UpdatePID(rotate_pid, -m2_count - m1_count, 0);
             if(encoder_diff > target_diff) //target ticks
                 break;
         } else {
+            speed_diff = UpdatePID(rotate_pid, m2_count - (-m1_count), 0);
             if(encoder_diff < target_diff) //target ticks
                 break;
         }
 
-        int speed_diff = UpdatePID(rotate_pid, -(encoders.getCountsM1()) - 
-                  (encoders.getCountsM2()), 0);
+        right_speed += speed_diff;
 
-        if(speed_diff > maxSpeed)
-            speed_diff = maxSpeed;
-        if(speed_diff < -maxSpeed)
-            speed_diff = -maxSpeed;
+        if(right_speed > speed + 10)
+            right_speed = speed + 10;
+        if(right_speed < 0)
+            right_speed = 0;
 
-        if (direction > 0) {
-            if (speed_diff > 0)
-                right_speed += speed_diff;
-            else
-                right_speed -= speed_diff;
-
-            set_motors(-init_speed, right_speed);
-        } else {
-            if (speed_diff > 0)
-                right_speed -= speed_diff;
-            else
-                right_speed += speed_diff;
-
-            set_motors(init_speed, right_speed);
-        }
-
+        set_m2_speed(right_speed);
     }
 
     set_motors(0, 0);
     /* give motors time to stop. also, without delays, sometimes UART comm breaks?*/
-    _delay_ms(100);
+    _delay_ms(200);
     encoders.getCountsAndResetM1();
     encoders.getCountsAndResetM2();
 }
@@ -650,40 +664,41 @@ int main()
     OrangutanDigital::setInput(IO_D7, PULL_UP_ENABLED);
     encoders.init(IO_B0, IO_D2, IO_D4, IO_D7);
 
-    /* each encoder tick is 0.223402 mm in distance traveled. 32767 ticks is 
-    about 7.320 meters so make sure to reset the counts accordingly. dist
-    between the two wheels is approximately 98mm  */
+    /* each encoder tick is 0.11701 mm in distance traveled. 32767 ticks is 
+    about 3.834 meters so make sure to reset the counts accordingly. dist
+    between the two wheels is approximately 98mm */
 
-
-    PID_t drive_straight_pid;
-    PID_t rotate_pid;
-    PID_t drive_straight_dist_pid;
-
-    drive_straight_pid.pGainNum = 1;
+    /* default values */
+    drive_straight_pid.pGainNum = 0;
     drive_straight_pid.pGainDen = 5;
     drive_straight_pid.iGainNum = 0;
     drive_straight_pid.iGainDen = 1;
     drive_straight_pid.dGainNum = 0;
     drive_straight_pid.dGainDen = 1;
-    // DriveStraight(&drive_straight_pid);
-    
 
-    /* NOT WORKING YET */
-    rotate_pid.pGainNum = 0;
-    rotate_pid.pGainDen = 5;
+    /* default values */
+    rotate_pid.pGainNum = 1;
+    rotate_pid.pGainDen = 15;
     rotate_pid.iGainNum = 0;
     rotate_pid.iGainDen = 1;
     rotate_pid.dGainNum = 0;
     rotate_pid.dGainDen = 1;
 
-    /* NOT YET WORKING */
-    drive_straight_dist_pid.pGainNum = 0;
-    drive_straight_dist_pid.pGainDen = 5;
-    drive_straight_dist_pid.iGainNum = 0;
-    drive_straight_dist_pid.iGainDen = 1;
-    drive_straight_dist_pid.dGainNum = 0;
-    drive_straight_dist_pid.dGainDen = 1;
+    /* default values */
+    drive_straight_left_pid.pGainNum = 1;
+    drive_straight_left_pid.pGainDen = 25;
+    drive_straight_left_pid.iGainNum = 0;
+    drive_straight_left_pid.iGainDen = 1;
+    drive_straight_left_pid.dGainNum = 0;
+    drive_straight_left_pid.dGainDen = 100;
 
+    /* default values */
+    drive_straight_right_pid.pGainNum = 1;
+    drive_straight_right_pid.pGainDen = 25;
+    drive_straight_right_pid.iGainNum = 1;
+    drive_straight_right_pid.iGainDen = 10;
+    drive_straight_right_pid.dGainNum = 0;
+    drive_straight_right_pid.dGainDen = 100;
 
     while(1)
     {
@@ -693,7 +708,6 @@ int main()
         // The list of commands is below: add your own simply by
         // choosing a command byte and introducing another case
         // statement.
-
         switch(command)
         {
             case (char)0x00:
@@ -733,18 +747,18 @@ int main()
             case (char)STOP_PID:
                 stop_pid();
                 break;
-            case (char)M1_FORWARD:
-                m1_forward();
-                break;
-            case (char)M1_BACKWARD:
-                m1_backward();
-                break;
-            case (char)M2_FORWARD:
-                m2_forward();
-                break;
-            case (char)M2_BACKWARD:
-                m2_backward();
-                break;
+            // case (char)M1_FORWARD:
+            //     m1_forward();
+            //     break;
+            // case (char)M1_BACKWARD:
+            //     m1_backward();
+            //     break;
+            // case (char)M2_FORWARD:
+            //     m2_forward();
+            //     break;
+            // case (char)M2_BACKWARD:
+            //     m2_backward();
+            //     break;
             case (char)SEND_M1_ENCODER_COUNT:
                 send_m1_encoder_count();
                 break;
@@ -757,9 +771,9 @@ int main()
             case (char)SEND_M2_ENCODER_ERROR:
                 send_m2_encoder_error();
                 break;
-            // case (char)INITIALIZE_DRIVE_PID:
-            //     InitializePID(&drive_straight_pid);
-            //     break;
+            case (char)SET_PID_PARAMS:
+                SetPIDParms();
+                break;
             case (char)DRIVE_STRAIGHT:
                 DriveStraight(&drive_straight_pid);
                 break;
@@ -767,16 +781,16 @@ int main()
                 RotateDegrees(&rotate_pid);
                 break;
             case (char)DRIVE_STRAIGHT_DISTANCE:
-                DriveStraightDistance(&drive_straight_dist_pid);
+                DriveStraightDistance(&drive_straight_left_pid, &drive_straight_right_pid);
                 break;
             case (char)DRIVE_STRAIGHT_DISTANCE_BLOCKING:
                 message = (char)(encoders.getCountsM2() & 0xFF);
-                DriveStraightDistance(&drive_straight_dist_pid);
+                DriveStraightDistance(&drive_straight_left_pid, &drive_straight_right_pid);
                 serial_send_blocking(&message, 1);
                 break;
             case (char)ROTATE_DEGREES_BLOCKING:
                 message = (char)(encoders.getCountsM2() & 0xFF);
-                RotateDegrees(&drive_straight_dist_pid);
+                RotateDegrees(&rotate_pid);
                 serial_send_blocking(&message, 1);
                 break;
             default:
