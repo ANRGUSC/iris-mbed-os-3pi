@@ -8,7 +8,11 @@
  * http://forum.pololu.com
  * 
  */
+#ifndef F_CPU
+#define F_CPU 20000000UL
+#endif
 #include <stdint.h>
+#include <util/delay.h>
 #include "Pololu3pi.h"
 #define ABS(x) ((x)>0?(x):-(x))
 
@@ -509,8 +513,8 @@ void DriveStraightDistance(PID_t *pid)
 
     uint16_t distance = distanceLowByte + (distanceHighByte << 8);
 
-    int m1CountOld = 0;
-    int m2CountOld = 0;
+    // int m1CountOld = 0; //ENABLE THIS FOR PID CONTROLLERS
+    // int m2CountOld = 0;
     while(1) 
     {
         m1Count = encoders.getCountsM1();
@@ -520,10 +524,11 @@ void DriveStraightDistance(PID_t *pid)
             break;
 
         /* for some reason the controller is unstable when you don't reset the values */
-        encoder_diff_error = (m1Count - m1CountOld) - (m2Count - m2CountOld); 
+        // encoder_diff_error = (m1Count - m1CountOld) - (m2Count - m2CountOld);
+        encoder_diff_error = m1Count - m2Count; 
 
-        m1CountOld = m1Count;
-        m2CountOld = m2Count;
+        // m1CountOld = m1Count;
+        // m2CountOld = m2Count;
         int speed_diff = UpdatePID(pid, encoder_diff_error, 0); 
 
         // Compute the actual motor settings.  We never set either motor
@@ -541,9 +546,12 @@ void DriveStraightDistance(PID_t *pid)
             right_speed = right_speed - speed_diff;
             set_motors(init_speed, right_speed);
         }
+
     }
 
     set_motors(0,0);
+    /* give motors time to stop. also, without delays, sometimes UART comm breaks?*/
+    _delay_ms(100);
     encoders.getCountsAndResetM1();
     encoders.getCountsAndResetM2();
 }
@@ -569,7 +577,7 @@ void RotateDegrees(PID_t *rotate_pid)
     }
 
     /**
-     * [2 * b * pi / (180 * dist_per_rotary_tick_in_mm)] = 0.223402 mm
+     * [2 * b * pi / (180 * dist_per_encoder_tick_in_mm)] = 0.223402 mm
      * b = distance between wheels = 98 mm 
      */
     int target_diff = direction * (int)(15.3125 * (float)degrees);
@@ -611,10 +619,11 @@ void RotateDegrees(PID_t *rotate_pid)
             set_motors(init_speed, right_speed);
         }
 
-
     }
 
     set_motors(0, 0);
+    /* give motors time to stop. also, without delays, sometimes UART comm breaks?*/
+    _delay_ms(100);
     encoders.getCountsAndResetM1();
     encoders.getCountsAndResetM2();
 }
@@ -624,7 +633,6 @@ void RotateDegrees(PID_t *rotate_pid)
 int main()
 {
     char message = 0;
-    char message2 = 0;
     pololu_3pi_init(2000);  
 
     /* start receiving data at 115.2 kbaud */
@@ -632,7 +640,7 @@ int main()
     serial_set_baud_rate(115200);
     serial_receive_ring(buffer, 100);
 
-    /**PD2 PB0 PD4 PD7: note PD7 is connected to the green LED underneath. PD2
+    /* PD2 PB0 PD4 PD7: note PD7 is connected to the green LED underneath. PD2
      * and PB0 will be for the left motor (m1) and PD4/PD7 will be for the right
      * motor (m2)
      */
@@ -762,24 +770,14 @@ int main()
                 DriveStraightDistance(&drive_straight_dist_pid);
                 break;
             case (char)DRIVE_STRAIGHT_DISTANCE_BLOCKING:
-                if(encoders.getCountsM2() == 0){
-                    message = 5;
-                }
-                else{
-                    message = 6;
-                }
+                message = (char)(encoders.getCountsM2() & 0xFF);
                 DriveStraightDistance(&drive_straight_dist_pid);
                 serial_send_blocking(&message, 1);
                 break;
             case (char)ROTATE_DEGREES_BLOCKING:
-                if(encoders.getCountsM2() == 0){
-                    message2 = 5;
-                }
-                else{
-                    message2 = 6;
-                }
+                message = (char)(encoders.getCountsM2() & 0xFF);
                 RotateDegrees(&drive_straight_dist_pid);
-                serial_send_blocking(&message2, 1);
+                serial_send_blocking(&message, 1);
                 break;
             default:
                 continue; // bad command
