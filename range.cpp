@@ -15,6 +15,8 @@ static uint8_t num_nodes_discovered;
 static uint8_t num_nodes_to_pub;
 static char EMCUTE_ID[9];
 static uint8_t last_node_locked = 0;
+static char hdlc_initialized = 0;
+static char thread_initialized = 0;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 Thread range_thr;
@@ -256,12 +258,13 @@ range_data_t get_range_data(range_params_t params){
                     break;
 
                 case HDLC_PKT_RDY:
+
                     /* Setting up buf, making it easier to access data from the msg. */ 
                     buf = (hdlc_buf_t *)msg->content.ptr;   
                     uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
 
                     if(recv_hdr.pkt_type == SOUND_RANGE_DONE) 
-                    {
+                    { 
                         PRINTF("range_thread: received range pkt\n");
                         range_hdr = (range_hdr_t *)uart_pkt_get_data(buf->data, buf->length);
                         time_diffs = (range_data_t *)range_hdr->data;
@@ -377,23 +380,21 @@ void _range_thread(){
 
     char            data_pub[32];
     hdlc_pkt_t      pkt;
-
-    int mqtt_data_len;
-
-    int i = 0;
-    
     pkt.data = data_pub;
     pkt.length = 32;
-
     mqtt_pkt_t      mqtt_send;
+
+
+    int mqtt_data_len;
+    int i = 0;
+    
     osEvent evt;
     msg_t *msg;
 
     range_data_t range_data;
     range_params_t range_params;
 
-    hdlc_entry_t range_thread = { NULL, MBED_RANGE_PORT, &range_thr_mailbox };
-    hdlc_register(&range_thread);
+    thread_initialized = 1;
 
     while(1)
     {
@@ -406,6 +407,7 @@ void _range_thread(){
             msg = (msg_t*)evt.value.p;
             if(msg->type == START_RANGE_THR){ 
                 ranging = 1;
+
                 //***This is where the range routine will go*****
                 
                 PRINTF("range_thread: got range init message, starting routine\n");
@@ -500,12 +502,19 @@ void _range_thread(){
     
 }
 
-void init_range_thread(){
-    range_thr.start(_range_thread);
+void init_range(int flag){
+    if(hdlc_initialized == 0){
+        hdlc_entry_t range_thread = { NULL, MBED_RANGE_PORT, &range_thr_mailbox };
+        hdlc_register(&range_thread);
+        if (flag == 1){
+            range_thr.start(_range_thread);
+        }
+        hdlc_initialized = 1;
+    }    
 }
 
-void trigger_range_routine(range_params_t *params, msg_t *msg){
-    if(!ranging){
+int trigger_range_routine(range_params_t *params, msg_t *msg){
+    if(!ranging && thread_initialized){
         msg = range_thr_mailbox.alloc();
         msg->type = START_RANGE_THR;
         msg->content.ptr = params;
@@ -513,18 +522,11 @@ void trigger_range_routine(range_params_t *params, msg_t *msg){
         msg->source_mailbox = &range_thr_mailbox;
         range_thr_mailbox.put(msg);
     }
-}
-
-void trigger_range_routine_blocking(range_params_t *params, msg_t *msg){
-    if(!ranging){
-        msg = range_thr_mailbox.alloc();
-        msg->type = START_RANGE_THR;
-        msg->content.ptr = params;
-        msg->sender_pid = osThreadGetId();
-        msg->source_mailbox = &range_thr_mailbox;
-        range_thr_mailbox.put(msg);
+    else{
+        return 0;
     }
-    while (is_ranging()){};
+
+    return 1;
 }
 
 bool is_ranging(){

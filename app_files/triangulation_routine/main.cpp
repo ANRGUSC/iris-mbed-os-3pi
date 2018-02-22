@@ -48,6 +48,7 @@
  */
 
 #include "mbed.h"
+#include "m3pi.h"
 #include "rtos.h"
 #include "hdlc.h"
 #include <stdlib.h>
@@ -88,6 +89,62 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 #define NULL_PKT_TYPE   0xFF 
 #define PKT_FROM_MAIN_THR   0
+#define MAIN_THREAD_PORT    100
+
+m3pi m3pi(p23, p9, p10);
+
+int triangulate_and_pub(){
+    char            data_pub[32];
+    hdlc_pkt_t      pkt;
+
+    pkt.data = data_pub;
+    pkt.length = 32;
+
+    mqtt_pkt_t      mqtt_send;
+    msg_t           *msg = NULL;
+
+    node_t* nodes_discovered;
+    int mqtt_data_len;
+    int i = 0;
+
+    char success = 0;
+
+    discover_nodes(OMNI_SENSOR_MODE);
+    clear_data(data_pub, 32);
+    nodes_discovered = get_nodes_discovered();
+
+    for(i=0; i<get_num_nodes_discovered(); i++){
+        printf("Node %d: %d\n", nodes_discovered[i].node_id, nodes_discovered[i].tdoa);
+        mqtt_data_len = load_node_data(data_pub, 32, nodes_discovered[i]); 
+    }
+
+    if(mqtt_data_len != -1){
+        build_mqtt_pkt_npub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, mqtt_data_len, &pkt); 
+        
+        //for some reason it will only publish if you include a print statement here
+        PRINTF("range_thread: range_routine done. publishing data now\n");
+
+        if (send_hdlc_mail(msg, HDLC_MSG_SND, NULL, (void*) &pkt)){
+            PRINTF("mqtt_thread: sending pkt\n");
+            success = 1; 
+
+        }
+        else{
+            PRINTF("mqtt_thread: failed to send pkt\n"); 
+        }
+    }
+    else{
+        PRINTF ("Failed to load discovered nodes\n");
+    }
+
+    if(success){
+        return 1;
+    }
+    else{
+        return 0;
+    }
+
+}
 
 void _mqtt_thread()
 {
@@ -193,18 +250,6 @@ void _mqtt_thread()
                                 switch (mqtt_recv_data.data_type){
                                     case NORM_DATA:
                                         PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
-                                        pub_msg = mqtt_recv_data.data;
-                                        if(strcmp(pub_msg + 2, START_RANGE_MSG) == 0){
-                                            PRINTF("MQTT: pub_msg matches START_RANGE_MSG\n");
-                                            if(!is_ranging()){
-                                                PRINTF("MQTT: telling thread to start ranging with node_id: %d\n",pub_msg[0] - '0');
-                                                params.node_id = pub_msg[0] - '0';
-                                                params.ranging_mode = pub_msg[1];
-                                                trigger_range_routine(&params, msg2);
-                                            }
-                                        } else{
-                                            PRINTF("MQTT: %s does not match %s\n", pub_msg, START_RANGE_MSG);
-                                        }
 
                                         break;
 
@@ -278,7 +323,7 @@ int main(void)
     mqtt_thr.start(_mqtt_thread);
 
     PRINTF("Starting range thread\n");
-    init_range(0);
+    init_range(1);
     
     myled = 1;
     while(1)
@@ -289,5 +334,57 @@ int main(void)
 
     PRINTF("Reached Exit");
     /* should be never reached */
+
+
+    // hdlc_entry_t    main_thread = { NULL, MAIN_THREAD_PORT, &main_thread_mailbox };
+    // hdlc_register(&main_thread);
+
+     // while(1)
+    // {
+    //     PRINTF("Waiting for input...\n");
+    //     evt = main_thread_mailbox.get();
+    //     PRINTF("GOT SOMETHING...\n");
+    //     if (evt.status == osEventMail) 
+    //     {
+    //         msg = (msg_t*)evt.value.p;
+    //         if (msg->type == HDLC_PKT_RDY)
+    //         {
+    //             buf = (hdlc_buf_t *) msg->content.ptr;   
+    //             uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+    //             if (recv_hdr.pkt_type == MQTT_GO){
+    //                 mqtt_go = 1;
+    //                 range_load_id(buf);
+    //                 PRINTF("main_thread: the node is conected to the broker \n");
+    //                 main_thread_mailbox.free(msg);
+    //                 hdlc_pkt_release(buf);  
+    //                 break;
+    //             }
+    //         }
+    //         main_thread_mailbox.free(msg);
+    //         hdlc_pkt_release(buf);  
+    //     }
+    // }
+
+
+    // PRINTF("A\n");
+    // m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    // m3pi.rotate_degrees_blocking(90, 1, 50);
+    // triangulate_and_pub();
+    // PRINTF("B\n");
+    // wait(1);
+    
+    // m3pi.move_straight_distance_blocking(50, 2 * 2238);
+    // m3pi.rotate_degrees_blocking(180, 1, 50);
+    // triangulate_and_pub();
+    // PRINTF("C\n");
+    // wait(1);
+    
+    // m3pi.move_straight_distance_blocking(50, 2 * 4476);
+    // triangulate_and_pub();
+    // PRINTF("D\n");
+    // wait(1);
+
+    // myled = 1;
+
     return 0;
 }
