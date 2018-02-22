@@ -83,7 +83,7 @@
 #endif
 
 #ifndef HDLC_MAILBOX_SIZE
-    #define HDLC_MAILBOX_SIZE           100 
+    #define HDLC_MAILBOX_SIZE           32 
 #endif
 
 /**
