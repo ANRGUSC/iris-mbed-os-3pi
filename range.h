@@ -176,25 +176,30 @@ range_data_t range_node(range_params_t params);
 
 /**
  * @brief      initializes the range_thread
+ * 
+ * @param[in]  flag: 0 = no thread, 1 = thread
  */
-void init_range_thread();
+void init_range(int flag);
 
 /**
  * @brief      triggers the range routine defined in the range_thread 
  *
  * @param      params  The ranging parameters
  * @param      msg     msg pointer used for triggering
+ * 
+ * @return     1 if success, 0 if fail
  */
-void trigger_range_routine(range_params_t *params, msg_t *msg);
-
+int trigger_range_routine(range_params_t *params, msg_t *msg);
 
 /**
  * @brief      triggers the range routine defined in the range_thread 
  *
  * @param      params  The ranging parameters
  * @param      msg     msg pointer used for triggering
+ * 
+ * @return     1 if success, 0 if fail
  */
-void trigger_range_routine_blocking(range_params_t *params, msg_t *msg);
+int trigger_range_routine_blocking(range_params_t *params, msg_t *msg);
 
 /**
  * @brief      Determines if the thread is currently ranging.
