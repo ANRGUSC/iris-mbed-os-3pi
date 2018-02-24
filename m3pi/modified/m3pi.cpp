@@ -236,7 +236,9 @@ void m3pi::rotate_degrees_blocking(unsigned char degrees, char direction, char s
     _ser.putc(degrees);
     _ser.putc(direction); 
     _ser.putc(speed);
-    PRINTF("encoder: %d\n", (int)_ser.getc());
+    //comment line below if PRINTF is on
+    // PRINTF("encoder: %d\n", (int)_ser.getc());
+    _ser.getc();
 }
 
 
@@ -253,7 +255,9 @@ void m3pi::move_straight_distance_blocking(char speed, uint16_t distance) {
     _ser.putc(speed);
     _ser.putc((char)(distance & 0xFF));
     _ser.putc((char)(distance >> 8));
-    PRINTF("encoder: %d\n",_ser.getc());
+    // comment line below if PRINTF is on
+    // PRINTF("encoder: %d\n",(int) _ser.getc());
+    _ser.getc();
 }
 
 

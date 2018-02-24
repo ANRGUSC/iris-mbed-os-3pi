@@ -10,17 +10,10 @@ Serial pc(USBTX, USBRX, 115200);
 DigitalOut led1(LED3);
 
 int main() {
-    pc.printf("hello\n");
     led1 = !led1;
-    m3pi.backward(20);
     wait(2.0);
 
-    while(1)
-    {
-
-    }
-
-    pc.printf("Pololu Magnetic Encoder Test\n");
+    pc.printf("m3pi dead reckoning test: move in a 0.5m x 0.5m square\n");
 
     /**Note: a speed of 30 and under will most likely be the most accurate. A
      * speed of 50 may be accurate enough.
@@ -38,26 +31,28 @@ int main() {
          * it by 0.223402mm, which should be how much the robot travels after one
          * encoder tick. 
          */
-        m3pi.move_straight_distance_blocking(35, 4476);
+        // m3pi.move_straight_distance_blocking(50, 4476);
         wait(0.5);
+        pc.printf("A\n");
         /**First input is the angle in degrees. second input is direction (1 for 
          * positive and -1 for negative using the right hand rule). Third input is 
          * speed. Note, this speed is the actual speed on the 3pi side. The normal
          * functions multiply this by 2.
-         */
-        m3pi.rotate_degrees_blocking(90, 1, 35);
+         **/
+       // 
+        m3pi.rotate_degrees_blocking(90, -1, 30);
         wait(0.5);
-        m3pi.move_straight_distance_blocking(35, 4476);
-        wait(0.5);
-        m3pi.rotate_degrees_blocking(90, 1, 35);
-        wait(0.5);
-        m3pi.move_straight_distance_blocking(35, 4476);
-        wait(0.5);
-        m3pi.rotate_degrees_blocking(90, 1, 35);
-        wait(0.5);
-        m3pi.move_straight_distance_blocking(35, 4476);
-        wait(0.5);
-        m3pi.rotate_degrees_blocking(90, 1, 35);
+        // m3pi.move_straight_distance_blocking(50, 2000);
+        // wait(0.5);
+        // m3pi.rotate_degrees_blocking(90, 1, 50);
+        // wait(0.5);
+        // m3pi.move_straight_distance_blocking(50, 2000);
+        // wait(0.5);
+        // m3pi.rotate_degrees_blocking(90, 1, 50);
+        // wait(0.5);
+        // m3pi.move_straight_distance_blocking(50, 2000);
+        // wait(0.5);
+        // m3pi.rotate_degrees_blocking(90, 1, 50);
     } 
 
     return 0;

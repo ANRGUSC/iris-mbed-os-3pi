@@ -11,7 +11,7 @@ DigitalOut led1(LED3);
 int main() {
     pc.printf("Pololu Magnetic Encoder Test\n");
 
-    m3pi.forward(25);
+    m3pi.backward(25);
 
     while(1) {
         int16_t m1_count = m3pi.m1_encoder_count();

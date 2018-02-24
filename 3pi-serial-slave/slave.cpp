@@ -14,8 +14,6 @@
 #include <stdint.h>
 #include <util/delay.h>
 #include "Pololu3pi.h"
-#define ABS(x) ((x)>0?(x):-(x))
-
 
 #define SEND_SIGNATURE 0x81
 #define SEND_RAW_SENSOR_VALUES 0x86
@@ -52,6 +50,10 @@
 #define ROTATE_DEGREES_BLOCKING 0xE5
 #define SET_PID_PARAMS 0xE6
 
+/* Set to 1 if moving forward means having the 3pi's buttons and the expansion 
+board's USB connector as the front. Set to 0 for normal operation */
+#define REVERSED_M3PI   1
+
 // PID constants
 unsigned int pid_enabled = 0;
 unsigned char max_speed = 70;
@@ -62,7 +64,7 @@ unsigned char d_den = 0;
 unsigned int last_proportional = 0;
 unsigned int sensors[5];
 
-PololuWheelEncoders encoders;
+static PololuWheelEncoders encoders;
 
 typedef struct
 {
@@ -486,6 +488,7 @@ int UpdatePID(PID_t *pid, int error, int position)
 
 void DriveStraight(PID_t *pid)
 {
+    /* WARNING: FUNCTION NOT UPDATED */
     //get initial speed from mbed
     int init_speed = read_next_byte();
     int right_speed = init_speed;
@@ -529,42 +532,57 @@ void DriveStraightDistance(PID_t *left_pid, PID_t *right_pid)
     int left_speed, right_speed;
     left_speed = right_speed = speed;
 
+#if REVERSED_M3PI
+    set_motors(-speed, -speed);
+#else
     set_motors(speed, speed);
+#endif
 
     uint16_t dist_in_encoder_ticks = distance_low_byte + (distance_high_byte << 8);
 
     while(1) 
     {
-        m1_count = encoders.getCountsM1();
-        m2_count = encoders.getCountsM2();
+#if REVERSED_M3PI
+        m1_count = encoders.getCountsM2();
+        m2_count = encoders.getCountsM1();
+#else
+        m1_count = encoders.getCountsM1(); //left
+        m2_count = encoders.getCountsM2(); //right
+#endif
 
         if (m1_count > (int) dist_in_encoder_ticks || m2_count > (int) dist_in_encoder_ticks)
             break;
 
-        int left_speed_diff = UpdatePID(left_pid, m2_count - m1_count, 0);
-        int right_speed_diff = UpdatePID(right_pid, m1_count - m2_count, 0);
+        left_speed_diff = UpdatePID(left_pid, m2_count - m1_count, 0);
+        right_speed_diff = UpdatePID(right_pid, m1_count - m2_count, 0);
 
         left_speed += left_speed_diff;
         right_speed += right_speed_diff;
 
-        if(left_speed > speed + 10)
-            left_speed = speed + 10;
-        if(left_speed < speed - 10)
-            left_speed = speed - 10;
+        if(left_speed > speed + 2)
+            left_speed = speed + 2;
+        if(left_speed < speed - 2)
+            left_speed = speed - 2;
 
-        if(right_speed > speed + 10)
-            right_speed = speed + 10;
-        if(right_speed < speed - 10)
-            right_speed = speed - 10;
+        if(right_speed > speed + 2)
+            right_speed = speed + 2;
+        if(right_speed < speed - 2)
+            right_speed = speed - 2;
 
         if(right_speed < 0)
             right_speed = 0;
         if(left_speed < 0)
             left_speed = 0;
 
+#if REVERSED_M3PI
+        // uncomment right speed if you want two independent PID controllers
+        set_m1_speed(-left_speed);
+        // set_m2_speed(-right_speed);
+#else
         // uncomment left speed if you want two independent PID controllers
         // set_m1_speed(left_speed);
         set_m2_speed(right_speed);
+#endif
 
         // slow loop down to make the controller less reactive
         _delay_ms(100);
@@ -579,7 +597,7 @@ void DriveStraightDistance(PID_t *left_pid, PID_t *right_pid)
 
 void RotateDegrees(PID_t *rotate_pid)
 {
-    unsigned char degrees = read_next_byte();
+    char degrees = read_next_byte();
     char direction = read_next_byte();
     char speed = read_next_byte();
     char right_speed; 
@@ -588,20 +606,24 @@ void RotateDegrees(PID_t *rotate_pid)
     int m1_count, m2_count;
 
     /* does not accept angles larger than 180 degrees */
-    // if (degrees > 180)
-        // return;
+    if (degrees > 180)
+        return;
 
-    encoders.getCountsAndResetM1();
-    encoders.getCountsAndResetM2();
-
+    right_speed = speed;
+#if REVERSED_M3PI
+    //right motor is now M1
     if (direction > 0) {
-        right_speed = speed;
+        set_motors(-right_speed, speed);
+    } else {
+        set_motors(right_speed, -speed);
+    }    
+#else
+    if (direction > 0) {
         set_motors(-speed, right_speed);
     } else {
-        right_speed = -speed;
-        set_motors(speed, right_speed);
+        set_motors(speed, -right_speed);
     }
-
+#endif
     /**
      * [2 * b * pi / (180 * dist_per_encoder_tick_in_mm)] = 0.223402 mm
      * b = distance between wheels = 98 mm 
@@ -612,6 +634,7 @@ void RotateDegrees(PID_t *rotate_pid)
     {
         m1_count = encoders.getCountsM1();
         m2_count = encoders.getCountsM2();
+
         /* right count minus left count */
         encoder_diff = m2_count - m1_count;
 
@@ -627,12 +650,25 @@ void RotateDegrees(PID_t *rotate_pid)
 
         right_speed += speed_diff;
 
-        if(right_speed > speed + 10)
-            right_speed = speed + 10;
+        if(right_speed > speed + 5)
+            right_speed = speed + 5;
+        if(right_speed < speed - 5)
+            right_speed = speed - 5;
+
         if(right_speed < 0)
             right_speed = 0;
 
-        set_m2_speed(right_speed);
+#if REVERSED_M3PI
+        if (direction > 0)
+            set_m1_speed(-right_speed);
+        if (direction < 0)
+            set_m1_speed(right_speed);
+#else
+        if (direction > 0)
+            set_m2_speed(right_speed);
+        if (direction < 0)
+            set_m2_speed(-right_speed);
+#endif
     }
 
     set_motors(0, 0);
@@ -662,7 +698,11 @@ int main()
     OrangutanDigital::setInput(IO_B0, PULL_UP_ENABLED);
     OrangutanDigital::setInput(IO_D4, PULL_UP_ENABLED);
     OrangutanDigital::setInput(IO_D7, PULL_UP_ENABLED);
+#if REVERSED_M3PI
+    encoders.init(IO_D7, IO_D4, IO_D2, IO_B0);
+#else
     encoders.init(IO_B0, IO_D2, IO_D4, IO_D7);
+#endif
 
     /* each encoder tick is 0.11701 mm in distance traveled. 32767 ticks is 
     about 3.834 meters so make sure to reset the counts accordingly. dist
@@ -676,9 +716,9 @@ int main()
     drive_straight_pid.dGainNum = 0;
     drive_straight_pid.dGainDen = 1;
 
-    /* default values */
-    rotate_pid.pGainNum = 1;
-    rotate_pid.pGainDen = 15;
+    /* default values, no controller for turning is quite accurate */
+    rotate_pid.pGainNum = 0;
+    rotate_pid.pGainDen = 30;
     rotate_pid.iGainNum = 0;
     rotate_pid.iGainDen = 1;
     rotate_pid.dGainNum = 0;
@@ -686,7 +726,7 @@ int main()
 
     /* default values */
     drive_straight_left_pid.pGainNum = 1;
-    drive_straight_left_pid.pGainDen = 25;
+    drive_straight_left_pid.pGainDen = 30;
     drive_straight_left_pid.iGainNum = 0;
     drive_straight_left_pid.iGainDen = 1;
     drive_straight_left_pid.dGainNum = 0;
@@ -694,11 +734,14 @@ int main()
 
     /* default values */
     drive_straight_right_pid.pGainNum = 1;
-    drive_straight_right_pid.pGainDen = 25;
-    drive_straight_right_pid.iGainNum = 1;
-    drive_straight_right_pid.iGainDen = 10;
+    drive_straight_right_pid.pGainDen = 30;
+    drive_straight_right_pid.iGainNum = 0;
+    drive_straight_right_pid.iGainDen = 1;
     drive_straight_right_pid.dGainNum = 0;
     drive_straight_right_pid.dGainDen = 100;
+
+    /* TODO: handle cases for exceeding max speed on drive straight distance
+    and rotate degrees */
 
     while(1)
     {
@@ -786,11 +829,13 @@ int main()
             case (char)DRIVE_STRAIGHT_DISTANCE_BLOCKING:
                 message = (char)(encoders.getCountsM2() & 0xFF);
                 DriveStraightDistance(&drive_straight_left_pid, &drive_straight_right_pid);
+                // read for debugging
                 serial_send_blocking(&message, 1);
                 break;
             case (char)ROTATE_DEGREES_BLOCKING:
                 message = (char)(encoders.getCountsM2() & 0xFF);
                 RotateDegrees(&rotate_pid);
+                // read for debugging
                 serial_send_blocking(&message, 1);
                 break;
             default:
