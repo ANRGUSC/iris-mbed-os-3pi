@@ -12,7 +12,13 @@ DigitalOut led1(LED3);
 int main() {
     pc.printf("hello\n");
     led1 = !led1;
+    m3pi.backward(20);
     wait(2.0);
+
+    while(1)
+    {
+
+    }
 
     pc.printf("Pololu Magnetic Encoder Test\n");
 

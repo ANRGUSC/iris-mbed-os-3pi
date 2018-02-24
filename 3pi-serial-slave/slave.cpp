@@ -559,7 +559,7 @@ void DriveStraightDistance(PID_t *left_pid, PID_t *right_pid)
 
         if(right_speed < 0)
             right_speed = 0;
-        if(left_sleed < 0)
+        if(left_speed < 0)
             left_speed = 0;
 
         // uncomment left speed if you want two independent PID controllers
@@ -747,18 +747,18 @@ int main()
             case (char)STOP_PID:
                 stop_pid();
                 break;
-            // case (char)M1_FORWARD:
-            //     m1_forward();
-            //     break;
-            // case (char)M1_BACKWARD:
-            //     m1_backward();
-            //     break;
-            // case (char)M2_FORWARD:
-            //     m2_forward();
-            //     break;
-            // case (char)M2_BACKWARD:
-            //     m2_backward();
-            //     break;
+            case (char)M1_FORWARD:
+                m1_forward();
+                break;
+            case (char)M1_BACKWARD:
+                m1_backward();
+                break;
+            case (char)M2_FORWARD:
+                m2_forward();
+                break;
+            case (char)M2_BACKWARD:
+                m2_backward();
+                break;
             case (char)SEND_M1_ENCODER_COUNT:
                 send_m1_encoder_count();
                 break;
