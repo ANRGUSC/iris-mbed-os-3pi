@@ -8,6 +8,8 @@
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
 
+#define MQTT_OFF    1
+
 static volatile bool ranging = 0;
 
 static node_t nodes_discovered[MAX_NUM_ANCHORS];
@@ -15,6 +17,7 @@ static uint8_t num_nodes_discovered;
 static uint8_t num_nodes_to_pub;
 static char EMCUTE_ID[9];
 static uint8_t last_node_locked = 0;
+static int mqtt_is_on;
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 Thread range_thr;
@@ -363,6 +366,7 @@ void discover_nodes(uint8_t ranging_mode){
     get_range_data((range_params_t){-1, ranging_mode});
 }
 
+/* TODO: Do we need a wrapper for this function */
 range_data_t range_node(range_params_t params){
     return get_range_data(params);
 }
@@ -455,29 +459,35 @@ void _range_thread(){
                     else{
                          range_data = range_node(range_params);
                     }*/
-                    
-                    clear_data(data_pub, 32);
-                    mqtt_data_len = load_node_data(data_pub, 32, get_node(range_data));
-                    if(mqtt_data_len != -1){
 
-                        build_mqtt_pkt_npub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, mqtt_data_len, &pkt); 
-                        
-                        //for some reason it will only publish if you include a print statement here
-                        printf("tdoa = %d\n",range_data.tdoa);
-                        printf("node_id = %d\n",range_data.node_id);
-                        PRINTF("range_thread: range_routine done. publishing data now\n");
+                    if(mqtt_is_on) {
+                        clear_data(data_pub, 32);
+                        mqtt_data_len = load_node_data(data_pub, 32, get_node(range_data));
+                        if(mqtt_data_len != -1){
 
-                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){
-                            PRINTF("mqtt_thread: sending pkt of size\n"); 
+                            build_mqtt_pkt_npub(RANGE_TOPIC, data_pub, MBED_MQTT_PORT, &mqtt_send, mqtt_data_len, &pkt); 
+                            
+                            //for some reason it will only publish if you include a print statement here
+                            printf("tdoa = %d\n",range_data.tdoa);
+                            printf("node_id = %d\n",range_data.node_id);
+                            PRINTF("range_thread: range_routine done. publishing data now\n");
+
+                            if (send_hdlc_mail(msg, HDLC_MSG_SND, &range_thr_mailbox, (void*) &pkt)){
+                                PRINTF("mqtt_thread: sending pkt of size\n"); 
+                            }
+                            else{
+
+                                PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                            }
                         }
                         else{
-
-                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
+                            PRINTF ("Failed to load node data\n");
                         }
+                    } 
+                    else {
+                        /* TODO: send ranging done message to main thread */
                     }
-                    else{
-                        PRINTF ("Failed to load node data\n");
-                    }
+
                 }
                 ranging = 0;
 
@@ -504,7 +514,8 @@ void init_range_thread(){
     range_thr.start(_range_thread);
 }
 
-void trigger_range_routine(range_params_t *params, msg_t *msg){
+void trigger_range_routine(range_params_t *params, msg_t *msg, int mqtt_on){
+    mqtt_is_on = mqtt_on;
     if(!ranging){
         msg = range_thr_mailbox.alloc();
         msg->type = START_RANGE_THR;
