@@ -13,7 +13,7 @@ typedef struct {
 } cmessage_t;
 
 void controller_init(osPriority priority);
-int start_movement (int type, uint16_t dist_e, uint16_t angle_e);
+int start_movement(int type, uint16_t dist_e, uint16_t angle_e);
 
 
 #endif

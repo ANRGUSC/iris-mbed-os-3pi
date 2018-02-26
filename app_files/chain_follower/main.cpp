@@ -1,14 +1,14 @@
 /**
- * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2018, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
  * http://anrg.usc.edu/
  *
  * Contributors:
+ * Jason A. Tran
  * Pradipta Ghosh
  * Yutong Gu
- * Daniel Dsouza
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,13 +38,11 @@
 
 /**
  * @file        main.cpp
- * @brief       Full-duplex hdlc with mqtt for ranging.
+ * @brief       Chain follower example for IROS submission.
  *
+ * @author      Jason A. Tran <jasontra@usc.edu>
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
  * @author      Yutong Gu <yutonggu@usc.edu>
- * @author      Daniel Dsouza <dmdsouza@usc.edu>
- * 
- *
  */
 
 #include "mbed.h"
@@ -54,7 +52,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
-#include "yahdlc.h"
 #include "fcs16.h"
 #include "uart_pkt.h"
 #include "main-conf.h"
@@ -62,8 +59,6 @@
 #include "range.h"
 #include "controller.h"
 #include "m3pi.h"
-
-#define TEST_TOPIC   ("test/trial")
 
 #define START_RANGE_MSG   ("INIT_RANGE")
 
@@ -74,205 +69,35 @@
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
 
-/* the only instance of pc -- debug statements in other files depend on it */
+// the only instance of pc -- debug statements in other files depend on it
 Serial                          pc(USBTX,USBRX,115200);
 DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
 DigitalOut                      myled(LED1);
 
-bool mqtt_go = 0;
-
-static char* pub_msg;
-static Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-
-Mail<msg_t, HDLC_MAILBOX_SIZE>  mqtt_thread_mailbox;
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
-#define NULL_PKT_TYPE   0xFF 
+#define NULL_PKT_TYPE       0xFF 
 #define PKT_FROM_MAIN_THR   0
+#define MBED_MAIN_PORT      6000
 
-void _mqtt_thread()
-{
-    int             pub_length;
-    char            mqtt_thread_frame_no = 0;
-    msg_t           *msg = NULL, *msg2 = NULL;
-    char            send_data[32];
-    hdlc_pkt_t      pkt;
-    range_params_t  params;
+//uncomment for the first robot (leading robot is actually last robot)
+// #define LEADER_ROBOT
+// #define LEADING_ROBOT_IPV6_ADDR     "ff02"
+// #define FOLLOWING_ROBOT_IPV6_ADDR   "ff02"
 
-    pkt.data        = send_data;  
-    pkt.length      = 32;
+//uncomment for the second robot
+// #define SECOND_ROBOT
+// #define LEADING_ROBOT_IPV6_ADDR     "ff02"
+// #define FOLLOWING_ROBOT_IPV6_ADDR   "ff02"
 
-    mqtt_pkt_t      *mqtt_recv;
-    mqtt_pkt_t      mqtt_send;
-    mqtt_data_t     mqtt_recv_data;
-
-    uart_pkt_hdr_t  send_hdr = { 0, 0, 0};
-    hdlc_buf_t      *buf = NULL;
-    uart_pkt_hdr_t  recv_hdr;
-    
-    int             exit = 0;
-    hdlc_entry_t    mqtt_thread = { NULL, MBED_MQTT_PORT, &mqtt_thread_mailbox };
-    hdlc_register(&mqtt_thread);
-    
-    char            topic_pub[16];
-    char            data_pub[32];
-
-    osEvent         evt;
-
-    /**
-     * Check if the MQTT coneection is established by the openmote. If not,
-     * DO NOT Proceed further. The openmote sends a MQTT_GO msg once the mqtt connection is properly setup.
-     */
-
-    while(1)
-    {
-        PRINTF("here");
-        evt = mqtt_thread_mailbox.get();
-        if (evt.status == osEventMail) 
-        {
-            msg = (msg_t*)evt.value.p;
-            if (msg->type == HDLC_PKT_RDY)
-            {
-                buf = (hdlc_buf_t *) msg->content.ptr;   
-                uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                if (recv_hdr.pkt_type == MQTT_GO){
-                    mqtt_go = 1;
-                    range_load_id(buf);
-                    PRINTF("mqtt_thread: the node is conected to the broker \n");
-                    mqtt_thread_mailbox.free(msg);
-                    hdlc_pkt_release(buf);  
-                    break;
-                }
-            }
-            mqtt_thread_mailbox.free(msg);
-            hdlc_pkt_release(buf);  
-        }
-    }
-
-
-    while (1) 
-    {
-        // PRINTF("In mqtt_thread");
-        myled3 =! myled3;
-        uart_pkt_insert_hdr(pkt.data, 32, &send_hdr); 
-        pkt.length = 32;        
-
-        while(1)
-        {
-            evt = mqtt_thread_mailbox.get();
-            if (evt.status == osEventMail) 
-            {
-                msg = (msg_t*)evt.value.p;
-                switch (msg->type)
-                {
-                    case HDLC_RESP_SND_SUCC:
-                        PRINTF("mqtt_thread: sent frame_no %d!\n", mqtt_thread_frame_no);
-                        exit = 1;
-                        mqtt_thread_mailbox.free(msg);
-                        break;    
-                    case HDLC_RESP_RETRY_W_TIMEO:
-                        Thread::wait(msg->content.value/1000);
-                        PRINTF("mqtt_thread: retry frame_no %d \n", mqtt_thread_frame_no);
-                        if (send_hdlc_mail(msg2, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt) < 0)
-                        {
-                            while (send_hdlc_retry_mail (msg2, &mqtt_thread_mailbox) < 0)
-                                Thread::wait(10);
-                        }
-                        mqtt_thread_mailbox.free(msg);
-                        break;
-                    case HDLC_PKT_RDY:
-
-                        buf = (hdlc_buf_t *)msg->content.ptr;   
-                        uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                        switch (recv_hdr.pkt_type)
-                        {
-                            case MQTT_PKT_TYPE:                                
-                                // rcv_data= (mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length);
-                                mqtt_recv = (mqtt_pkt_t *) uart_pkt_get_data(buf->data, buf->length);
-                                PRINTF("The data received is %s \n", mqtt_recv->data);
-                                PRINTF("The topic received is %s \n", mqtt_recv->topic); 
-                                process_mqtt_pkt(mqtt_recv, &mqtt_recv_data);
-                                switch (mqtt_recv_data.data_type){
-                                    case NORM_DATA:
-                                        PRINTF("MQTT: Normal Data Received %s \n", mqtt_recv_data.data);
-                                        pub_msg = mqtt_recv_data.data;
-                                        if(strcmp(pub_msg + 2, START_RANGE_MSG) == 0){
-                                            PRINTF("MQTT: pub_msg matches START_RANGE_MSG\n");
-                                            if(!is_ranging()){
-                                                PRINTF("MQTT: telling thread to start ranging with node_id: %d\n",pub_msg[0] - '0');
-                                                params.node_id = pub_msg[0] - '0';
-                                                params.ranging_mode = pub_msg[1];
-                                                trigger_range_routine(&params, msg2);
-                                            }
-                                        } else{
-                                            PRINTF("MQTT: %s does not match %s\n", pub_msg, START_RANGE_MSG);
-                                        }
-
-                                        break;
-
-                                    case SUB_CMD:
-                                        build_mqtt_pkt_sub(mqtt_recv_data.data, MBED_MQTT_PORT, &mqtt_send, &pkt);
-                                        pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
-                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
-                                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
-                                        else
-                                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
-                                        break;
-
-                                    case PUB_CMD:
-                                        //second byte is the length of the topic 
-                                        pub_length = mqtt_recv_data.data[0];
-                                        memcpy(topic_pub, (mqtt_recv_data.data + 1), pub_length);
-                                        strcpy(data_pub, mqtt_recv_data.data + pub_length + 1);                             
-                                        topic_pub[pub_length]='\0';
-                                        PRINTF("The the topic_pub %s\n", topic_pub);
-                                        PRINTF("The data_pub %s\n", data_pub);                                 
-                                        build_mqtt_pkt_npub(topic_pub, data_pub, MBED_MQTT_PORT, &mqtt_send, strlen(data_pub),&pkt);
-                                        pkt.length = sizeof(mqtt_pkt_t)+sizeof(UART_PKT_HDR_LEN);
-                                        if (send_hdlc_mail(msg, HDLC_MSG_SND, &mqtt_thread_mailbox, (void*) &pkt))
-                                            PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
-                                        else
-                                            PRINTF("mqtt_thread: failed to send pkt no\n"); 
-                                        break;
-                                }
-                                // Mbed send a pub message to the broker                        
-                                break;
-
-                            case MQTT_SUB_ACK:
-                                PRINTF("mqtt_thread: SUB ACK message received\n");
-                                break;
-                            case MQTT_PUB_ACK:
-                                PRINTF("mqtt_thread: PUB ACK message received\n");
-                                break;
-                            default:
-                                /* error */
-                                break;
-
-                        }
-                        mqtt_thread_mailbox.free(msg);
-                        hdlc_pkt_release(buf);     
-                        fflush(stdout);
-                        break;
-                    default:
-                        mqtt_thread_mailbox.free(msg);
-                        /* error */
-                        break;
-                }
-            }    
-            if(exit) {
-                exit = 0;
-                break;
-            }
-        }
-
-        mqtt_thread_frame_no++;
-        Thread::wait(100);
-    }
-}
-
+//uncomment for the third robot
+// #define END_ROBOT
+// #define LEADING_ROBOT_IPV6_ADDR     "ff02"
+// #define FOLLOWING_ROBOT_IPV6_ADDR   "ff02"
 
 int main(void)
 {
+    static Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
    
     PRINTF("Starting mqtt thread\n");
@@ -286,23 +111,77 @@ int main(void)
     controller_init(osPriorityNormal);
     PRINTF("Started controller thread\n");
 
-    myled = 1;
+    /* no need for a separate ranging thread here */
 
-    float dist_e = 10, angle_e =10;
+    hdlc_entry_t main = { NULL, MBED_MAIN_PORT, &main_thr_mailbox };
+    hdlc_register(&main);
+
+    myled = 1;
+    range_params_t params;
+    range_data_t range_data;
+    dist_angle_t range_dist_angle;
+
+    float dist_estimate = 10, angle_estimate = 10;
     while(1)
     {
         myled =! myled;
+        switch(state) {
+            case STOP_BEACONS:
+                //ack any stop messages
+                //wait for a RANGE_ME_MSG 
+                //when RANGE_ME_MSG received, request range and change state
+                state = RANGING_STATE;
+                break;
+            case RANGING_STATE:
+                //ack any RANGE_ME_MSG
+                //wait for ranging thread to tell you ranging is done (repeat req is failed)
+                //when ranging is done, send movement request to thread and change state
+                state = SEND_STOP_STATE;
+                break;
+            case SEND_STOP_STATE:
+                //keep sending stop signals
+                //when stop ack is received, turn on beaconing and change state
+                state = RANGE_ME_ACK_STATE;
+                break;
+            case RANGE_ME_ACK_STATE:
+                //repeat "go range me" messages
+                //if a "go range me" ack is received, go to range_me_no_ack state
+                state = RANGE_ME_NO_ACK_STATE;
+                //if a stop beacon msg received, go to stop_beacon state
+                state = STOP_BEACONS;
+            case RANGE_ME_NO_ACK_STATE:
+                //if a A msg received, send stop-beacon-ack and change to stop-beacon state
+        }
 
         // Wait for instruction from the leader node.
         
-        // Awake the range thread to do ranging.
+        
+        // request ranging from the RIOT device
+        if(!is_ranging()){
+            PRINTF("main_thr: requesting RIOT device to range\n");
+            params.node_id = 0; //TODO
+            params.ranging_mode = TWO_SENSOR_MODE;
 
+            // get_range_data() should block, but keep in mind this function is
+            // currently NOT thread safe. Make the thread calling this is not 
+            // receiving any other kind of messages before calling this
+            range_data = get_range_data(range_params_t); 
+            range_dist_angle = get_dist_angle(&range_data, TWO_SENSOR_MODE); 
+            // TODO: error handling in case of ranging failure
+        }
 
-        // If Ranging done, send message to the leader to stop transmitting
+        PRINTF("main_thr: ranging done\n");
+
+        // now that ranging is done, send message to the leading robot in front 
+        // of me to stop beaconing rf/ultrasound pings and wait for ack
+        send_beacon_stop(LEADING_ROBOT_IPV6_ADDR, port, &main_thr_mailbox, 
+                            MBED_MAIN_PORT);
+        
+        
 
         Thread::wait(100);
 
-        // Communicate with the follow to start their range thread
+        // Communicate with the following robot to start their range thread
 
 
         // Start Beaconing
@@ -312,15 +191,11 @@ int main(void)
 
         Thread::wait(100);
         // Execute the movement based on the ranging data. 
-        int a  = start_movement(NORMAL_MOV, dist_e, angle_e);
-
-        // Thread::wait(1000);
-        // a  = start_movement(SCANNING_MOV, 10,10);
+        int a  = start_movement(NORMAL_MOV, dist_estimate, angle_estimate);
 
         // PRINTF("Success %d\n", a);
     }
 
-    PRINTF("Reached Exit");
-    /* should be never reached */
+    // should be never reached
     return 0;
 }
