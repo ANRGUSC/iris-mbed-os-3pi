@@ -75,6 +75,7 @@ void net_send_udp(const char *ipv6_addr_str, uint16_t port, uint8_t net_msg_type
     Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox, uint16_t src_hdlc_port, 
     hdlc_pkt_t *hdlc_pkt)
 {   
+    PRINTF("net_send_udp() a net_msg_type of %d\n", net_msg_type);
     uart_pkt_hdr_t uart_hdr;
     uart_hdr.src_port = src_hdlc_port;
     uart_hdr.dst_port = NET_SLAVE_PORT;

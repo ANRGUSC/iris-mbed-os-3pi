@@ -168,6 +168,7 @@ int main(void)
                     hdlc_pkt_release(buf);
                     break;
                 case RANGING_DONE: // Not gonna go out of this loop. probably need to send sending_hdlc
+                    PRINTF("RANGING_DONE\n");
                     ranging_is_done = 1;
                     memcpy(&range_data, (range_data_t *)msg->content.ptr, 
                            sizeof(range_data_t));
