@@ -31,21 +31,16 @@
 Thread network_helper_thr(osPriorityNormal, (uint32_t) DEFAULT_STACK_SIZE/2);
 Mail<msg_t, HDLC_MAILBOX_SIZE>  network_helper_mailbox;
 
-#define NETWORK_HELPER_PORT     7000 
-#define NET_SLAVE_PORT          5001
-#define RANGE_SLAVE_PORT        5002
-#define RANGE_BEACONER_PORT     5003
-
 static void _tdoa_beacons(bool on, uint8_t node_id, Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox, 
     uint16_t src_hdlc_port, hdlc_pkt_t *hdlc_pkt)
 {
     uart_pkt_hdr_t uart_hdr;
     uart_hdr.src_port = src_hdlc_port;
-    uart_hdr.dst_port = RANGE_SLAVE_PORT;
+    uart_hdr.dst_port = RANGE_BEACONER_PORT;
     if (on) {
         uart_hdr.pkt_type = RANGE_BEACON_START;
     } else {
-        uart_hdr.pkt_type = RANGE_BEACON_START;
+        uart_hdr.pkt_type = RANGE_BEACON_STOP;
     }
 
     //hardcoded max packet size

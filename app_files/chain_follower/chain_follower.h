@@ -3,18 +3,18 @@
 
 //uncomment for the first robot (leading robot is actually last robot)
 #define LEADER_ROBOT
-const char LEADING_ROBOT_IPV6_ADDR[] = "ff02";
-const char FOLLOWING_ROBOT_IPV6_ADDR[] = "ff02";
+const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:fffe";
+const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:df2f";
 
-//uncomment for the second robot
+// //uncomment for the second robot
 // #define SECOND_ROBOT
-// const char LEADING_ROBOT_IPV6_ADDR[] = "ff02";
-// const char FOLLOWING_ROBOT_IPV6_ADDR[] = "ff02";
+// const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:b7ee";
+// const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:fffe";
 
-//uncomment for the third robot
+// //uncomment for the third robot
 // #define END_ROBOT
-// const char LEADING_ROBOT_IPV6_ADDR[] = "ff02";
-// const char FOLLOWING_ROBOT_IPV6_ADDR[] = "ff02";
+// const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:df2f";
+// const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:b7ee";
 
 #define FORWARD_TO_MBED_MAIN_PORT   8000
 

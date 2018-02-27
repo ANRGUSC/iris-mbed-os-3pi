@@ -11,6 +11,10 @@ the new uint16_t port number */
 #define MAIN_THR_PORT   165
 #define NULL_PKT_TYPE   0xFF
 
+#define NETWORK_HELPER_PORT     7000 
+#define NET_SLAVE_PORT          5001
+#define RANGE_SLAVE_PORT        5002
+#define RANGE_BEACONER_PORT     5003
 
 #define RSSI_LOCALIZATION_CHAN   26
 

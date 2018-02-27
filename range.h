@@ -224,4 +224,6 @@ uint8_t get_num_nodes_discovered();
 void trigger_range_routine(range_params_t *params, msg_t *msg, 
                            Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox);
 
+void set_range_riot_port(uint8_t port);
+
 #endif

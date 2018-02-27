@@ -90,6 +90,7 @@ int main(void)
     hdlc_init(osPriorityRealtime);
    
     PRINTF("Starting range thread\n");
+    set_range_riot_port(RANGE_SLAVE_PORT);
     init_range_thread();
     
     PRINTF("Starting controller thread\n");
@@ -166,7 +167,7 @@ int main(void)
                     main_thr_mailbox.free(msg);
                     hdlc_pkt_release(buf);
                     break;
-                case RANGING_DONE:
+                case RANGING_DONE: // Not gonna go out of this loop. probably need to send sending_hdlc
                     ranging_is_done = 1;
                     memcpy(&range_data, (range_data_t *)msg->content.ptr, 
                            sizeof(range_data_t));
