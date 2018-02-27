@@ -17,7 +17,7 @@
 
 MemoryPool<cmessage_t, 16> c_pool;
 Queue<cmessage_t, 16> c_queue;
-m3pi m3pi(p23, p9, p10);
+// m3pi m3pi(p23, p9, p10);
  
 // static unsigned char CONT_THREAD_STACK[DEFAULT_STACK_SIZE];
 Thread c_thread(osPriorityNormal, (uint32_t) DEFAULT_STACK_SIZE/2);

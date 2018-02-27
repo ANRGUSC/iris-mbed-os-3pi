@@ -15,7 +15,7 @@ static uint8_t num_nodes_discovered;
 static uint8_t num_nodes_to_pub;
 static char EMCUTE_ID[9];
 static uint8_t last_node_locked = 0;
-static uint8_t range_riot_port = RIOT_MQTT_PORT;
+static uint16_t range_riot_port = RIOT_MQTT_PORT;
 static int mqtt_is_on = 1; /* on by default */
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
@@ -487,13 +487,12 @@ void _range_thread(){
                         /* TODO: THIS IS APPLICATION SPECIFIC -- need adaptation 
                         for other modes */ 
                         if (range_data.tdoa != 0) {
-                            dist_angle_t dist_angle = get_dist_angle(&range_data, TWO_SENSOR_MODE);
                             /* send the results back to the requesing thread */
                             Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox = 
                                 (Mail<msg_t, HDLC_MAILBOX_SIZE> *)msg->source_mailbox;
                             msg = src_mailbox->alloc();
                             msg->type = RANGING_DONE;
-                            msg->content.ptr = &dist_angle;
+                            msg->content.ptr = &range_data;
                             msg->sender_pid = osThreadGetId();
                             msg->source_mailbox = &range_thr_mailbox;
                             src_mailbox->put(msg);
@@ -586,6 +585,6 @@ uint8_t get_num_nodes_discovered(){
     return num_nodes_discovered;
 }
 
-void set_range_riot_port(uint8_t port){
+void set_range_riot_port(uint16_t port){
     range_riot_port = port;
 }

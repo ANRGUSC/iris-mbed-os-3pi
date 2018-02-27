@@ -49,6 +49,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include <math.h>
 #include "mbed.h"
 #include "rtos.h"
 #include "hdlc.h"
@@ -57,6 +58,7 @@
 #include "main-conf.h"
 #include "range.h"
 #include "controller.h"
+#include "m3pi.h"
 
 #define DEBUG   1
 #if (DEBUG) 
@@ -64,6 +66,9 @@
 #else
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
+DigitalOut reset_xbee(p26);
+
+m3pi m3pi(p23, p9, p10);
 
 // the only instance of pc -- debug statements in other files depend on it
 Serial pc(USBTX,USBRX,115200);
@@ -71,6 +76,8 @@ Serial pc(USBTX,USBRX,115200);
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 #define MBED_MAIN_PORT      6000
+
+// #define MOVEMENT_ENABLED //define this to enable m3pi movements
 
 typedef enum {
     STOP_BEACONS_STATE,
@@ -86,6 +93,13 @@ typedef enum {
 
 int main(void)
 {
+
+    reset_xbee = 0;
+    Thread::wait(100);
+    reset_xbee = 1;
+
+    Thread::wait(500);
+
     PRINTF("Starting hdlc thread\n");
     hdlc_init(osPriorityRealtime);
    
@@ -129,16 +143,36 @@ int main(void)
 
     float min_distance = 10; //minimum distance in mm between robots
     float dist_estimate = min_distance, angle_estimate = min_distance;
+    char speed = ROBOT_MAX_SPEED;
+    float dist_thr = 10;
+    uint32_t timeout = 1000;
 
     while(1)
     {
         // continue looping until any outgoing hdlc packets are successful
+HERE:
         do
         {
-            osEvent evt = main_thr_mailbox.get();
+            osEvent evt = main_thr_mailbox.get(timeout);
+            if(evt.status == osEventTimeout) {
+            //send range or stop beacons 
+                if (state == RANGING_STATE) {
+                    PRINTF("main_thr: trigger_range_routine() again\n");
 
-            if (evt.status != osEventMail) 
-                continue; 
+#ifdef SECOND_ROBOT
+                    int8_t target_node_id = 1;
+#else //END_ROBOT defined
+                    int8_t target_node_id = 2;
+#endif
+
+                    params.node_id = target_node_id; 
+                    params.ranging_mode = TWO_SENSOR_MODE;
+                    trigger_range_routine(&params, msg, &main_thr_mailbox);
+                }
+                goto HERE;
+            }
+            // if (evt.status != osEventMail) 
+            //     continue; 
 
             msg = (msg_t*)evt.value.p;
             switch (msg->type)
@@ -162,22 +196,26 @@ int main(void)
                     if (uart_hdr.pkt_type == NET_SLAVE_RECEIVE) {
                         //actual data of the network packet is a single byte 
                         //representing the message type
-                        net_msg = buf->data[buf->length];
+                        net_msg = buf->data[buf->length-1];
+
+                        PRINTF("net_msg received %d is %d\n", buf->data[0],net_msg);
                     }
                     main_thr_mailbox.free(msg);
                     hdlc_pkt_release(buf);
                     break;
                 case RANGING_DONE: // Not gonna go out of this loop. probably need to send sending_hdlc
+                    PRINTF("RANGING_DONE\n");
                     ranging_is_done = 1;
                     memcpy(&range_data, (range_data_t *)msg->content.ptr, 
                            sizeof(range_data_t));
                     //if tdoa is NOT zero and status is 11 or 12, then you can
                     //find out which pin received by taking 
                     //range_data.status - 10 (which gives you 1 or 2)
+                    PRINTF("range_data.status = %d\n", range_data.status);
                     if (range_data.status > 2)
-                        ranging_is_successful = true;
-                    else
                         ranging_is_successful = false;
+                    else
+                        ranging_is_successful = true;
 
                     main_thr_mailbox.free(msg);
                     break;
@@ -187,6 +225,7 @@ int main(void)
             } // switch
         } while (sending_hdlc); //true if there's an outgoing HDLC packet
 
+        PRINTF("going into state machine\n");
         // state machine logic (it's important to only send one HDLC pkt per 
         // iteration because of this program's design)
         switch(state) {
@@ -242,13 +281,40 @@ int main(void)
                 }
 
                 if(ranging_is_done){
+                    PRINTF("isdone: %d, success: %d\n", ranging_is_done, ranging_is_successful);
                     if (ranging_is_successful) {
                         range_res = get_dist_angle(&range_data, TWO_SENSOR_MODE);
                         PRINTF("distance: %f, angle: %f\n", range_res.distance, 
                                range_res.angle);
-                        //ranging done so send movement request to thread and change state
-                        // int a  = start_movement(NORMAL_MOV, range_res.distance,
-                        //                         range_res.angle);
+#ifdef MOVEMENT_ENABLED
+                        
+                        float a_kalman =  0.3820; 
+                        float b_kalman =  0.6180;
+                        // float c_LQG =  0.6180;
+
+                        float dist_to_travel =  dist_thr - range_res.distance;
+
+                        if (dist_to_travel < 0) {
+                            dist_to_travel = 0;
+                        }
+
+                        float angle_to_rotate = range_res.angle;
+
+                        // TODO? Controller decides how much to travel and how much to rotate
+               
+                        PRINTF("Distance = %d, Angle = %d\n", dist_to_travel, angle_to_rotate);
+
+                        if (angle_to_rotate > 180) {
+                            angle_to_rotate = 180;
+                        }
+                        if (angle_to_rotate < -180) {
+                            angle_to_rotate = -180;
+                        }
+
+                        m3pi.rotate_degrees_blocking(abs(angle_to_rotate), signbit(angle_to_rotate), 30);
+                        m3pi.move_straight_distance_blocking(30, dist_to_travel);
+#endif 
+
                         start_sending_stop_beacons_msgs();
                         state = SEND_STOP_BEACONS_STATE;
                     } else {

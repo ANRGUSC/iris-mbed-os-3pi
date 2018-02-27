@@ -75,6 +75,7 @@ void net_send_udp(const char *ipv6_addr_str, uint16_t port, uint8_t net_msg_type
     Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox, uint16_t src_hdlc_port, 
     hdlc_pkt_t *hdlc_pkt)
 {   
+    PRINTF("net_send_udp() a net_msg_type of %d\n", net_msg_type);
     uart_pkt_hdr_t uart_hdr;
     uart_hdr.src_port = src_hdlc_port;
     uart_hdr.dst_port = NET_SLAVE_PORT;
@@ -82,14 +83,14 @@ void net_send_udp(const char *ipv6_addr_str, uint16_t port, uint8_t net_msg_type
     //hardcoded max packet size
     uart_pkt_insert_hdr(hdlc_pkt->data, HDLC_MAX_PKT_SIZE, &uart_hdr); 
     //insert ipv6 addr string along with terminating null char
-    memcpy(hdlc_pkt->data, ipv6_addr_str, strlen(ipv6_addr_str) + 1);
+    memcpy(hdlc_pkt->data + UART_PKT_HDR_LEN, ipv6_addr_str, strlen(ipv6_addr_str) + 1);
 
     //insert destination UDP port number (uin16_t)
-    hdlc_pkt->data[strlen(ipv6_addr_str) + 1] = port & 0xFF; //lower byte
-    hdlc_pkt->data[strlen(ipv6_addr_str) + 2] = port >> 8; //upper byte
+    hdlc_pkt->data[UART_PKT_HDR_LEN + strlen(ipv6_addr_str) + 1] = port & 0xFF; //lower byte
+    hdlc_pkt->data[UART_PKT_HDR_LEN + strlen(ipv6_addr_str) + 2] = port >> 8; //upper byte
      
     //insert payload of ONE byte representing the message net_msg_type
-    hdlc_pkt->data[strlen(ipv6_addr_str) + 3] = net_msg_type;
+    hdlc_pkt->data[UART_PKT_HDR_LEN + strlen(ipv6_addr_str) + 3] = net_msg_type;
 
     //hdlc packet length is sum of all parts
     hdlc_pkt->length = UART_PKT_HDR_LEN + strlen(ipv6_addr_str) + 4;
@@ -103,6 +104,8 @@ void net_send_udp(const char *ipv6_addr_str, uint16_t port, uint8_t net_msg_type
     {
         Thread::wait(HDLC_RTRY_TIMEO_USEC * 1000);
     }
+    PRINTF("net_send_udp: Success\n");
+
 }
 
 static void _network_helper()
@@ -130,10 +133,13 @@ static void _network_helper()
                 net_send_udp(FOLLOWING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
                     RANGE_ME, &network_helper_mailbox, NETWORK_HELPER_PORT,
                     &hdlc_pkt);
+                PRINTF("Sending RANGE_ME\n");
             } else if(net_msg_type == STOP_BEACONS) {
                 net_send_udp(LEADING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
                     STOP_BEACONS, &network_helper_mailbox, NETWORK_HELPER_PORT,
                     &hdlc_pkt);
+                PRINTF("Sending STOP_BEACONS\n");
+
             }
             continue; //get next mail
         }
@@ -165,6 +171,7 @@ static void _network_helper()
                 net_send_udp(FOLLOWING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
                     RANGE_ME, &network_helper_mailbox, NETWORK_HELPER_PORT,
                     &hdlc_pkt);
+                PRINTF("Sending RANGE_ME\n");
                 net_msg_type = RANGE_ME;
                 timeout = 1000;
                 network_helper_mailbox.free(msg);
@@ -172,6 +179,8 @@ static void _network_helper()
             case STOP_RANGE_ME_MSGS:
                 net_msg_type = INVALID_MSG; 
                 timeout = 0;
+                PRINTF("STOP RANGE_ME\n");
+
                 network_helper_mailbox.free(msg);
                 break;
             case START_STOP_BEACONS_MSGS:
@@ -182,10 +191,13 @@ static void _network_helper()
                 net_msg_type = STOP_BEACONS;
                 timeout = 1000;
                 network_helper_mailbox.free(msg);
+                PRINTF("Start STOP_BEACONS_MSGS\n");
+
                 break;
             case STOP_STOP_BEACONS_MSGS: 
                 net_msg_type = INVALID_MSG;
                 timeout = 0;
+                PRINTF("Start STOP_STOP_BEACONS_MSGS\n");
                 network_helper_mailbox.free(msg);
                 break;
             default:
