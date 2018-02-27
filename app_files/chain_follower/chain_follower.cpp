@@ -82,7 +82,7 @@ void net_send_udp(const char *ipv6_addr_str, uint16_t port, uint8_t net_msg_type
     //hardcoded max packet size
     uart_pkt_insert_hdr(hdlc_pkt->data, HDLC_MAX_PKT_SIZE, &uart_hdr); 
     //insert ipv6 addr string along with terminating null char
-    memcpy(hdlc_pkt->data, ipv6_addr_str, strlen(ipv6_addr_str) + 1);
+    memcpy(hdlc_pkt->data + UART_PKT_HDR_LEN, ipv6_addr_str, strlen(ipv6_addr_str) + 1);
 
     //insert destination UDP port number (uin16_t)
     hdlc_pkt->data[strlen(ipv6_addr_str) + 1] = port & 0xFF; //lower byte
@@ -103,6 +103,8 @@ void net_send_udp(const char *ipv6_addr_str, uint16_t port, uint8_t net_msg_type
     {
         Thread::wait(HDLC_RTRY_TIMEO_USEC * 1000);
     }
+    PRINTF("net_send_udp: Success\n");
+
 }
 
 static void _network_helper()
@@ -130,10 +132,13 @@ static void _network_helper()
                 net_send_udp(FOLLOWING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
                     RANGE_ME, &network_helper_mailbox, NETWORK_HELPER_PORT,
                     &hdlc_pkt);
+                PRINTF("Sending RANGE_ME\n");
             } else if(net_msg_type == STOP_BEACONS) {
                 net_send_udp(LEADING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
                     STOP_BEACONS, &network_helper_mailbox, NETWORK_HELPER_PORT,
                     &hdlc_pkt);
+                PRINTF("Sending STOP_BEACONS\n");
+
             }
             continue; //get next mail
         }
@@ -165,6 +170,7 @@ static void _network_helper()
                 net_send_udp(FOLLOWING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
                     RANGE_ME, &network_helper_mailbox, NETWORK_HELPER_PORT,
                     &hdlc_pkt);
+                PRINTF("Sending RANGE_ME\n");
                 net_msg_type = RANGE_ME;
                 timeout = 1000;
                 network_helper_mailbox.free(msg);
@@ -172,6 +178,8 @@ static void _network_helper()
             case STOP_RANGE_ME_MSGS:
                 net_msg_type = INVALID_MSG; 
                 timeout = 0;
+                PRINTF("STOP RANGE_ME\n");
+
                 network_helper_mailbox.free(msg);
                 break;
             case START_STOP_BEACONS_MSGS:
@@ -182,10 +190,13 @@ static void _network_helper()
                 net_msg_type = STOP_BEACONS;
                 timeout = 1000;
                 network_helper_mailbox.free(msg);
+                PRINTF("Start STOP_BEACONS_MSGS\n");
+
                 break;
             case STOP_STOP_BEACONS_MSGS: 
                 net_msg_type = INVALID_MSG;
                 timeout = 0;
+                PRINTF("Start STOP_STOP_BEACONS_MSGS\n");
                 network_helper_mailbox.free(msg);
                 break;
             default:
