@@ -85,7 +85,9 @@ typedef enum {
     RESET_RIOT              = 9,
     MQTT_GO_ACK             = 10,
     HWADDR_ACK              = 11,
-    NET_SEND_UDP            = 12
+    NET_SEND_UDP            = 12,
+    RANGE_BEACON_START      = 31,
+    RANGE_BEACON_STOP       = 32
 } mbed_to_riot_t;
 
 /**

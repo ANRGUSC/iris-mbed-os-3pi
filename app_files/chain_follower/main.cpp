@@ -60,7 +60,9 @@
 #include "controller.h"
 #include "m3pi.h"
 
-#define START_RANGE_MSG   ("INIT_RANGE")
+//all message and state types are defined in here
+#include "chain_follower.h"
+
 
 #define DEBUG   1
 #if (DEBUG) 
@@ -79,122 +81,209 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 #define NULL_PKT_TYPE       0xFF 
 #define PKT_FROM_MAIN_THR   0
 #define MBED_MAIN_PORT      6000
+#define RANGE_BEACONER_PORT 5003
 
-//uncomment for the first robot (leading robot is actually last robot)
-// #define LEADER_ROBOT
-// #define LEADING_ROBOT_IPV6_ADDR     "ff02"
-// #define FOLLOWING_ROBOT_IPV6_ADDR   "ff02"
+enum {
+    RANGE_ME_STATE,
+    SEND_STOP_STATE,
+    SEND_RANGE_ME_STATE
 
-//uncomment for the second robot
-// #define SECOND_ROBOT
-// #define LEADING_ROBOT_IPV6_ADDR     "ff02"
-// #define FOLLOWING_ROBOT_IPV6_ADDR   "ff02"
-
-//uncomment for the third robot
-// #define END_ROBOT
-// #define LEADING_ROBOT_IPV6_ADDR     "ff02"
-// #define FOLLOWING_ROBOT_IPV6_ADDR   "ff02"
+} chain_follower_state_t;
 
 int main(void)
 {
-    static Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr;
-    hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
+    static Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr = 
+        hdlc_init(osPriorityRealtime);
    
-    PRINTF("Starting mqtt thread\n");
-    Thread mqtt_thr;
-    mqtt_thr.start(_mqtt_thread);
-
     PRINTF("Starting range thread\n");
     init_range_thread();
     
     PRINTF("Starting controller thread\n");
     controller_init(osPriorityNormal);
-    PRINTF("Started controller thread\n");
 
-    /* no need for a separate ranging thread here */
+    PRINTF("Starting network helper thread\n");
+    network_helper_init(osPriorityNormal);
+
+    //set initial state depending on robot position
+#ifdef LEADER_ROBOT
+    chain_follower_state_t state = SEND_RANGE_ME_STATE; 
+#else
+    chain_follower_state_t state = STOP_BEACONS_STATE;
+#endif
 
     hdlc_entry_t main = { NULL, MBED_MAIN_PORT, &main_thr_mailbox };
     hdlc_register(&main);
 
     myled = 1;
+    msg_t *msg;
     range_params_t params;
     range_data_t range_data;
-    dist_angle_t range_dist_angle;
+    dist_angle_t range_res;
+    hdlc_buf_t *buf;
+    uart_pkt_hdr_t uart_hdr;
+    int ranging_is_done = 1; //initial state
 
     float dist_estimate = 10, angle_estimate = 10;
+
     while(1)
     {
-        myled =! myled;
+        // continue looping until any outgoing hdlc packets are successful
+        do
+        {
+            osEvent evt = main_thr_mailbox.get();
+
+            if (evt.status != osEventMail) 
+                continue; 
+
+            msg = (msg_t*)evt.value.p;
+            switch (msg->type)
+            {
+                case HDLC_RESP_SND_SUCC:
+                    /* done, exit loop! */
+                    sending_hdlc = 0;
+                    main_thr_mailbox.free(msg);
+                    break;
+                case HDLC_RESP_RETRY_W_TIMEO:
+                    Thread::wait(msg->content.value/1000);
+                    main_thr_mailbox.free(msg);
+
+                    while (send_hdlc_mail(msg, HDLC_MSG_SND, main_thr_mailbox, (void*) &hdlc_pkt) < 0)
+                    {
+                        Thread::wait(HDLC_RTRY_TIMEO_USEC * 1000);
+                    }
+                    break;
+                case HDLC_PKT_RDY:
+                    buf = (hdlc_buf_t *)msg->content.ptr;   
+                    uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+                    data_ptr = buf->data;
+                    if (uart_hdr.pkt_type == NET_SLAVE_RECEIVE) {
+                        //scroll pointer beyond ipaddr
+                        while(data_ptr++ != '\0') {}
+                        net_msg = *data_ptr;
+                    }
+                    main_thr_mailbox.free(msg);
+                    hdlc_pkt_release(buf);
+                    break;
+                case RANGING_DONE:
+                    memcpy(&range_data, (range_data_t *)msg->content.ptr, 
+                           sizeof(range_data_t));
+                    //if tdoa is NOT zero and status is 11 or 12, then you can
+                    //find out which pin received by taking 
+                    //range_data.status - 10 (which gives you 1 or 2)
+                    if (range_data.status > 2)
+                        ranging_is_successful = 0;
+
+                    ranging_is_done = 1;
+                    main_thr_mailbox.free(msg);
+                    break;
+                default:
+                    main_thr_mailbox.free(msg); //error!
+                    break;
+            } // switch
+        } while (sending_hdlc) //true if there's an outgoing HDLC packet
+
+        // state machine logic (it's important to only send one HDLC pkt per 
+        // iteration because of this program's design)
         switch(state) {
-            case STOP_BEACONS:
-                //ack any stop messages
-                //wait for a RANGE_ME_MSG 
-                //when RANGE_ME_MSG received, request range and change state
-                state = RANGING_STATE;
+            case STOP_BEACONS_STATE:
+                if (net_msg == STOP_BEACONS) {
+                    send_ack();
+                    sending_hdlc = 1;
+                }
+                //when RANGE_ME_MSG received, ack it and change state
+                if (net_msg == RANGE_ME) {
+                    send_range_me_ack();
+                    sending_hdlc = 1;
+                    state = RANGING_STATE;
+#ifndef LEADER_ROBOT
+                    range_is_done = 0; //set flag
+                    PRINTF("main_thr: requesting range thread to trigger range routine\n");
+#ifdef SECOND_ROBOT
+                    int8_t target_node_id = 1;
+#else //END_ROBOT
+                    int8_t target_node_id = 2;
+#endif
+                    params.node_id = target_node_id; //TODO
+                    params.ranging_mode = TWO_SENSOR_MODE;
+                    trigger_range_routine(); 
+#endif
+                }
                 break;
             case RANGING_STATE:
                 //ack any RANGE_ME_MSG
-                //wait for ranging thread to tell you ranging is done (repeat req is failed)
-                //when ranging is done, send movement request to thread and change state
-                state = SEND_STOP_STATE;
+                if (net_msg == RANGE_ME) {
+                    send_range_me_ack();
+                    sending_hdlc = 1;
+                }
+                // trigger range routine
+                if(ranging_is_done){
+                    if (ranging_is_successful) {
+                        //ranging done so send movement request to thread and change state
+                        int a  = start_movement(NORMAL_MOV, range_res.distance,
+                                                range_res.angle);
+                        state = SEND_STOP_STATE;
+                        send_stop_beacons();
+                    } else {
+#ifndef LEADER_ROBOT
+                        range_is_done = 0; //set flag
+                        PRINTF("main_thr: requesting range thread to trigger range routine\n");
+#ifdef SECOND_ROBOT
+                        int8_t target_node_id = 1;
+#else //END_ROBOT
+                        int8_t target_node_id = 2;
+#endif
+                        range_is_done = 0; //reset flag
+                        PRINTF("main_thr: requesting ranging again\n");
+                        params.node_id = target_node_id; 
+                        params.ranging_mode = TWO_SENSOR_MODE;
+                        trigger_range_routine(); 
+#endif 
+                    }
+                }
                 break;
             case SEND_STOP_STATE:
-                //keep sending stop signals
-                //when stop ack is received, turn on beaconing and change state
-                state = RANGE_ME_ACK_STATE;
+                start_sending_stop_beacons();
+                //when stop ack is received, change state
+                if (net_msg == STOP_BEACONS_ACK) {
+                    stop_sending_stop_beacons();
+                    turn_on_beacons();
+                    sending_hdlc = 1;
+                    state = SEND_RANGE_ME_STATE;
+                }
                 break;
-            case RANGE_ME_ACK_STATE:
-                //repeat "go range me" messages
-                //if a "go range me" ack is received, go to range_me_no_ack state
-                state = RANGE_ME_NO_ACK_STATE;
-                //if a stop beacon msg received, go to stop_beacon state
-                state = STOP_BEACONS;
-            case RANGE_ME_NO_ACK_STATE:
-                //if a A msg received, send stop-beacon-ack and change to stop-beacon state
-        }
+            case SEND_RANGE_ME_STATE: //beacons are on and RANGE_ME messages are being sent
+                start_sending_range_me();
+                //if a RANGE_ME_ACK is received, go to RANGE_ME_STATE
+                if (net_msg == RANGE_ME_ACK) {
+                    stop_sending_range_me();
+                    state = RANGE_ME_STATE;
+                }
+                //if a stop beacon msg received, stop beacons and go straight to stop_beacon state
+                if (net_msg == STOP_BEACONS) {
+                    //TODO: send two hdlc messages?!
+                    stop_sending_range_me();
+                    stop_beaconing();
+                    state = SEND_STOP_BEACONS_ACK;
+                }
+                break;
+            case SEND_STOP_BEACONS_ACK: //send STOP_BEACONS_ACK once
+                send_stop_beacons_ack();
+                state = STOP_BEACONS_STATE;
+                break;
+            case RANGE_ME_STATE: //beacons are on and RANGE_ME messages are NOT being sent
+                //if STOP_BEACONS received, stop beacons, change state to send stop beacons ack
+                if (net_msg == STOP_BEACONS) {
+                    stop_beaconing(); 
+                    state = SEND_STOP_BEACONS_ACK;
+                }
+                break;
+            default:
+                //should not be reached
+        } // switch
 
-        // Wait for instruction from the leader node.
-        
-        
-        // request ranging from the RIOT device
-        if(!is_ranging()){
-            PRINTF("main_thr: requesting RIOT device to range\n");
-            params.node_id = 0; //TODO
-            params.ranging_mode = TWO_SENSOR_MODE;
-
-            // get_range_data() should block, but keep in mind this function is
-            // currently NOT thread safe. Make the thread calling this is not 
-            // receiving any other kind of messages before calling this
-            range_data = get_range_data(range_params_t); 
-            range_dist_angle = get_dist_angle(&range_data, TWO_SENSOR_MODE); 
-            // TODO: error handling in case of ranging failure
-        }
-
-        PRINTF("main_thr: ranging done\n");
-
-        // now that ranging is done, send message to the leading robot in front 
-        // of me to stop beaconing rf/ultrasound pings and wait for ack
-        send_beacon_stop(LEADING_ROBOT_IPV6_ADDR, port, &main_thr_mailbox, 
-                            MBED_MAIN_PORT);
-        
-        
-
-        Thread::wait(100);
-
-        // Communicate with the following robot to start their range thread
-
-
-        // Start Beaconing
-
-        // Wait for ack from follow node
-
-
-        Thread::wait(100);
-        // Execute the movement based on the ranging data. 
-        int a  = start_movement(NORMAL_MOV, dist_estimate, angle_estimate);
-
-        // PRINTF("Success %d\n", a);
-    }
+        //reset net message
+        net_msg = 0; 
+    } // while
 
     // should be never reached
     return 0;
