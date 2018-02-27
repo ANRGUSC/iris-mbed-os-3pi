@@ -28,9 +28,9 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  network_helper_mailbox;
 
 #define NETWORK_HELPER_PORT 7000
 #define NET_SLAVE_PORT 5001
-#define FORWARD_TO_MBED_MAIN_PORT  8000
+const uint16_t FORWARD_TO_MBED_MAIN_PORT = 8000;
 
-void send_msg(char *ipv6_addr_str, uint16_t port, type 
+void send_msg(char *ipv6_addr_str, uint16_t port, int type 
     Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox, uint16_t src_hdlc_port)
 {
     Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr = get_hdlc_mailbox();
@@ -40,7 +40,16 @@ void send_msg(char *ipv6_addr_str, uint16_t port, type
     uart_pkt_hdr_t uart_hdr = { src_hdlc_port, NET_SLAVE_PORT, NET_SEND_UDP};
     uart_pkt_insert_hdr(hdlc_pkt.data, sizeof(hdlc_pkt.data), &uart_hdr); 
     //insert ipv6 addr string along with terminating null char
-    uart_pkt_cpy_data(hdlc_pkt.data, sizeof(hdlc_pkt.data), ipv6_addr_str, strlen(ipv6_addr_str) + 1)
+    memcpy(hdlc_pkt.data, FOLLOWING_ROBOT_IPV6_ADDR, strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 1);
+
+    //insert destination UDP port number (uin16_t)
+    hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 1] = FORWARD_TO_MBED_MAIN_PORT >> 8;
+    hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 2] = FORWARD_TO_MBED_MAIN_PORT & 0xFF;
+     
+    //insert payload of ONE byte representing the message type
+    hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 3] = type;
+
+    hdlc_pkt.length = UART_PKT_HDR_LEN + strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 4;
 
     msg_t *msg;
     while (send_hdlc_mail(msg, HDLC_MSG_SND, src_mailbox, (void*) &hdlc_pkt) < 0)
@@ -71,12 +80,16 @@ void network_helper()
             //send range or stop beacons 
             if (net_msg == RANGE_ME) {
                 //insert ipv6 addr string along with terminating null char
-                uart_pkt_cpy_data(hdlc_pkt.data, ipv6_addr_str, strlen(ipv6_addr_str) + 1)
+                memcpy(hdlc_pkt.data, FOLLOWING_ROBOT_IPV6_ADDR, strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 1);
 
                 //insert destination UDP port number (uin16_t)
+                hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 1] = FORWARD_TO_MBED_MAIN_PORT >> 8;
+                hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 2] = FORWARD_TO_MBED_MAIN_PORT & 0xFF;
                  
                 //insert payload of ONE byte representing the message type
-                
+                hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 3] = RANGE_ME;
+
+                hdlc_pkt.length = UART_PKT_HDR_LEN + strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 4;
 
                 //send packet
                 while (send_hdlc_mail(msg, HDLC_MSG_SND, network_helper_mailbox, (void*) &hdlc_pkt) < 0)
@@ -85,19 +98,22 @@ void network_helper()
                 }
             } else if(net_msg = STOP_BEACONS) {
                 //insert ipv6 addr string along with terminating null char
-                uart_pkt_cpy_data(hdlc_pkt.data, sizeof(hdlc_pkt.data), ipv6_addr_str, strlen(ipv6_addr_str) + 1)
+                memcpy(hdlc_pkt.data, LEADING_ROBOT_IPV6_ADDR, strlen(LEADING_ROBOT_IPV6_ADDR) + 1);
 
                 //insert destination UDP port number (uin16_t)
-                
+                hdlc_pkt.data[strlen(LEADING_ROBOT_IPV6_ADDR) + 1] = FORWARD_TO_MBED_MAIN_PORT >> 8;
+                hdlc_pkt.data[strlen(LEADING_ROBOT_IPV6_ADDR) + 2] = FORWARD_TO_MBED_MAIN_PORT & 0xFF;
+                 
                 //insert payload of ONE byte representing the message type
-                
+                hdlc_pkt.data[strlen(LEADING_ROBOT_IPV6_ADDR) + 3] = STOP_BEACONS;
 
-                //send packet
+                hdlc_pkt.length = UART_PKT_HDR_LEN + strlen(LEADING_ROBOT_IPV6_ADDR) + 4;
                 while (send_hdlc_mail(msg, HDLC_MSG_SND, network_helper_mailbox, (void*) &hdlc_pkt) < 0)
                 {
                     Thread::wait(HDLC_RTRY_TIMEO_USEC * 1000);
                 }
             }
+            continue; //get next mail
         }
 
         if (evt.status != osEventMail) 
@@ -128,14 +144,17 @@ void network_helper()
                 network_helper_mailbox.free(msg);
 
                 //insert ipv6 addr string along with terminating null char
-                uart_pkt_cpy_data(hdlc_pkt.data, sizeof(hdlc_pkt.data), ipv6_addr_str, strlen(ipv6_addr_str) + 1);
+                memcpy(hdlc_pkt.data, FOLLOWING_ROBOT_IPV6_ADDR, strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 1);
 
                 //insert destination UDP port number (uin16_t)
-                
-                
+                hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 1] = FORWARD_TO_MBED_MAIN_PORT >> 8;
+                hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 2] = FORWARD_TO_MBED_MAIN_PORT & 0xFF;
+                 
                 //insert payload of ONE byte representing the message type
+                hdlc_pkt.data[strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 3] = RANGE_ME;
                 
-
+                hdlc_pkt.length = UART_PKT_HDR_LEN + strlen(FOLLOWING_ROBOT_IPV6_ADDR) + 4;
+                
                 //send packet
                 while (send_hdlc_mail(msg, HDLC_MSG_SND, network_helper_mailbox, (void*) &hdlc_pkt) < 0)
                 {
@@ -152,13 +171,16 @@ void network_helper()
                 timeout = 1000;
                 network_helper_mailbox.free(msg);
                 //insert ipv6 addr string along with terminating null char
-                memcpy(hdlc_pkt.data, ipv6_addr, strlen(ipv6_addr) + 1);
-                uart_pkt_cpy_data(hdlc_pkt.data, sizeof(hdlc_pkt.data), ipv6_addr_str, strlen(ipv6_addr_str) + 1)
+                memcpy(hdlc_pkt.data, LEADING_ROBOT_IPV6_ADDR, strlen(LEADING_ROBOT_IPV6_ADDR) + 1);
 
                 //insert destination UDP port number (uin16_t)
-
+                hdlc_pkt.data[strlen(LEADING_ROBOT_IPV6_ADDR) + 1] = FORWARD_TO_MBED_MAIN_PORT >> 8;
+                hdlc_pkt.data[strlen(LEADING_ROBOT_IPV6_ADDR) + 2] = FORWARD_TO_MBED_MAIN_PORT & 0xFF;
+                 
                 //insert payload of ONE byte representing the message type
-                
+                hdlc_pkt.data[strlen(LEADING_ROBOT_IPV6_ADDR) + 3] = STOP_BEACONS;
+
+                hdlc_pkt.length = UART_PKT_HDR_LEN + strlen(LEADING_ROBOT_IPV6_ADDR) + 4;
 
                 //send packet
                 while (send_hdlc_mail(msg, HDLC_MSG_SND, network_helper_mailbox, (void*) &hdlc_pkt) < 0)
