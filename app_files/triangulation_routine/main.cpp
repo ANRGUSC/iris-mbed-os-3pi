@@ -370,36 +370,14 @@ int main(void)
         }
     }
 
-
-    PRINTF("A\n");
-    m3pi.move_straight_distance_blocking(50, 2 * 2238);
-    PRINTF("A2\n");
-    m3pi.rotate_degrees_blocking(90, 1, 50);
-    PRINTF("A3\n");
+    myled = 1;
     range_params_t a = {-1, OMNI_SENSOR_MODE};
-    trigger_range_routine_blocking(&a, msg);
-    PRINTF("B\n");
-    // wait(1);
-    
-    m3pi.move_straight_distance_blocking(50, 2 * 2238);
-    PRINTF("B2\n");
-    m3pi.rotate_degrees_blocking(180, 1, 50);
-    trigger_range_routine_blocking(&a, msg);
-    PRINTF("C\n");
-    // wait(1);
-    
-    m3pi.move_straight_distance_blocking(50, 2 * 4476);
-    trigger_range_routine_blocking(&a, msg);
-    PRINTF("D\n");
-    // wait(1);
 
-    myled = 1;
-    
-    myled = 1;
     while(1)
-    {
-        myled =! myled;
-        Thread::wait(9000);
+    {       
+        trigger_range_routine_blocking(&a, msg);
+        m3pi.move_straight_distance_blocking(50, 2 * 2238);
+        m3pi.rotate_degrees_blocking(90, 1, 50);
     }
 
     PRINTF("Reached Exit");
