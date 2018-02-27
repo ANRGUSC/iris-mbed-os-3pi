@@ -8,8 +8,6 @@
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
 
-#define MQTT_OFF    1
-
 static volatile bool ranging = 0;
 
 static node_t nodes_discovered[MAX_NUM_ANCHORS];
@@ -17,7 +15,7 @@ static uint8_t num_nodes_discovered;
 static uint8_t num_nodes_to_pub;
 static char EMCUTE_ID[9];
 static uint8_t last_node_locked = 0;
-static int mqtt_is_on;
+static int mqtt_is_on = 1; /* on by default */
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
 Thread range_thr;
@@ -485,7 +483,21 @@ void _range_thread(){
                         }
                     } 
                     else {
-                        /* TODO: send ranging done message to main thread */
+                        /* TODO: THIS IS APPLICATION SPECIFIC -- need adaptation 
+                        for other modes */ 
+                        if (range_data.tdoa != 0) {
+                            dist_angle_t dist_angle = get_dist_angle(&range_data, TWO_SENSOR_MODE);
+                            /* send the results back to the requesing thread */
+                            Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox = msg->source_mailbox;
+                            msg = src_mailbox->alloc();
+                            msg->type = RANGING_DONE;
+                            msg->content.ptr = &dist_angle;
+                            msg->sender_pid = osThreadGetId();
+                            msg->source_mailbox = &range_thr_mailbox;
+                            src_mailbox->put(msg);
+                        }
+
+                        mqtt_is_on = 1;
                     }
 
                 }
@@ -514,14 +526,31 @@ void init_range_thread(){
     range_thr.start(_range_thread);
 }
 
-void trigger_range_routine(range_params_t *params, msg_t *msg, int mqtt_on){
-    mqtt_is_on = mqtt_on;
+void trigger_range_routine(range_params_t *params, msg_t *msg) {
     if(!ranging){
         msg = range_thr_mailbox.alloc();
         msg->type = START_RANGE_THR;
         msg->content.ptr = params;
         msg->sender_pid = osThreadGetId();
         msg->source_mailbox = &range_thr_mailbox;
+        range_thr_mailbox.put(msg);
+    }
+}
+
+
+/* NOTE: NOTE THREAD SAFE. If another thread requests ranging before the thread
+before it processes the range results, the range results will be overwritten
+by the new ranging result. See range thread code where the results are sent
+back to the requesting thread via Mail */
+void trigger_range_routine(range_params_t *params, msg_t *msg, 
+                           Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox){
+    mqtt_is_on = 0;
+    if(!ranging){
+        msg = range_thr_mailbox.alloc();
+        msg->type = START_RANGE_THR;
+        msg->content.ptr = params;
+        msg->sender_pid = osThreadGetId();
+        msg->source_mailbox = src_mailbox;
         range_thr_mailbox.put(msg);
     }
 }

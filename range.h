@@ -28,6 +28,7 @@
 #define MAX_NUM_ANCHORS   10     
 #define DATA_STRING_SIZE  9
 
+// Range
 #define MISSED_PIN_UNMASK   13
 #define RF_MISSED           20
 #define ULTRSND_MISSED      21
@@ -39,6 +40,9 @@
 
 #define LOAD_DISC_NODE_LENG 3
 #define ID_LENGTH           9
+
+/* TODO: where do we put this? */
+#define RANGING_DONE    0xA1
 
 /**
  * @brief Structure holding metrics measured by ultrasound ranging
@@ -216,5 +220,8 @@ node_t* get_nodes_discovered();
  * @return     The number of nodes discovered.
  */
 uint8_t get_num_nodes_discovered();
+
+void trigger_range_routine(range_params_t *params, msg_t *msg, 
+                           Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox);
 
 #endif
