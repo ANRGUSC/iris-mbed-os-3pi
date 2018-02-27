@@ -45,24 +45,18 @@
  * @author      Yutong Gu <yutonggu@usc.edu>
  */
 
-#include "mbed.h"
-#include "rtos.h"
-#include "hdlc.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include "mbed.h"
+#include "rtos.h"
+#include "hdlc.h"
 #include "fcs16.h"
 #include "uart_pkt.h"
 #include "main-conf.h"
-#include "mqtt.h"
 #include "range.h"
 #include "controller.h"
-#include "m3pi.h"
-
-//all message and state types are defined in here
-#include "chain_follower.h"
-
 
 #define DEBUG   1
 #if (DEBUG) 
@@ -72,28 +66,28 @@
 #endif /* (DEBUG) & DEBUG_PRINT */
 
 // the only instance of pc -- debug statements in other files depend on it
-Serial                          pc(USBTX,USBRX,115200);
-DigitalOut                      myled3(LED3); //to notify when a character was received on mbed
-DigitalOut                      myled(LED1);
+Serial pc(USBTX,USBRX,115200);
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
-#define NULL_PKT_TYPE       0xFF 
-#define PKT_FROM_MAIN_THR   0
 #define MBED_MAIN_PORT      6000
-#define RANGE_BEACONER_PORT 5003
 
-enum {
+typedef enum {
+    STOP_BEACONS_STATE,
+    RANGING_STATE,
+    SEND_STOP_BEACONS_STATE,
+    SEND_RANGE_ME_STATE,
     RANGE_ME_STATE,
-    SEND_STOP_STATE,
-    SEND_RANGE_ME_STATE
-
+    SEND_STOP_BEACONS_ACK_STATE
 } chain_follower_state_t;
+
+//all helper functions and message types in this header
+#include "chain_follower.h"
 
 int main(void)
 {
-    static Mail<msg_t, HDLC_MAILBOX_SIZE> *hdlc_mailbox_ptr = 
-        hdlc_init(osPriorityRealtime);
+    PRINTF("Starting hdlc thread\n");
+    hdlc_init(osPriorityRealtime);
    
     PRINTF("Starting range thread\n");
     init_range_thread();
@@ -104,26 +98,36 @@ int main(void)
     PRINTF("Starting network helper thread\n");
     network_helper_init(osPriorityNormal);
 
-    //set initial state depending on robot position
-#ifdef LEADER_ROBOT
-    chain_follower_state_t state = SEND_RANGE_ME_STATE; 
-#else
-    chain_follower_state_t state = STOP_BEACONS_STATE;
-#endif
-
     hdlc_entry_t main = { NULL, MBED_MAIN_PORT, &main_thr_mailbox };
     hdlc_register(&main);
 
-    myled = 1;
     msg_t *msg;
+    char data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t hdlc_pkt;
+    hdlc_pkt.data = data;
     range_params_t params;
     range_data_t range_data;
     dist_angle_t range_res;
     hdlc_buf_t *buf;
     uart_pkt_hdr_t uart_hdr;
     int ranging_is_done = 1; //initial state
+    bool ranging_is_successful = false;
+    uint8_t net_msg = INVALID_NET_MSG;
 
-    float dist_estimate = 10, angle_estimate = 10;
+    //set initial state depending on robot position
+#ifdef LEADER_ROBOT
+    chain_follower_state_t state = SEND_RANGE_ME_STATE; 
+    start_sending_range_me_msgs();
+    int8_t my_node_id = 1;
+    tdoa_beacons_on(my_node_id, &main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt);
+    bool sending_hdlc = true;
+#else
+    chain_follower_state_t state = STOP_BEACONS_STATE;
+    bool sending_hdlc = false;
+#endif
+
+    float min_distance = 10; //minimum distance in mm between robots
+    float dist_estimate = min_distance, angle_estimate = min_distance;
 
     while(1)
     {
@@ -139,150 +143,198 @@ int main(void)
             switch (msg->type)
             {
                 case HDLC_RESP_SND_SUCC:
-                    /* done, exit loop! */
-                    sending_hdlc = 0;
+                    sending_hdlc = false;
                     main_thr_mailbox.free(msg);
                     break;
                 case HDLC_RESP_RETRY_W_TIMEO:
                     Thread::wait(msg->content.value/1000);
                     main_thr_mailbox.free(msg);
 
-                    while (send_hdlc_mail(msg, HDLC_MSG_SND, main_thr_mailbox, (void*) &hdlc_pkt) < 0)
+                    while (send_hdlc_mail(msg, HDLC_MSG_SND, &main_thr_mailbox, (void*) &hdlc_pkt) < 0)
                     {
                         Thread::wait(HDLC_RTRY_TIMEO_USEC * 1000);
                     }
                     break;
                 case HDLC_PKT_RDY:
                     buf = (hdlc_buf_t *)msg->content.ptr;   
-                    uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
-                    data_ptr = buf->data;
+                    uart_pkt_parse_hdr(&uart_hdr, buf->data, buf->length);
                     if (uart_hdr.pkt_type == NET_SLAVE_RECEIVE) {
-                        //scroll pointer beyond ipaddr
-                        while(data_ptr++ != '\0') {}
-                        net_msg = *data_ptr;
+                        //actual data of the network packet is a single byte 
+                        //representing the message type
+                        net_msg = buf->data[buf->length];
                     }
                     main_thr_mailbox.free(msg);
                     hdlc_pkt_release(buf);
                     break;
                 case RANGING_DONE:
+                    ranging_is_done = 1;
                     memcpy(&range_data, (range_data_t *)msg->content.ptr, 
                            sizeof(range_data_t));
                     //if tdoa is NOT zero and status is 11 or 12, then you can
                     //find out which pin received by taking 
                     //range_data.status - 10 (which gives you 1 or 2)
                     if (range_data.status > 2)
-                        ranging_is_successful = 0;
+                        ranging_is_successful = true;
+                    else
+                        ranging_is_successful = false;
 
-                    ranging_is_done = 1;
                     main_thr_mailbox.free(msg);
                     break;
                 default:
                     main_thr_mailbox.free(msg); //error!
                     break;
             } // switch
-        } while (sending_hdlc) //true if there's an outgoing HDLC packet
+        } while (sending_hdlc); //true if there's an outgoing HDLC packet
 
         // state machine logic (it's important to only send one HDLC pkt per 
         // iteration because of this program's design)
         switch(state) {
             case STOP_BEACONS_STATE:
+                //passively waiting for a command
+                PRINTF("in STOP_BEACONS_STATE\n");
+
+                //ack any STOP_BEACONS messages
                 if (net_msg == STOP_BEACONS) {
-                    send_ack();
-                    sending_hdlc = 1;
+                    net_send_udp(FOLLOWING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
+                    STOP_BEACONS_ACK, &main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt); 
+                    sending_hdlc = true;
                 }
-                //when RANGE_ME_MSG received, ack it and change state
+
+                //when RANGE_ME received, ack it and change state
                 if (net_msg == RANGE_ME) {
-                    send_range_me_ack();
-                    sending_hdlc = 1;
+                    net_send_udp(LEADING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
+                    RANGE_ME_ACK, &main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt); 
+                    sending_hdlc = true;
+
+#ifdef LEADER_ROBOT
+                    //leader doesn't range so send STOP_BEACONS and change to
+                    //SEND_STOP_BEACONS_STATE immediately
+                    start_sending_stop_beacons_msgs();
+                    state = SEND_STOP_BEACONS_STATE;
+                    break;
+#endif
+
                     state = RANGING_STATE;
-#ifndef LEADER_ROBOT
-                    range_is_done = 0; //set flag
-                    PRINTF("main_thr: requesting range thread to trigger range routine\n");
+                    ranging_is_done = 0; //set flag
+                    PRINTF("main_thr: trigger_range_routine()\n");
+
 #ifdef SECOND_ROBOT
                     int8_t target_node_id = 1;
-#else //END_ROBOT
+#else //END_ROBOT defined
                     int8_t target_node_id = 2;
 #endif
+
                     params.node_id = target_node_id; //TODO
                     params.ranging_mode = TWO_SENSOR_MODE;
-                    trigger_range_routine(); 
-#endif
+                    trigger_range_routine(&params, msg, &main_thr_mailbox); 
                 }
                 break;
             case RANGING_STATE:
-                //ack any RANGE_ME_MSG
+                //currently ranging (leader robot never enters this state)
+                PRINTF("in RANGING_STATE (leader robot never enters this)\n");
+
+                //ack any RANGE_ME messages
                 if (net_msg == RANGE_ME) {
-                    send_range_me_ack();
-                    sending_hdlc = 1;
+                    net_send_udp(LEADING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
+                    RANGE_ME_ACK, &main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt);
+                    sending_hdlc = true;
                 }
-                // trigger range routine
+
                 if(ranging_is_done){
                     if (ranging_is_successful) {
+                        range_res = get_dist_angle(&range_data, TWO_SENSOR_MODE);
+                        PRINTF("distance: %f, angle: %f\n", range_res.distance, 
+                               range_res.angle);
                         //ranging done so send movement request to thread and change state
-                        int a  = start_movement(NORMAL_MOV, range_res.distance,
-                                                range_res.angle);
-                        state = SEND_STOP_STATE;
-                        send_stop_beacons();
+                        // int a  = start_movement(NORMAL_MOV, range_res.distance,
+                        //                         range_res.angle);
+                        start_sending_stop_beacons_msgs();
+                        state = SEND_STOP_BEACONS_STATE;
                     } else {
-#ifndef LEADER_ROBOT
-                        range_is_done = 0; //set flag
-                        PRINTF("main_thr: requesting range thread to trigger range routine\n");
+
+                        ranging_is_done = 0; //set flag
+                        PRINTF("main_thr: trigger_range_routine() again\n");
+
 #ifdef SECOND_ROBOT
                         int8_t target_node_id = 1;
-#else //END_ROBOT
+#else //END_ROBOT defined
                         int8_t target_node_id = 2;
 #endif
-                        range_is_done = 0; //reset flag
-                        PRINTF("main_thr: requesting ranging again\n");
+
                         params.node_id = target_node_id; 
                         params.ranging_mode = TWO_SENSOR_MODE;
-                        trigger_range_routine(); 
-#endif 
+                        trigger_range_routine(&params, msg, &main_thr_mailbox); 
                     }
                 }
                 break;
-            case SEND_STOP_STATE:
-                start_sending_stop_beacons();
-                //when stop ack is received, change state
+            case SEND_STOP_BEACONS_STATE:
+                // sending STOP_BEACONS messages every second
+                PRINTF("in SEND_STOP_BEACONS_STATE\n");
+
+                //when stop ack is received, start tdoa beacons and change state
                 if (net_msg == STOP_BEACONS_ACK) {
-                    stop_sending_stop_beacons();
-                    turn_on_beacons();
-                    sending_hdlc = 1;
+                    stop_sending_stop_beacons_msgs();
+
+#ifndef END_ROBOT
+#ifdef LEADER_ROBOT
+                    int8_t my_node_id = 1;
+#else //SECOND_ROBOT defined
+                    int8_t my_node_id = 2;
+#endif
+                    tdoa_beacons_on(my_node_id, &main_thr_mailbox, 
+                                    MBED_MAIN_PORT, &hdlc_pkt);
+                    sending_hdlc = true;
+#endif
+
+                    start_sending_range_me_msgs();
                     state = SEND_RANGE_ME_STATE;
                 }
                 break;
-            case SEND_RANGE_ME_STATE: //beacons are on and RANGE_ME messages are being sent
-                start_sending_range_me();
-                //if a RANGE_ME_ACK is received, go to RANGE_ME_STATE
+            case SEND_RANGE_ME_STATE: 
+                //sending RANGE_ME messages every second and tdoa beacons on
+                PRINTF("in SEND_RANGE_ME_STATE\n");
+                
+                //if a RANGE_ME_ACK is received, stop sending RANGE_ME messages
+                //and go to RANGE_ME_STATE
                 if (net_msg == RANGE_ME_ACK) {
-                    stop_sending_range_me();
+                    stop_sending_range_me_msgs();
                     state = RANGE_ME_STATE;
                 }
-                //if a stop beacon msg received, stop beacons and go straight to stop_beacon state
+
+                //if a stop beacon msg received, turn tdoa beacons off and go straight to
+                //SEND_STOP_BEACONS_ACK_STATE (skipping RANGE_ME_STATE)
                 if (net_msg == STOP_BEACONS) {
-                    //TODO: send two hdlc messages?!
-                    stop_sending_range_me();
-                    stop_beaconing();
-                    state = SEND_STOP_BEACONS_ACK;
+                    stop_sending_range_me_msgs();
+                    tdoa_beacons_off(&main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt);
+                    sending_hdlc = true;
+                    state = SEND_STOP_BEACONS_ACK_STATE;
                 }
                 break;
-            case SEND_STOP_BEACONS_ACK: //send STOP_BEACONS_ACK once
-                send_stop_beacons_ack();
+            case RANGE_ME_STATE: 
+                //tdoa beacons on
+                PRINTF("in RANGE_ME_STATE\n");
+                
+                //if STOP_BEACONS received, turn tdoa beacons off and change state
+                if (net_msg == STOP_BEACONS) {
+                    tdoa_beacons_off(&main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt); 
+                    sending_hdlc = true;
+                    state = SEND_STOP_BEACONS_ACK_STATE;
+                }
+                break;
+            case SEND_STOP_BEACONS_ACK_STATE: 
+                //send STOP_BEACONS_ACK once and change state immediately
+                PRINTF("in SEND_STOP_BEACONS_ACK_STATE\n");
+                net_send_udp(LEADING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
+                STOP_BEACONS_ACK, &main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt);
                 state = STOP_BEACONS_STATE;
-                break;
-            case RANGE_ME_STATE: //beacons are on and RANGE_ME messages are NOT being sent
-                //if STOP_BEACONS received, stop beacons, change state to send stop beacons ack
-                if (net_msg == STOP_BEACONS) {
-                    stop_beaconing(); 
-                    state = SEND_STOP_BEACONS_ACK;
-                }
                 break;
             default:
                 //should not be reached
+                break;
         } // switch
 
         //reset net message
-        net_msg = 0; 
+        net_msg = INVALID_NET_MSG; 
     } // while
 
     // should be never reached
