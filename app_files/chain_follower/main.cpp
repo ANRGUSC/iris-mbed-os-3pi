@@ -162,7 +162,9 @@ int main(void)
                     if (uart_hdr.pkt_type == NET_SLAVE_RECEIVE) {
                         //actual data of the network packet is a single byte 
                         //representing the message type
-                        net_msg = buf->data[buf->length];
+                        net_msg = buf->data[buf->length-1];
+
+                        PRINTF("net_msg received %d is %d\n", buf->data[0],net_msg);
                     }
                     main_thr_mailbox.free(msg);
                     hdlc_pkt_release(buf);
