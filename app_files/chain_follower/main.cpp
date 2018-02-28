@@ -93,7 +93,7 @@ typedef enum {
 
 int main(void)
 {
-
+    srand(6875);
     reset_xbee = 0;
     Thread::wait(100);
     reset_xbee = 1;
@@ -141,6 +141,8 @@ int main(void)
     bool sending_hdlc = false;
 #endif
 
+    float dist_to_travel;
+    float angle_to_rotate;
     float min_distance = 10; //minimum distance in mm between robots
     float dist_estimate = min_distance, angle_estimate = min_distance;
     char speed = ROBOT_MAX_SPEED;
@@ -324,9 +326,9 @@ HERE:
                         }
 
                         PRINTF("moving %f ticks\n", dist_to_travel);
-                        m3pi.rotate_degrees_blocking((char) fabs(angle_to_rotate), signbit(angle_to_rotate)? -1 : 1, 30);
+                        m3pi.rotate_degrees_blocking((char) fabs(angle_to_rotate), signbit(angle_to_rotate)? -1 : 1, 50);
                         Thread::wait(200);
-                        m3pi.move_straight_distance_blocking(30, (uint16_t) dist_to_travel);
+                        m3pi.move_straight_distance_blocking(50, (uint16_t) dist_to_travel);
                         Thread::wait(200);
 #endif 
 
@@ -356,6 +358,13 @@ HERE:
                 //when stop ack is received, start tdoa beacons and change state
                 if (net_msg == STOP_BEACONS_ACK) {
                     stop_sending_stop_beacons_msgs();
+#ifdef LEADER_ROBOT
+                angle_to_rotate = (-45) + (rand() % 90);
+                m3pi.rotate_degrees_blocking((char) fabs(angle_to_rotate), signbit(angle_to_rotate)? -1 : 1, 50);
+                Thread::wait(200);
+                m3pi.move_straight_distance_blocking(50, (uint16_t) 2000);
+                Thread::wait(200);
+#endif
 
 #ifndef END_ROBOT
 #ifdef LEADER_ROBOT
@@ -390,6 +399,7 @@ HERE:
                     tdoa_beacons_off(&main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt);
                     sending_hdlc = true;
                     state = SEND_STOP_BEACONS_ACK_STATE;
+
                 }
                 break;
             case RANGE_ME_STATE: 
@@ -409,6 +419,8 @@ HERE:
                 net_send_udp(LEADING_ROBOT_IPV6_ADDR, FORWARD_TO_MBED_MAIN_PORT,
                 STOP_BEACONS_ACK, &main_thr_mailbox, MBED_MAIN_PORT, &hdlc_pkt);
                 state = STOP_BEACONS_STATE;
+
+
                 break;
             default:
                 //should not be reached
