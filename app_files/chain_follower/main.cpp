@@ -49,6 +49,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include <math.h>
 #include "mbed.h"
 #include "rtos.h"
 #include "hdlc.h"
@@ -57,6 +58,7 @@
 #include "main-conf.h"
 #include "range.h"
 #include "controller.h"
+#include "m3pi.h"
 
 #define DEBUG   1
 #if (DEBUG) 
@@ -66,7 +68,7 @@
 #endif /* (DEBUG) & DEBUG_PRINT */
 DigitalOut reset_xbee(p26);
 
-// reset_xbee = 1;
+m3pi m3pi(p23, p9, p10);
 
 // the only instance of pc -- debug statements in other files depend on it
 Serial pc(USBTX,USBRX,115200);
@@ -74,6 +76,8 @@ Serial pc(USBTX,USBRX,115200);
 Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 #define MBED_MAIN_PORT      6000
+
+// #define MOVEMENT_ENABLED //define this to enable m3pi movements
 
 typedef enum {
     STOP_BEACONS_STATE,
@@ -139,6 +143,8 @@ int main(void)
 
     float min_distance = 10; //minimum distance in mm between robots
     float dist_estimate = min_distance, angle_estimate = min_distance;
+    char speed = ROBOT_MAX_SPEED;
+    float dist_thr = 10;
     uint32_t timeout = 1000;
 
     while(1)
@@ -280,9 +286,35 @@ HERE:
                         range_res = get_dist_angle(&range_data, TWO_SENSOR_MODE);
                         PRINTF("distance: %f, angle: %f\n", range_res.distance, 
                                range_res.angle);
-                        //ranging done so send movement request to thread and change state
-                        // int a  = start_movement(NORMAL_MOV, range_res.distance,
-                        //                         range_res.angle);
+#ifdef MOVEMENT_ENABLED
+                        
+                        float a_kalman =  0.3820; 
+                        float b_kalman =  0.6180;
+                        // float c_LQG =  0.6180;
+
+                        float dist_to_travel =  dist_thr - range_res.distance;
+
+                        if (dist_to_travel < 0) {
+                            dist_to_travel = 0;
+                        }
+
+                        float angle_to_rotate = range_res.angle;
+
+                        // TODO? Controller decides how much to travel and how much to rotate
+               
+                        PRINTF("Distance = %d, Angle = %d\n", dist_to_travel, angle_to_rotate);
+
+                        if (angle_to_rotate > 180) {
+                            angle_to_rotate = 180;
+                        }
+                        if (angle_to_rotate < -180) {
+                            angle_to_rotate = -180;
+                        }
+
+                        m3pi.rotate_degrees_blocking(abs(angle_to_rotate), signbit(angle_to_rotate), 30);
+                        m3pi.move_straight_distance_blocking(30, dist_to_travel);
+#endif 
+
                         start_sending_stop_beacons_msgs();
                         state = SEND_STOP_BEACONS_STATE;
                     } else {
