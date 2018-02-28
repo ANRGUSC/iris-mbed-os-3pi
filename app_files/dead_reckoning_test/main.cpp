@@ -31,8 +31,8 @@ int main() {
          * it by 0.223402mm, which should be how much the robot travels after one
          * encoder tick. 
          */
-        // m3pi.move_straight_distance_blocking(50, 4476);
-        wait(0.5);
+        m3pi.move_straight_distance(50, 4476);
+        wait(5);
         pc.printf("A\n");
         /**First input is the angle in degrees. second input is direction (1 for 
          * positive and -1 for negative using the right hand rule). Third input is 
@@ -40,8 +40,8 @@ int main() {
          * functions multiply this by 2.
          **/
        // 
-        m3pi.rotate_degrees_blocking(90, -1, 30);
-        wait(0.5);
+        m3pi.rotate_degrees(90, -1, 30);
+        wait(5);
         // m3pi.move_straight_distance_blocking(50, 2000);
         // wait(0.5);
         // m3pi.rotate_degrees_blocking(90, 1, 50);

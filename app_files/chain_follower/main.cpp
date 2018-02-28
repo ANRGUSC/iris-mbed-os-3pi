@@ -298,7 +298,8 @@ HERE:
                             dist_to_travel = 0;
                         }
 
-                        float angle_to_rotate = range_res.angle;
+                        //TODO: BUG IN CODE. need to negate here. fix this.
+                        float angle_to_rotate = -range_res.angle;
 
                         // TODO? Controller decides how much to travel and how much to rotate
                
@@ -317,15 +318,16 @@ HERE:
                          */
 
 
-                        if (angle_to_rotate > 180) {
-                            angle_to_rotate = 180;
-                        }
-                        if (angle_to_rotate < -180) {
-                            angle_to_rotate = -180;
+                        //-361.00 is reported when it's a bad data piece
+                        if (angle_to_rotate > 180 || angle_to_rotate < -180) {
+                            angle_to_rotate = 0;
                         }
 
+                        PRINTF("moving %f ticks\n", dist_to_travel);
                         m3pi.rotate_degrees_blocking((char) fabs(angle_to_rotate), signbit(angle_to_rotate)? -1 : 1, 30);
-                        m3pi.move_straight_distance_blocking(30, (char) dist_to_travel);
+                        Thread::wait(200);
+                        m3pi.move_straight_distance_blocking(30, (uint16_t) dist_to_travel);
+                        Thread::wait(200);
 #endif 
 
                         start_sending_stop_beacons_msgs();
