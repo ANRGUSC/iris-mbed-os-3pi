@@ -1,7 +1,7 @@
 #ifndef CHAIN_FOLLOWER_H_
 #define CHAIN_FOLLOWER_H_
 
-#define LAST
+#define MIDDLE
 
 //uncomment for the first robot (leading robot is actually last robot)
 #ifdef FIRST

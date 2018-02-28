@@ -77,7 +77,7 @@ Mail<msg_t, HDLC_MAILBOX_SIZE>  main_thr_mailbox;
 
 #define MBED_MAIN_PORT      6000
 
-// #define MOVEMENT_ENABLED //define this to enable m3pi movements
+#define MOVEMENT_ENABLED //define this to enable m3pi movements
 
 typedef enum {
     STOP_BEACONS_STATE,
@@ -144,7 +144,7 @@ int main(void)
     float min_distance = 10; //minimum distance in mm between robots
     float dist_estimate = min_distance, angle_estimate = min_distance;
     char speed = ROBOT_MAX_SPEED;
-    float dist_thr = 10;
+    float dist_thr = 1;
     uint32_t timeout = 1000;
 
     while(1)
@@ -292,7 +292,7 @@ HERE:
                         float b_kalman =  0.6180;
                         // float c_LQG =  0.6180;
 
-                        float dist_to_travel =  dist_thr - range_res.distance;
+                        float dist_to_travel =  range_res.distance - dist_thr;
 
                         if (dist_to_travel < 0) {
                             dist_to_travel = 0;
@@ -302,7 +302,20 @@ HERE:
 
                         // TODO? Controller decides how much to travel and how much to rotate
                
-                        PRINTF("Distance = %d, Angle = %d\n", dist_to_travel, angle_to_rotate);
+                        PRINTF("Distance = %f, Angle = %f\n", dist_to_travel, angle_to_rotate);
+
+                        //convert to mm
+                        dist_to_travel = dist_to_travel * 0.3048 * 1000.0;
+
+                        dist_to_travel = dist_to_travel / 0.111701; 
+
+                        /**
+                         * 8952.5 ticks is equal to 1 meter. 
+                         * To get 8952.5, you take 1000mm, which equals 1 meter, and divide
+                         * it by 0.111701mm, which should be how much the robot travels after one
+                         * encoder tick. 
+                         */
+
 
                         if (angle_to_rotate > 180) {
                             angle_to_rotate = 180;
@@ -311,8 +324,8 @@ HERE:
                             angle_to_rotate = -180;
                         }
 
-                        m3pi.rotate_degrees_blocking(abs(angle_to_rotate), signbit(angle_to_rotate), 30);
-                        m3pi.move_straight_distance_blocking(30, dist_to_travel);
+                        m3pi.rotate_degrees_blocking((char) fabs(angle_to_rotate), signbit(angle_to_rotate)? -1 : 1, 30);
+                        m3pi.move_straight_distance_blocking(30, (char) dist_to_travel);
 #endif 
 
                         start_sending_stop_beacons_msgs();
