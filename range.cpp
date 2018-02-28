@@ -487,13 +487,12 @@ void _range_thread(){
                         /* TODO: THIS IS APPLICATION SPECIFIC -- need adaptation 
                         for other modes */ 
                         if (range_data.tdoa != 0) {
-                            dist_angle_t dist_angle = get_dist_angle(&range_data, TWO_SENSOR_MODE);
                             /* send the results back to the requesing thread */
                             Mail<msg_t, HDLC_MAILBOX_SIZE> *src_mailbox = 
                                 (Mail<msg_t, HDLC_MAILBOX_SIZE> *)msg->source_mailbox;
                             msg = src_mailbox->alloc();
                             msg->type = RANGING_DONE;
-                            msg->content.ptr = &dist_angle;
+                            msg->content.ptr = &range_data;
                             msg->sender_pid = osThreadGetId();
                             msg->source_mailbox = &range_thr_mailbox;
                             src_mailbox->put(msg);

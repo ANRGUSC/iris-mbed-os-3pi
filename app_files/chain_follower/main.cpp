@@ -205,6 +205,7 @@ HERE:
                     //if tdoa is NOT zero and status is 11 or 12, then you can
                     //find out which pin received by taking 
                     //range_data.status - 10 (which gives you 1 or 2)
+                    PRINTF("range_data.status = %d\n", range_data.status);
                     if (range_data.status > 2)
                         ranging_is_successful = false;
                     else
@@ -218,6 +219,7 @@ HERE:
             } // switch
         } while (sending_hdlc); //true if there's an outgoing HDLC packet
 
+        PRINTF("going into state machine\n");
         // state machine logic (it's important to only send one HDLC pkt per 
         // iteration because of this program's design)
         switch(state) {
@@ -273,6 +275,7 @@ HERE:
                 }
 
                 if(ranging_is_done){
+                    PRINTF("isdone: %d, success: %d\n", ranging_is_done, ranging_is_successful);
                     if (ranging_is_successful) {
                         range_res = get_dist_angle(&range_data, TWO_SENSOR_MODE);
                         PRINTF("distance: %f, angle: %f\n", range_res.distance, 

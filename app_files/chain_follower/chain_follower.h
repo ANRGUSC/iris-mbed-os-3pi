@@ -1,18 +1,26 @@
 #ifndef CHAIN_FOLLOWER_H_
 #define CHAIN_FOLLOWER_H_
 
+#define LAST
+
 //uncomment for the first robot (leading robot is actually last robot)
-// #define LEADER_ROBOT
-// const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed2a";
-// const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed4e";
+#ifdef FIRST
+#define LEADER_ROBOT
+const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed2a";
+const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed4e";
+#endif
 // //uncomment for the second robot
-// #define SECOND_ROBOT
-// const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:613:66d";
-// const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed2a";
+#ifdef MIDDLE
+#define SECOND_ROBOT
+const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:613:66d";
+const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed2a";
+#endif
 // //uncomment for the third robot
+#ifdef LAST
 #define END_ROBOT
 const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed4e";
 const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:613:66d";
+#endif
 
 #define FORWARD_TO_MBED_MAIN_PORT   8000
 
