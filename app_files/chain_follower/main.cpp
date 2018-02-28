@@ -64,6 +64,9 @@
 #else
 #define PRINTF(...)
 #endif /* (DEBUG) & DEBUG_PRINT */
+DigitalOut reset_xbee(p26);
+
+// reset_xbee = 1;
 
 // the only instance of pc -- debug statements in other files depend on it
 Serial pc(USBTX,USBRX,115200);
@@ -86,6 +89,13 @@ typedef enum {
 
 int main(void)
 {
+
+    reset_xbee = 0;
+    Thread::wait(100);
+    reset_xbee = 1;
+
+    Thread::wait(500);
+
     PRINTF("Starting hdlc thread\n");
     hdlc_init(osPriorityRealtime);
    
@@ -129,16 +139,34 @@ int main(void)
 
     float min_distance = 10; //minimum distance in mm between robots
     float dist_estimate = min_distance, angle_estimate = min_distance;
+    uint32_t timeout = 1000;
 
     while(1)
     {
         // continue looping until any outgoing hdlc packets are successful
+HERE:
         do
         {
-            osEvent evt = main_thr_mailbox.get();
+            osEvent evt = main_thr_mailbox.get(timeout);
+            if(evt.status == osEventTimeout) {
+            //send range or stop beacons 
+                if (state == RANGING_STATE) {
+                    PRINTF("main_thr: trigger_range_routine() again\n");
 
-            if (evt.status != osEventMail) 
-                continue; 
+#ifdef SECOND_ROBOT
+                    int8_t target_node_id = 1;
+#else //END_ROBOT defined
+                    int8_t target_node_id = 2;
+#endif
+
+                    params.node_id = target_node_id; 
+                    params.ranging_mode = TWO_SENSOR_MODE;
+                    trigger_range_routine(&params, msg, &main_thr_mailbox);
+                }
+                goto HERE;
+            }
+            // if (evt.status != osEventMail) 
+            //     continue; 
 
             msg = (msg_t*)evt.value.p;
             switch (msg->type)
