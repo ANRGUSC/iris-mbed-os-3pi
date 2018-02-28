@@ -86,11 +86,11 @@ void net_send_udp(const char *ipv6_addr_str, uint16_t port, uint8_t net_msg_type
     memcpy(hdlc_pkt->data + UART_PKT_HDR_LEN, ipv6_addr_str, strlen(ipv6_addr_str) + 1);
 
     //insert destination UDP port number (uin16_t)
-    hdlc_pkt->data[strlen(ipv6_addr_str) + 1] = port & 0xFF; //lower byte
-    hdlc_pkt->data[strlen(ipv6_addr_str) + 2] = port >> 8; //upper byte
+    hdlc_pkt->data[UART_PKT_HDR_LEN + strlen(ipv6_addr_str) + 1] = port & 0xFF; //lower byte
+    hdlc_pkt->data[UART_PKT_HDR_LEN + strlen(ipv6_addr_str) + 2] = port >> 8; //upper byte
      
     //insert payload of ONE byte representing the message net_msg_type
-    hdlc_pkt->data[strlen(ipv6_addr_str) + 3] = net_msg_type;
+    hdlc_pkt->data[UART_PKT_HDR_LEN + strlen(ipv6_addr_str) + 3] = net_msg_type;
 
     //hdlc packet length is sum of all parts
     hdlc_pkt->length = UART_PKT_HDR_LEN + strlen(ipv6_addr_str) + 4;
