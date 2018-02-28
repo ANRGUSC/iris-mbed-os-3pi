@@ -2,14 +2,14 @@
 #define CHAIN_FOLLOWER_H_
 
 //uncomment for the first robot (leading robot is actually last robot)
-#define LEADER_ROBOT
-const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:fffe";
-const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed4e";
+// #define LEADER_ROBOT
+// const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:fffe";
+// const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:433:ed4e";
 
 // //uncomment for the second robot
-// #define SECOND_ROBOT
-// const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:613:66d";
-// const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:fffe";
+#define SECOND_ROBOT
+const char LEADING_ROBOT_IPV6_ADDR[] = "fe80::212:4b00:613:66d";
+const char FOLLOWING_ROBOT_IPV6_ADDR[] = "fe80::ff:fe00:fffe";
 
 // //uncomment for the third robot
 // #define END_ROBOT

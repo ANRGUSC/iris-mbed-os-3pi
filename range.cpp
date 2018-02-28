@@ -15,7 +15,7 @@ static uint8_t num_nodes_discovered;
 static uint8_t num_nodes_to_pub;
 static char EMCUTE_ID[9];
 static uint8_t last_node_locked = 0;
-static uint8_t range_riot_port = RIOT_MQTT_PORT;
+static uint16_t range_riot_port = RIOT_MQTT_PORT;
 static int mqtt_is_on = 1; /* on by default */
 
 Mail<msg_t, HDLC_MAILBOX_SIZE>  range_thr_mailbox;
@@ -586,6 +586,6 @@ uint8_t get_num_nodes_discovered(){
     return num_nodes_discovered;
 }
 
-void set_range_riot_port(uint8_t port){
+void set_range_riot_port(uint16_t port){
     range_riot_port = port;
 }
