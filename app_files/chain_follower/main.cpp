@@ -206,9 +206,9 @@ HERE:
                     //find out which pin received by taking 
                     //range_data.status - 10 (which gives you 1 or 2)
                     if (range_data.status > 2)
-                        ranging_is_successful = true;
-                    else
                         ranging_is_successful = false;
+                    else
+                        ranging_is_successful = true;
 
                     main_thr_mailbox.free(msg);
                     break;
