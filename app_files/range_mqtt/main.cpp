@@ -284,7 +284,7 @@ int main(void)
     while(1)
     {
         myled =! myled;
-        Thread::wait(9000);
+        Thread::wait(100);
     }
 
     PRINTF("Reached Exit");
