@@ -49,7 +49,7 @@ def serial_ports(unique_id):
 
 logging.basicConfig(level=logging.INFO)
 
-os.system("mbed compile -c");
+os.system("mbed compile");
 
 # os.remove("main.cpp") 
 shutil.copy(ignore_file, app_path)
