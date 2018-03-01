@@ -326,6 +326,7 @@ void _mqtt_thread()
 
 int main(void)
 {
+    return 0;
     hdlc_mailbox_ptr = hdlc_init(osPriorityRealtime);
 
     msg_t           *msg = NULL;
@@ -376,8 +377,34 @@ int main(void)
     while(1)
     {       
         trigger_range_routine_blocking(&a, msg);
-        m3pi.move_straight_distance_blocking(50, 2 * 2238);
-        m3pi.rotate_degrees_blocking(90, 1, 50);
+        m3pi.move_straight_distance_blocking(30, 4476);
+        wait(0.2);
+        /**First input is the angle in degrees. second input is direction (1 for 
+         * positive and -1 for negative using the right hand rule). Third input is 
+         * speed. Note, this speed is the actual speed on the 3pi side. The normal
+         * functions multiply this by 2.
+         **/
+        trigger_range_routine_blocking(&a, msg);
+        m3pi.rotate_degrees_blocking(90, 1, 30);
+        wait(0.2);
+        m3pi.move_straight_distance_blocking(30, 4476);
+        wait(0.2);
+        trigger_range_routine_blocking(&a, msg);
+        m3pi.rotate_degrees_blocking(90, -1, 30);
+        wait(0.2);
+        m3pi.move_straight_distance_blocking(30, 4476);
+        trigger_range_routine_blocking(&a, msg);        
+        wait(0.2);
+        m3pi.rotate_degrees_blocking(90, 1, 30);
+        wait(0.2);
+        m3pi.move_straight_distance_blocking(30, 4476);
+        wait(0.2);
+        trigger_range_routine_blocking(&a, msg);
+        m3pi.rotate_degrees_blocking(90, 1, 30);
+        wait(0.2);
+        m3pi.move_straight_distance_blocking(30, 2*4476);
+        trigger_range_routine_blocking(&a, msg);
+        wait(5);
     }
 
     PRINTF("Reached Exit");
