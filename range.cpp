@@ -578,26 +578,6 @@ int trigger_range_routine_blocking(range_params_t *params, msg_t *msg){
     return 1;
 }
 
-int trigger_range_routine_blocking(range_params_t *params, msg_t *msg){
-    if(!ranging && thread_initialized){
-        msg = range_thr_mailbox.alloc();
-        msg->type = START_RANGE_THR;
-        msg->content.ptr = params;
-        msg->sender_pid = osThreadGetId();
-        msg->source_mailbox = &range_thr_mailbox;
-        range_thr_mailbox.put(msg);
-        ranging = 1;
-    }
-    else{
-        return 0;
-    }
-    PRINTF("******RANGE BLOCKING********\n");
-    // Thread::signal_wait(0x1);
-    while(ranging){Thread::wait(100);};
-    PRINTF("***********DONE*************\n");
-    return 1;
-}
-
 bool is_ranging(){
     if(ranging){
         return 1;
