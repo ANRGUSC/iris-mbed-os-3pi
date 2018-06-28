@@ -1,5 +1,11 @@
 # ANRG m3pi-mbed-os
 
+# Known Issues
+
+Recent updates to the gcc-arm-none-eabi compiler seems to break all of our code. The last version we know that works with the code is release 5.4.1 20160919.
+
+# Preparing Your Workspace
+
 Requirements (TODO: try python3 and update this readme):
 
 Install pip using python2 and script that can be found online:
@@ -59,7 +65,10 @@ mbed target LPC1768
 By default there is no main.cpp and thus the `mbed compile` command will NOT work.
 To run a app, use the provided script `load_app.py`.
 You can directly compile and load a particular app by using `load_app.py` e.g.,
-``` python load_app.py app_files/hdlc_test/ ```
+``` python load_app.py app_files/hdlc_test/ ```. Please note that the 
+`load_app.py` will not work if there is no existing binary inside the
+LPC1768's USB mass storage memory. After an `mbed compile -c`, there will
+be a `BUILD/LPC1768/GCC_ARM` directory which will hold the binary.
 
 Alternatively, to run a particular app manually:
 - Go to the app folder under e.g., `app_files/hdlc_test/`
@@ -73,4 +82,5 @@ Alternatively, to run a particular app manually:
 # Debugging:
 
 https://docs.google.com/document/d/1zdjeOYkmbfHqdnZFqP798h9WB3x69WeN0IaHEcKrWus/edit#
+
 
