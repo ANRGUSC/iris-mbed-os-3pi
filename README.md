@@ -13,7 +13,7 @@ Install pip using python2 and script that can be found online:
 
 Install mbed-cli:
 
-`pip2 install mbed-cli`
+`pip2 install mbed-cli==1.0.0`
 
 
 Clone:
