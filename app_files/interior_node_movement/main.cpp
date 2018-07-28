@@ -8,6 +8,7 @@
  * Contributors:
  * Pradipta Ghosh
  * Daniel Dsouza
+ * Kegan Strawn
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,9 +38,10 @@
 
 /**
  * @file        main.cpp
- * @brief       Full-duplex hdlc test using a single thread (run on both sides).
+ * @brief       Interior node movement within trilateration with false data
  *
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Kegan Strawn <strawn.kegan@gmail.com>
  * @author      Daniel Dsouza <dmdsouza@usc.edu>
  * 
  */

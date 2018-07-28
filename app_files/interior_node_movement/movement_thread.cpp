@@ -1,3 +1,12 @@
+/**
+ * @file        movement_thread.cpp
+ * @brief       Interior node movement within trilateration with false data
+ *
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Kegan Strawn <strawn.kegan@gmail.com>
+ * 
+ */
+
 #include "mbed.h"
 #include "rtos.h"
 #include "hdlc.h"
