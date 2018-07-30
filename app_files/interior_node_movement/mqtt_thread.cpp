@@ -93,6 +93,8 @@ void _mqtt_thread()
     char *mqtt_data_ptr;
     msg_t *msg_for_main;
 
+    mqtt_pkt_t      *mqtt_recv;
+
     /**
      * Check if the MQTT connection is established by the openmote. If not,
      * DO NOT Proceed further before the follwing steps are complete. 
@@ -114,6 +116,7 @@ void _mqtt_thread()
                 case HDLC_PKT_RDY:
                     buf = (hdlc_buf_t *) msg->content.ptr;   
                     uart_pkt_parse_hdr(&recv_hdr, buf->data, buf->length);
+
                     if (recv_hdr.pkt_type == MQTT_GO){
                         mqtt_state = MQTT_RECV_MQTT_GO;
                         PRINTF("mqtt_thread: the node is conected to the broker \n");
@@ -178,7 +181,6 @@ void _mqtt_thread()
                     }
                     mqtt_thread_mailbox.free(msg);
                     break;
-
                 default:
                     mqtt_thread_mailbox.free(msg);
                     break;
@@ -274,15 +276,6 @@ void _mqtt_thread()
                                             PRINTF("mqtt_thread: sending pkt no %d \n", mqtt_thread_frame_no); 
                                         else
                                             PRINTF("mqtt_thread: failed to send pkt no\n"); 
-                                        break;
-
-                                    case RMT_CTRL:
-                                        PRINTF("mqtt_thread: the command received is %s\n", mqtt_recv_data.data);
-                                        mqtt_data_ptr = (char *)mqtt_recv_data.data;
-                                        msg_for_main->type = INTER_THREAD;
-                                        msg_for_main->content.ptr = mqtt_data_ptr;
-                                        msg_for_main->sender_pid = osThreadGetId();
-                                        main_thr_mailbox.put(msg_for_main);                                       
                                         break;
                                     case INM_DATA:
                                         PRINTF("mqtt_thread: the command received is %s\n", mqtt_recv_data.data);
