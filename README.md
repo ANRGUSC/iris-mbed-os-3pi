@@ -1,5 +1,8 @@
 # ANRG m3pi-mbed-os
 
+Newcomers, please start at the [ANRGUSC/iris-testbed](https://github.com/ANRGUSC/iris-testbed)
+repository!
+
 # Known Issues
 
 Recent updates to the gcc-arm-none-eabi compiler seems to break all of our code. The last version we know that works with the code is release 5.4.1 20160919.
