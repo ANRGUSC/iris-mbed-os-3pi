@@ -520,6 +520,8 @@ void DriveStraight(PID_t *pid)
 void DriveStraightDistance(PID_t *left_pid, PID_t *right_pid)
 {
     //get speed from mbed
+    //speed typically set as 40 for a smooth move
+    //a value too low as 10 may get stuck by friction
     char speed = read_next_byte();
     //get distance from mbed in ***number of ticks***
     uint16_t distance_low_byte = read_next_byte();
