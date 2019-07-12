@@ -519,9 +519,9 @@ void DriveStraight(PID_t *pid)
 
 void DriveStraightDistance(PID_t *left_pid, PID_t *right_pid)
 {
-    //recommended starting speed is 40 for irisbots
+    //get speed from mbed
     char speed = read_next_byte();
-    //get distance in ***number of ticks***
+    //get distance from mbed in ***number of ticks***
     uint16_t distance_low_byte = read_next_byte();
     uint16_t distance_high_byte = read_next_byte();
 
