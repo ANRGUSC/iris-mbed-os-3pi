@@ -108,13 +108,14 @@ typedef enum {
     RSSI_SEND			  = 5,
     SENSOR_DATA           = 6,
     MOVE_CMD              = 7, 
-    RMT_CTRL              = 8      	
+    RMT_CTRL              = 8,
+    RSSI_DATA             = 9     	
 } type_mqtt_data_t;
 
 typedef enum {
     SERVER_ACK            = 0,
     SERVER_REQUEST        = 1,
-    SERVER_SEND_RSSI      = 2,    
+    SERVER_SEND_RSSI      = 2,   
 } type_server_msg_type;
 
 /**
